@@ -1,0 +1,21 @@
+# Architecture plans: copyrighted + personal data — local only, never commit
+architecture-plans/
+.plans-cache/
+*.pdf
+
+# Dependencies & build output
+node_modules/
+dist/
+coverage/
+
+# Tests
+test-results/
+playwright-report/
+blob-report/
+
+# Environment & OS
+.env
+.env.*
+.DS_Store
+Thumbs.db
+*.log
