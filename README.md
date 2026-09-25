@@ -61,13 +61,18 @@ npm run lint         # ESLint (strict, type-checked) + Prettier
 npm run typecheck    # tsc --noEmit (strict)
 npm test             # Vitest: room areas, dimensions, openings, reachability, geometry, privacy
 npx playwright install chromium   # once
-npm run e2e          # Playwright: builds, serves, walks the house (desktop + phone emulation)
+npm run e2e          # quick pass: desktop only, small viewport, no screenshots
+npm run e2e:walk     # one spec only (also e2e:style, e2e:perf, e2e:mobile)
+npm run e2e:full     # final pass: + HD desktop, Pixel 7, iPhone 13, all screenshots
 ```
 
 The e2e run renders WebGL with SwiftShader (software) in headless Chromium, so it is
-slow but needs no GPU. Screenshots and perf numbers land in `test-results/` (the I1
-walk/perf tests run in the default sketch look; `tests/e2e/style.spec.ts` also covers
-`?style=real` and saves side-by-side shots of both looks in `test-results/style-shots/`).
+slow but needs no GPU. Walking in tests is simulated in fixed physics steps with one
+rendered frame at the end, so it doesn't wait for real time. Tests run one at a time
+(the dev PC is slow). Testing policy: unit tests + the affected spec while iterating,
+`npm run e2e` before finishing, `npm run e2e:full` once per iteration. Screenshots and
+perf numbers land in `test-results/` (`e2e:full` saves side-by-side shots of both looks
+in `test-results/style-shots/`).
 
 ### Debug / test hooks
 

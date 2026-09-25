@@ -32,8 +32,20 @@ export default defineConfig({
   },
   projects: [
     {
+      // Quick functional pass (`npm run e2e`): small viewport, no screenshots.
       name: 'desktop',
       testMatch: /(walk|perf|style)\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 640, height: 360 },
+        deviceScaleFactor: 1,
+      },
+    },
+    // The projects below only run in the final pass (`npm run e2e:full`).
+    {
+      // Review screenshots of both styles at a real desktop size.
+      name: 'desktop-hd',
+      testMatch: /style\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } },
     },
     {

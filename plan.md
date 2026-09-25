@@ -503,6 +503,25 @@ house-sim/
 - **Phone testing during dev**: `npm run dev -- --host` with HTTPS (basic-ssl) on the
   same Wi-Fi → open the LAN URL on the phone.
 
+### 11.1 Testing policy (keep test time low — the dev PC is slow)
+
+The e2e suite renders WebGL in software (SwiftShader), so each rendered frame is slow;
+test time must be spent deliberately:
+
+- **While iterating**: `npm test` (unit tests, ~5 s) and, if needed, only the affected
+  e2e spec (`npm run e2e:walk` / `e2e:style` / `e2e:perf` / `e2e:mobile`).
+- **Before finishing an iteration**: `npm run e2e` once — quick pass: desktop only,
+  640×360, no screenshots.
+- **Once per iteration (final pass)**: `npm run e2e:full` — adds the 1280×720 desktop,
+  Pixel 7 and iPhone 13 projects and all review screenshots.
+- Walking in tests is simulated in fixed physics steps with a single rendered frame at
+  the end (no real-time waiting). New tests must follow this pattern and batch several
+  moves per page round-trip.
+- Tests run serially (1 worker) — no parallel runs, the machine can't take it.
+- Don't re-run the full e2e suite repeatedly: at most 2–3 full runs per iteration; fix
+  failures with the single affected spec. Flaky/environmental (SwiftShader) failures are
+  noted, not chased.
+
 ---
 
 ## 12. Roadmap (iterations, steps & status)

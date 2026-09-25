@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { hideStartOverlay, openSim, sim } from './helpers';
+import { hideStartOverlay, openSim, shot, sim } from './helpers';
 
 // SwiftShader renders on the CPU: a small viewport keeps the scripted walks fast.
 const SMALL = { width: 640, height: 360 };
 
 test.describe('first walk (desktop)', () => {
-  test('loads without errors, within the draw-call and triangle budget', async ({ page }) => {
+  test('loads without errors, within the draw-call and triangle budget', async ({ page }, info) => {
     const s = await openSim(page, 'debug');
     const start = await sim.player(page);
     expect(start.room).toBe('outside');
@@ -16,7 +16,7 @@ test.describe('first walk (desktop)', () => {
     expect(st.drawCalls).toBeGreaterThan(5);
     expect(st.drawCalls).toBeLessThanOrEqual(60);
     expect(st.triangles).toBeLessThan(400_000);
-    await page.screenshot({ path: 'test-results/e2e-shots/start-desktop.png' });
+    await shot(page, info, 'test-results/e2e-shots/start-desktop.png');
     expect(s.errors).toEqual([]);
   });
 
@@ -46,7 +46,7 @@ test.describe('first walk (desktop)', () => {
 
   test('walks from the parking through the entrance and visits every room on foot', async ({
     page,
-  }) => {
+  }, info) => {
     test.setTimeout(420_000);
     await page.setViewportSize(SMALL);
     const s = await openSim(page, 'debug');
@@ -75,7 +75,7 @@ test.describe('first walk (desktop)', () => {
         ])
       ).room,
     ).toBe('entrance-hall');
-    await page.screenshot({ path: 'test-results/e2e-shots/walk-hall.png' });
+    await shot(page, info, 'test-results/e2e-shots/walk-hall.png');
     // Bedroom 1 through Ui-03.
     expect(
       (
@@ -147,7 +147,7 @@ test.describe('first walk (desktop)', () => {
         ])
       ).room,
     ).toBe('terrace');
-    await page.screenshot({ path: 'test-results/e2e-shots/walk-terrace.png' });
+    await shot(page, info, 'test-results/e2e-shots/walk-terrace.png');
     // Around the deck and back in through the open lift-and-slide door F-07.
     expect(
       (

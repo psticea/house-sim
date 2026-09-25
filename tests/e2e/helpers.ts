@@ -1,5 +1,5 @@
 /** Shared e2e helpers: load the page, collect console errors, typed access to the hooks. */
-import { expect, type Page } from '@playwright/test';
+import { expect, type Page, type TestInfo } from '@playwright/test';
 import type { HouseSimHooks, PlayerInfo, Stats } from '../../src/app';
 
 export interface Session {
@@ -65,4 +65,11 @@ export const sim = {
 
 export async function hideStartOverlay(page: Page): Promise<void> {
   await page.evaluate(() => document.querySelector('.start')?.classList.add('off'));
+}
+
+/** Screenshots are only taken in the full pass (`npm run e2e:full`), not the quick one. */
+export const takesShots = (info: TestInfo): boolean => info.project.name !== 'desktop';
+
+export async function shot(page: Page, info: TestInfo, path: string): Promise<void> {
+  if (takesShots(info)) await page.screenshot({ path });
 }

@@ -47,15 +47,14 @@ async function startPose(page: Page): Promise<Pose> {
 }
 
 test.describe('styles', () => {
-  test('desktop: sketch by default — clean load, budget, walk, leak-free toggles, screenshots', async ({
+  test('desktop: sketch by default — clean load, budget, walk, leak-free toggles', async ({
     page,
   }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop project only');
-    test.setTimeout(420_000);
+    test.setTimeout(300_000);
     const s = await openSim(page);
     await hideStartOverlay(page);
     expect(await getStyle(page)).toBe('sketch');
-    const start = await startPose(page);
     await page.evaluate(() => window.__houseSim!.nextFrame());
     const atStart = await sim.stats(page);
     expect(atStart.drawCalls).toBeGreaterThan(20); // fills + edge lines
@@ -95,11 +94,7 @@ test.describe('styles', () => {
     const sketch0 = first!.sketch;
     const real0 = first!.real;
 
-    await setStyle(page, 'sketch');
-    await shootAll(page, 'sketch', 'desktop', start);
-    await setStyle(page, 'real');
-    await shootAll(page, 'real', 'desktop', start);
-
+    fs.mkdirSync('test-results', { recursive: true });
     fs.writeFileSync(
       'test-results/style-stats.json',
       JSON.stringify({ sketchStart: atStart, sketchLiving: living, sketch0, real0 }, null, 2),
@@ -114,7 +109,6 @@ test.describe('styles', () => {
   }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop project only');
     test.setTimeout(180_000);
-    await page.setViewportSize({ width: 640, height: 360 });
     const real = await openSim(page, 'style=real&pose=10.4,0,3.6,-90,8');
     expect(await getStyle(page)).toBe('real');
     await expect(page.locator('#app .paper-grain')).toHaveCount(0);
@@ -133,20 +127,20 @@ test.describe('styles', () => {
     expect(sketch.warnings).toEqual([]);
   });
 
-  test('phone: sketch by default, real via the hook; screenshots, no warnings', async ({
-    page,
-  }, info) => {
-    test.skip(info.project.name !== 'iphone-13', 'phone (390 x 844) project only');
-    test.setTimeout(300_000);
+  // Full pass only (`npm run e2e:full`): review screenshots of both looks.
+  test('screenshots: both styles (desktop HD + phone), no warnings', async ({ page }, info) => {
+    const device = { 'desktop-hd': 'desktop', 'iphone-13': 'phone' }[info.project.name];
+    test.skip(!device, 'screenshot projects only (desktop-hd, iphone-13)');
+    test.setTimeout(420_000);
     const s = await openSim(page);
     await hideStartOverlay(page);
     expect(await getStyle(page)).toBe('sketch');
     const start = await startPose(page);
     const st = await sim.stats(page);
     expect(st.drawCalls).toBeLessThanOrEqual(60);
-    await shootAll(page, 'sketch', 'phone', start);
+    await shootAll(page, 'sketch', device!, start);
     await setStyle(page, 'real');
-    await shootAll(page, 'real', 'phone', start);
+    await shootAll(page, 'real', device!, start);
     expect(s.errors).toEqual([]);
     expect(s.warnings).toEqual([]);
   });
