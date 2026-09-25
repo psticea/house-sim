@@ -4,17 +4,23 @@ import type { HouseSimHooks, PlayerInfo, Stats } from '../../src/app';
 
 export interface Session {
   errors: string[];
+  /** Console warnings (e.g. three.js deprecations), minus Chromium's GL driver chatter. */
+  warnings: string[];
 }
+
+const DRIVER_NOISE = /GL Driver Message|GPU stall due to ReadPixels|\[\.WebGL-/;
 
 export async function openSim(page: Page, query = ''): Promise<Session> {
   const errors: string[] = [];
+  const warnings: string[] = [];
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(m.text());
+    if (m.type() === 'warning' && !DRIVER_NOISE.test(m.text())) warnings.push(m.text());
   });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   await page.goto(query ? `./?${query}` : './');
   await page.waitForFunction(() => window.__houseSim?.isReady === true, null, { timeout: 120_000 });
-  return { errors };
+  return { errors, warnings };
 }
 
 type Hooks = HouseSimHooks;

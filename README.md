@@ -19,6 +19,30 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 | Right thumb: drag to look                             | Mouse — look (click to lock the pointer) |
 |                                                       | Shift — run · Esc — release the mouse    |
 
+## Styles
+
+- **Default** (no parameter, or `?style=sketch`): the hand-drawn architectural look —
+  mostly SketchUp, a light touch of cartoon shading: pastel toon fills with subtle bands,
+  thin dark-grey edge lines (screen-space fat lines on desktop, 1 px lines on phones), one
+  soft pale shadow, pale sky + fog, a generated grid on the ground and a faint paper
+  grain.
+- **`?style=real`**: the realistic look (flat palette materials, ACES tone mapping,
+  2048 shadow map) — the base that the material (I4) and baked-lighting (I6) work
+  continues to improve.
+- The sketch look only changes materials, lights and renderer settings on top of the
+  realistic scene (`src/world/style.ts`); switching to real restores everything and frees
+  the style's GPU resources.
+- Toggle at runtime: **K** on desktop, or `window.__houseSim.setStyle('sketch' | 'real')`
+  (`getStyle()` reports the current look).
+- Tune the look in one place, `STYLE` in `src/world/style/config.ts`: `bands` /
+  `bandBrightness` (shading steps), `lineColor`, `lineWidth`, `fatLines`
+  (`always` | `desktop` | `never`), `edgeThresholdDeg`, `jitter` (line-end overshoot),
+  `shadowOpacity`, `paperOverlay`, `pastel` / `pastelGround` (saturation, lightness),
+  `groundPattern` (`grid` | `hatch` | `none`), plus sketch light, sky and fog colours.
+  More SketchUp: thinner lines, flatter bands (`[0.85, 0.93, 1.0]`), `jitter: 0`,
+  lower `shadowOpacity`. More cartoon: thicker lines, stronger bands
+  (`[0.6, 0.8, 1.0]`), more jitter, higher `pastel.saturation` and `shadowOpacity`.
+
 ## Develop
 
 Requires Node ≥ 22.12 (tested with Node 24).
@@ -41,7 +65,9 @@ npm run e2e          # Playwright: builds, serves, walks the house (desktop + ph
 ```
 
 The e2e run renders WebGL with SwiftShader (software) in headless Chromium, so it is
-slow but needs no GPU. Screenshots and perf numbers land in `test-results/`.
+slow but needs no GPU. Screenshots and perf numbers land in `test-results/` (the I1
+walk/perf tests run in the default sketch look; `tests/e2e/style.spec.ts` also covers
+`?style=real` and saves side-by-side shots of both looks in `test-results/style-shots/`).
 
 ### Debug / test hooks
 
@@ -50,7 +76,8 @@ slow but needs no GPU. Screenshots and perf numbers land in `test-results/`.
 - `?pose=x,y,z,yawDeg,pitchDeg` — start at a pose (metres, y = feet; yaw 0 looks plan-north).
 - `?view=x,y,z,yawDeg,pitchDeg` — free camera (physics paused), e.g. aerial views.
 - `window.__houseSim` — `ready`, `teleport()`, `getPlayer()`, `getStats()`, `walk(dx, dz, s)`,
-  `walkTo(x, z)`, `view()`, `look()`, `nextFrame()` (used by the e2e tests).
+  `walkTo(x, z)`, `view()`, `look()`, `nextFrame()`, `setStyle('real' | 'sketch')`,
+  `getStyle()` (used by the e2e tests).
 
 ### Test on a phone (same Wi-Fi)
 
@@ -67,7 +94,8 @@ With HTTPS, accept the certificate warning once. Remote-debug Android Chrome via
 ```
 src/data/     typed house model: schema, grid & levels, ground floor, upper massing, roof, site
 src/world/    builders: walls (layers + holes), openings, curtain wall, slabs, roof, stairs,
-              exterior, lighting, sky, merge-by-material mesh builder, plan section
+              exterior, lighting, sky, merge-by-material mesh builder, plan section,
+              sketch style (default look; style.ts + style/)
 src/player/   capsule controller (three-mesh-bvh shapecast), touch + desktop input
 src/core/     renderer, frame loop, debug overlay, URL params
 src/ui/       loading screen, start card, room toast, styles

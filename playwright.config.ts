@@ -33,7 +33,7 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      testMatch: /(walk|perf)\.spec\.ts/,
+      testMatch: /(walk|perf|style)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } },
     },
     {
@@ -43,7 +43,7 @@ export default defineConfig({
     },
     {
       name: 'iphone-13',
-      testMatch: /mobile\.spec\.ts/,
+      testMatch: /(mobile|style)\.spec\.ts/,
       // Device metrics/touch of an iPhone 13, rendered by Chromium (WebKit has no
       // software WebGL 2 in CI).
       use: { ...devices['iPhone 13'], browserName: 'chromium', defaultBrowserType: 'chromium' },

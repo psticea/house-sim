@@ -45,6 +45,16 @@ canvas.view {
   outline: none;
 }
 
+/* Sketch style: faint paper grain above the 3D view, below the HUD (#ui). */
+.paper-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-repeat: repeat;
+  background-size: 128px 128px;
+  mix-blend-mode: multiply;
+}
+
 #ui {
   position: fixed;
   inset: 0;

@@ -14,7 +14,7 @@ Legend: ✅ done · 🔄 in progress · ⬜ not started · ⏸ blocked
 | **I0** | Planning: repo, plans read, `goal.md`, `plan.md`, `.gitignore` | ✅ |
 | **I1** | **First walk** — public URL: start outside, walk into every ground-floor room (first deliverable) | ✅ (real-phone check pending) |
 | I2 | Whole building — upper floor, basement, stairs, roof & facade details | ⬜ ← next |
-| S1 | Sketch style — optional hand-drawn look (`?style=sketch`); realistic stays default | ⬜ |
+| S1 | Sketch style — hand-drawn look, **the default** when visiting the site; realistic look optional via `?style=real` (I4/I6 continue for it) | ✅ |
 | I3 | Garden & fence — lot, terrain, paving, parking, lawn, trees, Scandinavian fence | ⬜ |
 | I4 | Materials — Scandinavian PBR textures, glass, frames, quality tiers | ⬜ |
 | I5 | Basic furniture — every room furnished (procedural + CC0) | ⬜ |
@@ -560,11 +560,13 @@ performance — before investing in looks.
 walking through walls · all data tests green · overlay matches sheet 05 · ≥ 50 fps on
 the reference phone · no personal data in the repo or the app.
 
-### S1 — Sketch style (optional mode) ⬜
+### S1 — Sketch style (default look) ✅
 
-**Deliverable:** an optional hand-drawn architectural look — mostly SketchUp, a light
-touch of cartoon shading — switched on with `?style=sketch`. The realistic look stays the
-default and I4/I6 continue as planned for it. Only materials, lighting and rendering
+**Deliverable:** a hand-drawn architectural look — mostly SketchUp, a light touch of
+cartoon shading. **Owner decision (2026-09-25): sketch is the default** when visiting the
+site (no parameter or `?style=sketch`); the realistic look is optional via
+`?style=real` (or key K / `__houseSim.setStyle('real')`), and I4/I6 continue as planned
+for the realistic mode (the sketch look is restyled on top of it). Only materials, lighting and rendering
 change; data, geometry builders, player and logic are untouched. No external files:
 any texture is generated on a `<canvas>`. Can be done before or after I2 (it restyles
 whatever the scene contains, so it keeps working as the building grows).
@@ -595,12 +597,12 @@ whatever the scene contains, so it keeps working as the building grows).
 
 | # | Step | Status |
 |---|---|---|
-| S.1 | `style.ts` with `STYLE` + `applyStyle`, `?style=sketch\|real` switch | ⬜ |
-| S.2 | Toon materials + pastel colors + canvas ground pattern | ⬜ |
-| S.3 | Edge lines (fat on desktop, basic on phones), jitter, no stray lines | ⬜ |
-| S.4 | Lighting, soft shadow, sky/fog, paper overlay | ⬜ |
-| S.5 | Tests: idempotent `applyStyle`, no leaks on switch; e2e screenshots per style; draw calls ≤ 60 | ⬜ |
-| S.6 | Report which `STYLE` values push toward more SketchUp vs more cartoon; deploy | ⬜ |
+| S.1 | `style.ts` with `STYLE` + `applyStyle`, `?style=sketch\|real` switch | ✅ sketch by default (`parseStyle`: no/unknown value → sketch, `?style=real` → realistic); `src/world/style.ts` (`applyStyle` / `removeStyle` / `setStyle` / `getStyle`, idempotent, per-scene state) + `src/world/style/` (`config.ts` = `STYLE`, `edges.ts`, `textures.ts`); `window.__houseSim.setStyle()/getStyle()`, key **K** |
+| S.2 | Toon materials + pastel colors + canvas ground pattern | ✅ one shared `MeshToonMaterial` per material id, 3-texel `NearestFilter` gradient `[0.75, 0.9, 1.0]`, sRGB-HSL pastels (hue kept; ground surfaces paler), polygon offset (1, 1); generated `DataTexture` grid (1 m + 0.5 m, mipmapped, anisotropy ≤ 4) on lawn/field/asphalt/pavers |
+| S.3 | Edge lines (fat on desktop, basic on phones), jitter, no stray lines | ✅ own feature-edge extractor (EdgesGeometry semantics at 30°, but T-junction-safe: collinear overlapping edges are split and only drawn where a face ends without a smooth continuation — EdgesGeometry drew stray lines there), cached per geometry; `LineSegments2` 1.3 px on desktop, `LineSegments` on phones; deterministic line-end overshoot ≤ 0.3 % of the segment and ≤ 1.2 cm; no lines on glass, lawn, field, asphalt |
+| S.4 | Lighting, soft shadow, sky/fog, paper overlay | ✅ existing hemi + sun re-balanced; 1024 shadow map, PCF radius 3 (r186 removed `PCFSoftShadowMap`), darkness via native `shadow.intensity` derived from `shadowOpacity` (no shader patch needed); Neutral tone mapping; pale sky gradient + matching fog; DPR ≤ 1.5; 5 % multiply paper-grain overlay under the HUD |
+| S.5 | Tests: idempotent `applyStyle`, no leaks on switch; e2e screenshots per style; draw calls ≤ 60 | ✅ 13 unit tests (`tests/style.test.ts`, incl. the `?style=` default) + `tests/e2e/style.spec.ts` (default load = sketch, `?style=real` = realistic, `?style=sketch` still works; desktop + 390×844 phone; no console errors/warnings; counts stable over 3 toggles; real after toggling is pixel-identical to a fresh load); the I1 walk/mobile/perf specs run in the default sketch look |
+| S.6 | Report which `STYLE` values push toward more SketchUp vs more cartoon; deploy | ✅ tuning guide in README "Styles"; deployed with the next push |
 
 ### I2 — Whole building ⬜
 
@@ -630,6 +632,8 @@ whatever the scene contains, so it keeps working as the building grows).
 
 ### I4 — Materials & textures ⬜
 
+For the realistic mode (`?style=real`); the default sketch look (S1) keeps its own flat toon materials.
+
 | # | Step | Status |
 |---|---|---|
 | 4.1 | Asset pipeline `tools/optimize-assets.mjs` (glTF-Transform, KTX2, resize per tier) + `assets-src/LICENSES.md` | ⬜ |
@@ -652,6 +656,8 @@ whatever the scene contains, so it keeps working as the building grows).
 | 5.5 | Lazy-load furniture after the house; deploy `v0.5` + perf check | ⬜ |
 
 ### I6 — Baked lighting ⬜
+
+For the realistic mode (`?style=real`); the default sketch look (S1) keeps its soft single shadow.
 
 | # | Step | Status |
 |---|---|---|
@@ -690,6 +696,8 @@ material/color variations, measure tool, gyroscope/VR mode.
 |---|---|---|
 | 2026-09-24 | I0 | Planning complete: plans read, `goal.md` + `plan.md` written, PDFs kept local only |
 | 2026-09-25 | I1 | First walk implemented. Checks green: lint, typecheck, 39 unit tests (4 files: data incl. 8 room areas ±3 %, reachability, geometry, privacy), build (637 kB JS / 168 kB gzip), 8/8 e2e (1 teleport-settle flake fixed in the test hook). Room areas expected→actual m²: bedroom-1 13.76→13.76, boiler 5.10→5.10, hall 12.32→12.31, bathroom 6.50→6.50, bedroom-2 14.62→14.63, stairs 7.05→7.05, living+kitchen 47.95→47.95, terrace 37.58→37.42. Perf proxy (SwiftShader): 17–22 draw calls, 4.0–4.3 k triangles, scene 3.7 k tris / 992 collider tris, ~32 MB textures; fps not meaningful in software GL — real-phone ≥ 50 fps check pending (1.17). |
+| 2026-09-25 | S1 | Optional sketch style (`?style=sketch`, key K, `__houseSim.setStyle`). Checks green: lint, typecheck, 51 unit tests (12 new), build, e2e incl. the new style spec. Perf proxy (SwiftShader, desktop 1280×720): real 22 / 17 draw calls at start / living room (4.3 k / 4.0 k tris); sketch 39 / 29 draw calls (fills unchanged + one line draw per lined mesh); `renderer.info` triangles 27.0 k / 25.0 k because fat lines are instanced quads (~6 tris per segment, ~3.8 k segments in view); phones use 1 px GL lines. Shadow map 1024 in sketch (8 MB) vs 2048 in real (32 MB). |
+| 2026-09-25 | S1 | Owner change: **sketch is now the default look**; `?style=real` switches to the realistic look (`?style=sketch` still works). I1 e2e specs run against the default (sketch); the style spec checks default = sketch, `?style=real` = real and leak-free toggles; perf spec also records the realistic look at the living-room pose. |
 
 ---
 

@@ -8,13 +8,20 @@ import { OUTSIDE, levelById, placeAt, roomAt } from './data/topology';
 import { DebugOverlay, estimateTextureMB, FrameStats } from './core/debug';
 import { Loop } from './core/loop';
 import { readParams } from './core/params';
-import { createRenderer, handleContextLoss, handleResize, isTouchDevice } from './core/renderer';
+import {
+  createRenderer,
+  handleContextLoss,
+  handleResize,
+  isTouchDevice,
+  setPixelRatioCap,
+} from './core/renderer';
 import { DesktopInput } from './player/input-desktop';
 import { TouchInput } from './player/input-touch';
 import { PLAYER, PlayerController, yawToward } from './player/controller';
 import { buildWorld } from './world/build';
 import { createLighting } from './world/lighting';
 import { createSky } from './world/sky';
+import { getStyle, setStyle, type StyleName } from './world/style';
 import { LoadingScreen } from './ui/loading';
 import { RoomToast } from './ui/toast';
 import { StartOverlay } from './ui/hud';
@@ -70,6 +77,10 @@ export interface HouseSimHooks {
   view(pose: [number, number, number, number, number] | null): Promise<void>;
   look(yawDeg: number, pitchDeg: number): Promise<PlayerInfo>;
   nextFrame(): Promise<void>;
+  /** Switches the look ('sketch' | 'real') and waits for a rendered frame. */
+  setStyle(name: StyleName): Promise<void>;
+  /** Current look: 'sketch' unless `?style=real` or switched with `setStyle`/K. */
+  getStyle(): StyleName;
 }
 
 declare global {
@@ -106,7 +117,7 @@ export async function startApp(): Promise<void> {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(65, 1, 0.05, 1000);
-  handleResize(renderer, camera);
+  const applyResize = handleResize(renderer, camera);
 
   await nextPaint();
   loading.progress(0.3, 'Building the house from the plans…');
@@ -115,9 +126,20 @@ export async function startApp(): Promise<void> {
   scene.add(world.group);
   createSky(scene);
   const touch = isTouchDevice();
-  createLighting(scene, house.site, 2048);
+  const lighting = createLighting(scene, house.site, 2048);
   scene.updateMatrixWorld(true);
   world.group.traverse((o) => o.updateMatrix());
+  const switchStyle = (name: StyleName): void =>
+    setStyle(scene, name, {
+      renderer,
+      lighting,
+      onPixelRatioCap: (cap) => {
+        setPixelRatioCap(cap);
+        applyResize();
+      },
+    });
+  // Sketch is the default look; `?style=real` keeps the realistic one.
+  if (params.style === 'sketch') switchStyle('sketch');
 
   loading.progress(0.7, 'Compiling shaders…');
   await nextPaint();
@@ -170,6 +192,13 @@ export async function startApp(): Promise<void> {
     if (!locked && !touch) overlay.show();
   };
   const debug = params.debug ? new DebugOverlay(ui) : null;
+  // Desktop: K toggles sketch ↔ realistic (the URL parameter stays the main switch).
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyK' || e.repeat) return;
+    const next: StyleName = getStyle(scene) === 'sketch' ? 'real' : 'sketch';
+    switchStyle(next);
+    toast.show(next === 'sketch' ? 'Sketch style' : 'Realistic style');
+  });
   const stats = new FrameStats();
   let lastPlace = '';
 
@@ -317,6 +346,11 @@ export async function startApp(): Promise<void> {
       return info();
     },
     nextFrame: () => loop.nextFrame(),
+    setStyle: async (name) => {
+      switchStyle(name);
+      await loop.nextFrame();
+    },
+    getStyle: () => getStyle(scene),
   };
   window.__houseSim = hooks;
 

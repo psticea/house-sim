@@ -1,6 +1,7 @@
 /**
  * Performance proxy (plan.md step 1.17 needs a real phone): draw calls / triangles at
- * the start pose and in the living room, and frame rate under CPU throttling. SwiftShader
+ * the start pose and in the living room (default sketch look, plus the realistic look
+ * at the end), and frame rate under CPU throttling. SwiftShader
  * renders on the CPU, so fps here is a lower bound, not a phone measurement.
  */
 import fs from 'node:fs';
@@ -54,6 +55,12 @@ test('perf proxy: draw calls, triangles, fps', async ({ page }, info) => {
     textureMB: living.textureMB,
     geometries: living.geometries,
   };
+  // The default look is sketch; also record the realistic look at the same pose.
+  result.style = await page.evaluate(() => window.__houseSim!.getStyle());
+  await page.evaluate(() => window.__houseSim!.setStyle('real'));
+  await page.evaluate(() => window.__houseSim!.nextFrame());
+  const real = await sim.stats(page);
+  result.livingReal = { drawCalls: real.drawCalls, triangles: real.triangles };
 
   fs.mkdirSync('test-results', { recursive: true });
   fs.writeFileSync(`test-results/perf-${info.project.name}.json`, JSON.stringify(result, null, 2));
@@ -61,5 +68,7 @@ test('perf proxy: draw calls, triangles, fps', async ({ page }, info) => {
   expect(start.drawCalls).toBeLessThanOrEqual(60);
   expect(living.drawCalls).toBeLessThanOrEqual(60);
   expect(living.sceneTriangles).toBeLessThan(400_000);
+  expect(result.style).toBe('sketch');
+  expect(real.drawCalls).toBeLessThanOrEqual(living.drawCalls);
   expect(s.errors).toEqual([]);
 });

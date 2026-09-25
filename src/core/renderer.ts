@@ -5,9 +5,17 @@ export const isTouchDevice = (): boolean =>
   typeof window !== 'undefined' &&
   (window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
 
+let capOverride: number | null = null;
+
+/** Extra DPR cap (e.g. 1.5 in the sketch style); `null` removes it. */
+export function setPixelRatioCap(cap: number | null): void {
+  capOverride = cap;
+}
+
 export function pixelRatioCap(): number {
   // Phones: ≤ 1.5 (fill-rate bound); desktop: ≤ 2.
-  return isTouchDevice() ? 1.5 : 2;
+  const base = isTouchDevice() ? 1.5 : 2;
+  return capOverride === null ? base : Math.min(base, capOverride);
 }
 
 export function createRenderer(
