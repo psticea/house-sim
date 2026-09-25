@@ -36,6 +36,27 @@ export function extractFeatureEdges(
   geometry: THREE.BufferGeometry,
   thresholdDeg: number,
 ): Float32Array {
+  return extractEdges(geometry, thresholdDeg, null).thick;
+}
+
+/**
+ * Feature edges split into two line weights: `thick` = open boundaries and creases
+ * whose faces meet at ≥ `sharpDeg`; `thin` = softer creases (`thresholdDeg` … `sharpDeg`).
+ */
+export function extractWeightedEdges(
+  geometry: THREE.BufferGeometry,
+  thresholdDeg: number,
+  sharpDeg: number,
+): { thin: Float32Array; thick: Float32Array } {
+  return extractEdges(geometry, thresholdDeg, sharpDeg);
+}
+
+function extractEdges(
+  geometry: THREE.BufferGeometry,
+  thresholdDeg: number,
+  sharpDeg: number | null,
+): { thin: Float32Array; thick: Float32Array } {
+  const cosSharp = sharpDeg === null ? -2 : Math.cos(THREE.MathUtils.degToRad(sharpDeg));
   const pos = geometry.getAttribute('position');
   const index = geometry.getIndex();
   const triCount = index ? index.count / 3 : pos.count / 3;
@@ -82,7 +103,8 @@ export function extractFeatureEdges(
     }
   });
 
-  const out: number[] = [];
+  const thick: number[] = [];
+  const thin: number[] = [];
   const seen = new Set<number>();
   const cand: { face: number; t0: number; t1: number; side: THREE.Vector3 }[] = [];
   edges.forEach((e, i) => {
@@ -114,10 +136,11 @@ export function extractFeatureEdges(
     cuts.sort((p, q) => p - q);
     let runStart = -1;
     let runEnd = -1;
+    let runSharp = true;
     const flush = (): void => {
       if (runStart < 0) return;
       const a = e.a;
-      out.push(
+      (runSharp ? thick : thin).push(
         a.x + e.u.x * runStart,
         a.y + e.u.y * runStart,
         a.z + e.u.z * runStart,
@@ -145,7 +168,17 @@ export function extractFeatureEdges(
       }
       // Draw from exactly one face (the lowest id among those needing it) → no duplicates.
       if (owner === e.face) {
-        if (runStart < 0) runStart = prev;
+        // Weight: an open boundary, or the flattest neighbouring face still ≥ sharpDeg away.
+        let maxDot = -2;
+        for (const h of cover) {
+          if (h.face !== e.face) maxDot = Math.max(maxDot, normals[h.face]!.dot(normals[e.face]!));
+        }
+        const sharp = sharpDeg === null || maxDot < cosSharp || maxDot === -2;
+        if (runStart >= 0 && sharp !== runSharp) flush();
+        if (runStart < 0) {
+          runStart = prev;
+          runSharp = sharp;
+        }
         runEnd = t;
       } else {
         flush();
@@ -154,7 +187,7 @@ export function extractFeatureEdges(
     }
     flush();
   });
-  return new Float32Array(out);
+  return { thin: new Float32Array(thin), thick: new Float32Array(thick) };
 }
 
 /** Hash bins of the infinite line through `a` along unit `u` (1 key, or a few near bin borders). */

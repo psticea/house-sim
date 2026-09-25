@@ -27,7 +27,8 @@
     "plans:crop": "node tools/crop-plan.mjs",
     "plans:extract": "node tools/extract-plan-geometry.mjs",
     "plans:overlay": "node tools/overlay-screenshot.mjs",
-    "shots": "node tools/screenshots.mjs"
+    "shots": "node tools/screenshots.mjs",
+    "shots:styles": "node tools/style-shots.mjs"
   },
   "dependencies": {
     "three": "0.186.1",

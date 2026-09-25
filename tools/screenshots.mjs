@@ -1,8 +1,9 @@
 // Dev-only: capture screenshots from a set of poses into test-results/shots/ (git-ignored).
 // Usage: node tools/screenshots.mjs [baseUrl] [name,name,...] [extraQuery] [fileSuffix]
 //   baseUrl defaults to http://localhost:5173/ (npm run dev)
-//   The site loads in the sketch look by default; pass extraQuery `style=real` for the
-//   realistic look, e.g. `node tools/screenshots.mjs http://localhost:5173/ start style=real -real`.
+//   The site loads in the SketchUp look by default; pass extraQuery `style=borderlands` or
+//   `style=real`, e.g. `node tools/screenshots.mjs http://localhost:5173/ start style=real -real`.
+//   For all poses of one look in a single page load, see tools/style-shots.mjs.
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from '@playwright/test';

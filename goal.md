@@ -71,10 +71,22 @@ standing there — before it is built.
   no clutter or small decorations.
 - **Texture quality: good** — crisp, realistic PBR materials (wood grain, tiles,
   fabric, metal seams) that hold up when you walk close to a wall or floor.
-- **Style: Scandinavian** — be creative with colors, furniture, fence and garden:
-  light oak, white and warm-grey walls, natural textiles, muted accent colors
-  (sage, dusty blue, terracotta, ochre), black metal details, lots of daylight, simple
-  wooden fence and a natural-looking garden.
+- **Style — architecture follows the plans; furniture, interior design and colours
+  follow The Local Project** ([thelocalproject.com.au](https://thelocalproject.com.au),
+  the design platform we take our interior style from). *(Decided 2026-09-25; applies
+  to upcoming iterations — I3 onward. It replaces the earlier "Scandinavian" direction;
+  work already completed (I1, S1) is not redone.)*
+  - **Everything in the architectural plans is followed as drawn**: layout, dimensions,
+    facade, and the finishes the plans specify (parquet, tiles, white interior finish,
+    wood-board ceiling, grey metal cladding, wood slats, RAL 1011 frames).
+  - **The Local Project style** defines what the plans don't: furniture, joinery,
+    textiles, lighting, decor, their colours and materials, and the colour/texture of
+    finishes the plans leave open (e.g. which tile, which wood tone). Its character:
+    warm minimalism, natural materials (solid timber, stone/travertine, clay, linen,
+    wool, rattan/cane), a muted earthy palette (sand, clay, ochre, olive, charcoal),
+    custom timber joinery, layered textures, restraint and calm, strong indoor-outdoor
+    connection.
+  - The garden, fence and terrace use the same natural materials and earthy palette.
 - **Public link** — published on GitHub Pages, anyone with the link can open it.
   (The address, names and land registry data still must not appear in the game.)
 

@@ -7,7 +7,7 @@ import { house } from './data/house';
 import { OUTSIDE, levelById, placeAt, roomAt } from './data/topology';
 import { DebugOverlay, estimateTextureMB, FrameStats } from './core/debug';
 import { Loop } from './core/loop';
-import { readParams } from './core/params';
+import { readParams, STYLE_NAMES, styleNameOf, DEFAULT_STYLE, type StyleName } from './core/params';
 import {
   createRenderer,
   handleContextLoss,
@@ -21,10 +21,11 @@ import { PLAYER, PlayerController, yawToward } from './player/controller';
 import { buildWorld } from './world/build';
 import { createLighting } from './world/lighting';
 import { createSky } from './world/sky';
-import { getStyle, setStyle, type StyleName } from './world/style';
+import { getStyle, isStyleBuilt, setStyle, STYLE_LABELS } from './world/style';
 import { LoadingScreen } from './ui/loading';
 import { RoomToast } from './ui/toast';
 import { StartOverlay } from './ui/hud';
+import { StyleToggle } from './ui/style-toggle';
 
 export interface PlayerInfo {
   x: number;
@@ -77,9 +78,9 @@ export interface HouseSimHooks {
   view(pose: [number, number, number, number, number] | null): Promise<void>;
   look(yawDeg: number, pitchDeg: number): Promise<PlayerInfo>;
   nextFrame(): Promise<void>;
-  /** Switches the look ('sketch' | 'real') and waits for a rendered frame. */
-  setStyle(name: StyleName): Promise<void>;
-  /** Current look: 'sketch' unless `?style=real` or switched with `setStyle`/K. */
+  /** Switches the look (`sketchup` | `borderlands` | `real`; `sketch` = `sketchup`) and waits for a rendered frame. */
+  setStyle(name: StyleName | 'sketch'): Promise<void>;
+  /** Current look (canonical name): stored choice / `?style=` / default `sketchup`. */
   getStyle(): StyleName;
 }
 
@@ -91,6 +92,25 @@ declare global {
 
 const deg = THREE.MathUtils.radToDeg;
 const rad = THREE.MathUtils.degToRad;
+
+/** localStorage key of the chosen look (`?style=` overrides it for one load). */
+export const STYLE_STORAGE_KEY = 'houseSim.style';
+
+function storedStyle(): StyleName | null {
+  try {
+    return styleNameOf(window.localStorage.getItem(STYLE_STORAGE_KEY));
+  } catch {
+    return null; // storage disabled (privacy mode, sandboxed iframe)
+  }
+}
+
+function storeStyle(name: StyleName): void {
+  try {
+    window.localStorage.setItem(STYLE_STORAGE_KEY, name);
+  } catch {
+    // not persisted — fine
+  }
+}
 
 export async function startApp(): Promise<void> {
   const params = readParams();
@@ -129,7 +149,7 @@ export async function startApp(): Promise<void> {
   const lighting = createLighting(scene, house.site, 2048);
   scene.updateMatrixWorld(true);
   world.group.traverse((o) => o.updateMatrix());
-  const switchStyle = (name: StyleName): void =>
+  const switchStyle = (name: StyleName | 'sketch'): void =>
     setStyle(scene, name, {
       renderer,
       lighting,
@@ -138,8 +158,9 @@ export async function startApp(): Promise<void> {
         applyResize();
       },
     });
-  // Sketch is the default look; `?style=real` keeps the realistic one.
-  if (params.style === 'sketch') switchStyle('sketch');
+  // `?style=` wins for this load, then the stored choice, then the default (SketchUp).
+  const initialStyle = params.styleParam ?? storedStyle() ?? DEFAULT_STYLE;
+  switchStyle(initialStyle);
 
   loading.progress(0.7, 'Compiling shaders…');
   await nextPaint();
@@ -192,12 +213,35 @@ export async function startApp(): Promise<void> {
     if (!locked && !touch) overlay.show();
   };
   const debug = params.debug ? new DebugOverlay(ui) : null;
-  // Desktop: K toggles sketch ↔ realistic (the URL parameter stays the main switch).
+  // Style toggle (pill, top right) + K: switch looks; the user's choice is remembered.
+  let styleQueue = Promise.resolve();
+  const chooseStyle = (name: StyleName): Promise<void> => {
+    styleQueue = styleQueue.then(async () => {
+      if (name === getStyle(scene)) return;
+      if (!isStyleBuilt(scene, name)) {
+        // First build of a look (edges, textures, shaders) can take a moment on phones.
+        styleToggle.setBusy(true);
+        await nextPaint();
+        await nextPaint();
+      }
+      switchStyle(name);
+      storeStyle(name);
+      styleToggle.setBusy(false);
+      styleToggle.set(getStyle(scene));
+      toast.show(`${STYLE_LABELS[name]} style`);
+    });
+    return styleQueue;
+  };
+  const styleToggle = new StyleToggle(
+    ui,
+    STYLE_NAMES.map((name) => ({ name, label: STYLE_LABELS[name] })),
+    getStyle(scene),
+    (name) => void chooseStyle(name),
+  );
   window.addEventListener('keydown', (e) => {
     if (e.code !== 'KeyK' || e.repeat) return;
-    const next: StyleName = getStyle(scene) === 'sketch' ? 'real' : 'sketch';
-    switchStyle(next);
-    toast.show(next === 'sketch' ? 'Sketch style' : 'Realistic style');
+    const i = STYLE_NAMES.indexOf(getStyle(scene));
+    void chooseStyle(STYLE_NAMES[(i + 1) % STYLE_NAMES.length]!);
   });
   const stats = new FrameStats();
   let lastPlace = '';
@@ -348,6 +392,7 @@ export async function startApp(): Promise<void> {
     nextFrame: () => loop.nextFrame(),
     setStyle: async (name) => {
       switchStyle(name);
+      styleToggle.set(getStyle(scene));
       await loop.nextFrame();
     },
     getStyle: () => getStyle(scene),

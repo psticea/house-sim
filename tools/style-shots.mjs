@@ -1,0 +1,79 @@
+// Dev-only: screenshots of the review poses for one or more looks, one page load per
+// look (poses via the __houseSim hooks — much faster than a reload per shot).
+// Output: test-results/shots/<style>-<pose>[-phone].png (git-ignored).
+// Usage: node tools/style-shots.mjs [baseUrl] [styles] [poses] [phone]
+//   e.g. node tools/style-shots.mjs http://localhost:5173/ borderlands start,living-east
+//        node tools/style-shots.mjs http://localhost:5173/ sketchup,borderlands,real "" phone
+import fs from 'node:fs';
+import path from 'node:path';
+import { chromium } from '@playwright/test';
+
+const base = process.argv[2] || 'http://localhost:5173/';
+const styles = (process.argv[3] || 'borderlands').split(',').filter(Boolean);
+const only = (process.argv[4] || '').split(',').filter(Boolean);
+const phone = process.argv[5] === 'phone';
+const outDir = path.resolve('test-results', 'shots');
+fs.mkdirSync(outDir, { recursive: true });
+
+// [name, kind, pose]; `start` = the load pose.
+const POSES = [
+  ['start', 'start', null],
+  ['entrance', 'pose', [3.0, -0.05, -1.0, -90, 0]],
+  ['living-east', 'pose', [10.4, 0, 3.6, -90, 8]],
+  ['bedroom-1', 'pose', [2.6, 0, 2.6, 30, -5]],
+  ['aerial', 'view', [-14, 14, -12, -135, -30]],
+  ['kitchen', 'pose', [13.0, 0, 5.5, 20, 0]],
+  ['terrace-south', 'pose', [14.0, 0, 8.6, 90, 0]],
+  ['aerial-se', 'view', [30, 12, 20, 55, -22]],
+  ['south-elev', 'view', [9.0, 3.8, 33, 0, 0]],
+  // The start view with the style menu open (UI check).
+  ['menu', 'menu', null],
+];
+
+const browser = await chromium.launch({
+  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+});
+const problems = [];
+for (const style of styles) {
+  const context = await browser.newContext(
+    phone
+      ? {
+          viewport: { width: 390, height: 844 },
+          deviceScaleFactor: 1,
+          hasTouch: true,
+          isMobile: true,
+        }
+      : { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
+  );
+  const page = await context.newPage();
+  page.on('console', (m) => {
+    if (['error', 'warning'].includes(m.type()) && !/GL Driver|GPU stall|\[\.WebGL-/.test(m.text()))
+      problems.push(`${style}: ${m.type()} ${m.text()}`);
+  });
+  page.on('pageerror', (e) => problems.push(`${style}: pageerror ${e.message}`));
+  await page.goto(`${base}?style=${style}`);
+  await page.waitForFunction(() => window.__houseSim?.isReady === true, null, { timeout: 120000 });
+  await page.evaluate(() => document.querySelector('.start')?.classList.add('off'));
+  const start = await page.evaluate(() => window.__houseSim.getPlayer());
+  for (const [name, kind, pose] of POSES) {
+    if (only.length && !only.includes(name)) continue;
+    await page.evaluate(
+      async ([k, p, s]) => {
+        const h = window.__houseSim;
+        if (k === 'view') await h.view(p);
+        else if (k === 'pose') await h.teleport(...p);
+        else await h.teleport(s.x, s.y, s.z, s.yaw, s.pitch);
+        await h.nextFrame();
+      },
+      [kind, pose, start],
+    );
+    if (kind === 'menu') await page.locator('.style-pill').click();
+    const file = path.join(outDir, `${style}-${name}${phone ? '-phone' : ''}.png`);
+    await page.screenshot({ path: file, timeout: 180000 });
+    const s = await page.evaluate(() => window.__houseSim.getStats());
+    console.log(style.padEnd(12), name.padEnd(14), `calls=${s.drawCalls} tris=${s.triangles}`);
+  }
+  await context.close();
+}
+await browser.close();
+if (problems.length) console.log('CONSOLE:\n' + [...new Set(problems)].join('\n'));

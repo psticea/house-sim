@@ -15,8 +15,9 @@ Legend: ✅ done · 🔄 in progress · ⬜ not started · ⏸ blocked
 | **I1** | **First walk** — public URL: start outside, walk into every ground-floor room (first deliverable) | ✅ (real-phone check pending) |
 | I2 | Whole building — upper floor, basement, stairs, roof & facade details | ⬜ ← next |
 | S1 | Sketch style — hand-drawn look, **the default** when visiting the site; realistic look optional via `?style=real` (I4/I6 continue for it) | ✅ |
-| I3 | Garden & fence — lot, terrain, paving, parking, lawn, trees, Scandinavian fence | ⬜ |
-| I4 | Materials — Scandinavian PBR textures, glass, frames, quality tiers | ⬜ |
+| S2 | Three styles + visible toggle — Realistic, SketchUp (the S1 look), **Borderlands** (new, cel-shaded comic ink); small style switcher on phone + desktop | ✅ |
+| I3 | Garden & fence — lot, terrain, paving, parking, lawn, trees, timber fence (natural materials, §6.3–6.4) | ⬜ |
+| I4 | Materials — PBR textures per plans + The Local Project palette (§6.1), glass, frames, quality tiers | ⬜ |
 | I5 | Basic furniture — every room furnished (procedural + CC0) | ⬜ |
 | I6 | Baked lighting — lightmap baker, GI in the game | ⬜ |
 | I7 | UI & PWA — mini-map, teleport, settings, installable/offline | ⬜ |
@@ -36,7 +37,8 @@ Detailed steps, acceptance criteria and per-step status: **§12 Roadmap**.
 | House geometry | **Generated in code** from a typed data model transcribed from the PDF plans (no Blender) |
 | Collision / movement | **three-mesh-bvh** capsule character controller (no physics engine) |
 | Lighting | **Baked lightmaps** (global illumination) made by our own in-browser baker using GPU ray tracing (three-mesh-bvh); runtime fallback: static sun shadow + HDRI |
-| Style | **Scandinavian** interior, furniture, fence and garden (§6) |
+| Style | Architecture **as in the plans**; furniture, interior design and colours in the style of **The Local Project** (from I3 onward; §6) |
+| Looks | **3 switchable render styles** (S1/S2): SketchUp (default), Borderlands, Realistic — same scene, only materials/lighting/rendering differ |
 | Furniture | **Basic** — every room recognisable; procedural pieces + a few CC0 models |
 | Textures | **Good quality** PBR, KTX2-compressed, **≤ 70 MB GPU memory** on phones (§3.1) |
 | Assets | CC0 only (Poly Haven, ambientCG, Kenney, Quaternius), compressed with **glTF-Transform** (Meshopt + KTX2) |
@@ -272,84 +274,124 @@ export interface Room { id: string; name: string; level: Level['id']; polygon: P
 
 ---
 
-## 6. Art direction — Scandinavian
+## 6. Art direction — plans + The Local Project
 
-Calm, bright, natural. Light wood + white/warm grey, muted accent colors, black metal
-details, textiles for warmth, plants, and the daylight doing the work. The facade stays as
-designed (grey standing-seam metal RAL 7045, natural wood cladding and slats, window frames
-RAL 1011); the creative freedom is inside, in the furniture, fence and garden.
+> **Owner decision (2026-09-25), applies from I3 onward:** the architecture follows the
+> plans exactly; **furniture, interior design and colours follow the style of
+> [The Local Project](https://thelocalproject.com.au)** (the design platform the owner
+> takes the interior style from). This replaces the earlier Scandinavian direction.
+> Completed work (I1 flat palette, S1 sketch look) is **not** redone; the old palette is
+> kept in §6.5 for reference.
 
-### 6.1 Palette
+**What comes from where**
+- **Plans (as drawn):** layout, dimensions, facade (grey standing-seam metal RAL 7045,
+  natural wood cladding and 5×7 cm slats, frames RAL 1011), and every finish the plans
+  specify: parquet floors, tiles (gresie) in wet rooms and the boiler room, white
+  interior finish (plaster + white paint), wood-board ceiling in the living room, WPC
+  deck, natural stone slabs outside, rod balustrade Ø1 cm.
+- **The Local Project style:** furniture, joinery, textiles, lighting, decor, their
+  colours and materials, plus the tone/texture of finishes the plans leave open (which
+  wood tone for the parquet, which tile, the stone for worktops).
+
+**Character (The Local Project):** warm, quiet, natural. Warm minimalism with natural
+materials: solid timber (oak, some darker smoked/American oak), stone (travertine,
+honed limestone), clay and ceramics, linen, wool and bouclé, rattan/cane. Muted earthy
+palette: sand, oat, clay, ochre, olive, charcoal. Custom timber joinery with integrated
+storage, layered textures, sculptural lighting, few but considered objects, and strong
+indoor-outdoor flow with daylight doing the work.
+
+### 6.1 Palette (upcoming iterations)
 
 | Role | Color | Hex |
 |---|---|---|
-| Walls & ceilings (main) | warm white | `#F4F1EA` |
-| Feature walls | greige / warm grey | `#D8D2C8` |
-| Wood (floors, furniture) | light oiled oak | `#D8B98E` |
-| Textiles (base) | linen / oat | `#E8E1D5` |
-| Textiles (contrast) | wool grey | `#9A958E` |
-| Accent 1 | sage green | `#A3B09A` |
-| Accent 2 | dusty blue | `#8FA3B3` |
-| Accent 3 | terracotta | `#C27C5E` |
-| Accent 4 | ochre / mustard | `#D0A24C` |
-| Metal details | soft black | `#2B2B2B` |
+| Walls & ceilings (plans: white finish) | warm white | `#F1ECE3` |
+| Parquet (plans: parquet) | natural oak, matte oiled | `#C9A77C` |
+| Joinery & furniture timber | natural oak / smoked oak | `#C9A77C` / `#6F5440` |
+| Stone (worktops, tables, vanity tops) | travertine / honed limestone | `#D9CBB5` / `#CFC6B8` |
+| Textiles (base) | linen / oat / bouclé cream | `#E3D9CA` / `#EDE6DA` |
+| Textiles (contrast) | sand / warm taupe | `#BFAE98` |
+| Accent 1 | clay / terracotta | `#B5714F` |
+| Accent 2 | olive | `#7E7F5A` |
+| Accent 3 | ochre | `#B98B4E` |
+| Deep neutral | charcoal | `#3A3835` |
+| Metal details | aged brass / bronze, blackened steel | `#9C7B4E` / `#2E2C2A` |
 | Facade (from plans) | grey RAL 7045 / beige-brown RAL 1011 | `#8F9695` / `#8A6642` |
 
-Rule of thumb: ~70 % white/wood, ~20 % greys/textiles, ~10 % accent — one accent color
-leads per room.
+Rule of thumb: ~65 % warm white + natural oak, ~25 % stone/sand/linen textures,
+~10 % earthy accent (clay, olive, ochre, charcoal) — one accent leads per room.
 
 ### 6.2 Rooms (materials + basic furniture)
 
-| Room | Surfaces | Basic furniture (lead accent) |
+Floor/wall/ceiling finishes are those of the plans; everything else is The Local Project style.
+
+| Room | Surfaces (per plans) | Basic furniture & decor (lead accent) |
 |---|---|---|
-| Entrance hall | oak parquet, white walls | oak bench with cushion, black wall hooks, round mirror, full-height white built-in wardrobe, jute mat (ochre) |
-| Living + kitchen (double height) | oak parquet; white walls; **wood-board sloped ceiling** (as in the plans' roof build-up) | light-grey 3-seat sofa + lounge chair, wool rug, low oak coffee table, **black wood-burning stove at the chimney**, oak shelf; kitchen: matte **sage** fronts + oak worktop along the north wall, oak-top island with 3 stools, integrated appliances; oak dining table with 6 spindle chairs, 3 black pendant lamps; big plant (fiddle fig) near the east glass wall |
-| Bedroom 1 | oak parquet, white + **dusty blue** feature wall | double bed with linen bedding, oak nightstands, white wardrobe, reading lamp |
-| Bedroom 2 | oak parquet, white + **terracotta** accents | single/kids bed, desk + chair, low shelf, soft rug, wall-mounted lamp |
-| Bathroom (ground) | large warm-grey porcelain tiles, white walls | walk-in shower with glass, floating oak vanity + white basin, black taps, round mirror, WC, towel ladder |
-| Boiler + laundry | light-grey tiles | boiler, washer + dryer stack, white tall cabinet, drying rack |
-| Stairs & play corner | oak treads, **black vertical rod balustrade** (Ø1 cm, per plans), handrail h 90 cm | play corner: floor cushions, low book ledge, small teepee (ochre/sage) |
-| Bedroom 3 (upper, under the roof) | oak parquet, white sloped ceilings, greige gable wall | king bed with oat bedding, oak bench at the foot, low wardrobes along the knee walls, armchair, floor lamp |
-| Room (upper, study) | oak parquet, white | oak desk under the window, black task lamp, desk chair, bookshelf, daybed (sage) |
-| Bathroom (upper) | terrazzo-look floor, white tiles | freestanding tub under the slope, oak vanity, black taps, WC |
-| Hall (upper) | oak parquet | railing looking into the living room void, small bench |
-| Basement storage | concrete floor, white walls | galvanized/black metal shelving, a few boxes |
-| East terrace (deck) | WPC deck (warm grey-brown) | outdoor oak dining table + 2 benches, 2 lounge chairs, terracotta planters with grasses |
+| Entrance hall | oak parquet, white walls | full-height custom oak joinery with integrated bench and hooks, round mirror with brass rim, woven jute runner, ceramic wall light (ochre) |
+| Living + kitchen (double height) | oak parquet; white walls; **wood-board sloped ceiling** (plans) | low-slung modular sofa in oat bouclé/linen + a cane lounge chair, large wool/jute rug, travertine coffee table, **dark wood-burning stove at the chimney**; kitchen: oak joinery along the north wall with **travertine** worktop + splashback, stone-topped island with 3 timber-and-leather stools, integrated appliances; solid oak dining table with 6 cane/rattan chairs, sculptural paper/linen pendants; olive tree in a clay pot near the east glass wall (clay/olive) |
+| Bedroom 1 | oak parquet, white walls | low oak bed frame, linen bedding in sand/clay tones, oak bedside tables with ceramic lamps, oak wardrobe (clay) |
+| Bedroom 2 | oak parquet, white walls | single/kids bed in natural timber, oak desk + cane chair, low open shelf, soft wool rug, wall sconce (ochre) |
+| Bathroom (ground) | tiles (plans: gresie) — chosen as warm sand stone-look porcelain, white walls | walk-in shower with glass, floating oak vanity with a stone basin, **brushed brass/bronze** tapware, round mirror, WC, timber towel ladder (sand) |
+| Boiler + laundry | tiles (plans) — light warm grey | boiler, washer + dryer stack, oak tall cabinet, linen drying rack |
+| Stairs & play corner | oak treads, **black vertical rod balustrade** (Ø1 cm, per plans), handrail h 90 cm | play corner: linen floor cushions, low oak book ledge, woven storage baskets, small timber teepee (olive/oat) |
+| Bedroom 3 (upper, under the roof) | oak parquet, white sloped ceilings | low wide oak bed, layered linen + wool throw, bench at the foot, low oak wardrobes along the knee walls, bouclé armchair, sculptural floor lamp (olive) |
+| Room (upper, study) | oak parquet, white walls | solid oak desk under the window, cane desk chair, bronze task lamp, oak bookshelf, linen daybed (ochre) |
+| Bathroom (upper) | tiles (plans) — honed stone-look | freestanding stone-look tub under the slope, oak vanity, brushed brass tapware, WC (sand/clay) |
+| Hall (upper) | oak parquet | railing looking into the living room void (plans), small oak bench |
+| Basement storage | concrete floor, white walls | simple oak/steel shelving, woven boxes |
+| East terrace (deck, plans: WPC) | WPC deck | solid timber outdoor dining table + benches, 2 cane/teak lounge chairs, large clay planters with olive trees and grasses |
 
 Furniture approach (fits the style and the texture budget):
-- **Procedural** (generated in code, consistent style, recolorable): beds, wardrobes,
-  cabinets, kitchen, tables, benches, shelves, sofa (rounded boxes), rugs, mirrors,
-  simple lamps. They reuse the shared material sets (oak, painted wood, fabric, metal).
+- **Procedural** (generated in code, consistent style, recolorable): beds, joinery,
+  cabinets, kitchen, tables, benches, shelves, sofa (soft rounded boxes), rugs, mirrors,
+  simple lamps. They reuse the shared material sets (oak, smoked oak, stone, linen/bouclé,
+  cane, brass, ceramic).
 - **CC0 models** (Poly Haven / Kenney / Quaternius) only where shape matters: chairs,
-  stove, bathroom fixtures, appliances, plants, pendant lamps — merged into one atlas.
+  stove, bathroom fixtures, appliances, plants/olive trees, sculptural pendants —
+  merged into one atlas.
 
 ### 6.3 Fence & gate
 
-- **Street side**: 1.2 m horizontal slatted fence in oiled larch (natural, weathering
-  to silver) on slim **black steel posts**; a matching **sliding car gate** at the
-  parking and a pedestrian gate with a black mailbox and house number plate (a made-up
+Natural materials and the §6.1 earthy palette (The Local Project style); fence heights
+and positions follow the site plan where it gives them.
+
+- **Street side**: 1.2 m horizontal slatted fence in oiled timber (natural, weathering
+  to silver) on slim **blackened-steel posts**; a matching **sliding car gate** at the
+  parking and a pedestrian gate with a bronze mailbox and house number plate (a made-up
   number — no real address).
-- **Sides & rear**: 1.8 m vertical board fence in the same larch (privacy), softened by
+- **Sides & rear**: 1.8 m vertical board fence in the same timber (privacy), softened by
   a planted border.
-- Low **Corten/black steel edging** between lawn, paths and planting beds.
+- Low **Corten/blackened steel edging** between lawn, paths and planting beds.
 
 ### 6.4 Garden
 
-- **Birch trees** (the Scandinavian signature) in small groups near the corners, plus
-  2 fruit trees (apple, cherry) in the rear garden; positions follow the "proposed
-  trees" on the site plan.
-- Lawn with a **meadow strip** (tall grass + wildflowers) along the fences.
+- Trees in small groups on the "proposed trees" positions of the site plan: **olive-toned
+  and silver-leaved species** that suit the palette (e.g. birch, serviceberry, a
+  multi-stem tree near the terrace) plus 2 fruit trees (apple, cherry) in the rear garden.
+- Lawn with a **meadow strip** (tall grasses + wildflowers) along the fences; soft,
+  naturalistic planting in sand/olive/ochre tones.
 - **Stepping-stone path** (natural stone slabs, per plan) from the entrance around the
   house to the terrace; gravel strip along the facades (drainage, per plan).
-- **Raised timber vegetable beds** (larch) in a sunny spot on the south side.
-- A simple **swing** hanging from a wooden frame, and a small **fire pit** with a
-  bench near the rear.
-- Parking: concrete pavers (per plan), bin corner screened by larch slats (per plan
+- **Raised timber vegetable beds** in a sunny spot on the south side.
+- A simple **swing** hanging from a timber frame, and a small **fire pit** with a
+  stone/timber bench near the rear.
+- Parking: concrete pavers (per plan), bin corner screened by timber slats (per plan
   "platformă gospodărească").
 - Context: neighbour houses as simple white/grey massing, a hint of distant hills,
   soft fog.
 
 All of the above is a **proposal** — the owner reviews it during I3–I5.
+
+### 6.5 Earlier Scandinavian palette (used by completed work — reference only)
+
+I1's flat colours and the S1 sketch look were derived from this palette. It is **not**
+used for new work; I4 onward switch the realistic materials to §6.1.
+
+| Role | Hex |
+|---|---|
+| Walls & ceilings / feature walls | `#F4F1EA` / `#D8D2C8` |
+| Light oak / linen / wool grey | `#D8B98E` / `#E8E1D5` / `#9A958E` |
+| Accents: sage / dusty blue / terracotta / ochre | `#A3B09A` / `#8FA3B3` / `#C27C5E` / `#D0A24C` |
+| Soft black metal | `#2B2B2B` |
 
 ---
 
@@ -450,7 +492,7 @@ house-sim/
 │  │  ├─ build.ts             # HouseModel → THREE.Group (+ colliders)
 │  │  ├─ walls.ts  slabs.ts  openings.ts  stairs.ts  roof.ts
 │  │  ├─ exterior.ts  site.ts  terrain.ts  vegetation.ts
-│  │  ├─ furniture/           # procedural Scandinavian furniture kit + CC0 model placement
+│  │  ├─ furniture/           # procedural furniture kit (The Local Project style) + CC0 model placement
 │  │  ├─ materials.ts         # shared material library per tier
 │  │  ├─ lighting.ts          # HDRI/PMREM, sun, static shadow fallback, probes, exposure
 │  │  ├─ uv.ts                # world-space box UVs
@@ -623,6 +665,85 @@ whatever the scene contains, so it keeps working as the building grows).
 | S.5 | Tests: idempotent `applyStyle`, no leaks on switch; e2e screenshots per style; draw calls ≤ 60 | ✅ 13 unit tests (`tests/style.test.ts`, incl. the `?style=` default) + `tests/e2e/style.spec.ts` (default load = sketch, `?style=real` = realistic, `?style=sketch` still works; desktop + 390×844 phone; no console errors/warnings; counts stable over 3 toggles; real after toggling is pixel-identical to a fresh load); the I1 walk/mobile/perf specs run in the default sketch look |
 | S.6 | Report which `STYLE` values push toward more SketchUp vs more cartoon; deploy | ✅ tuning guide in README "Styles"; deployed with the next push |
 
+### S2 — Three styles + style toggle ✅
+
+**Deliverable:** three distinct, switchable looks of the same scene, and a **small,
+always-visible style toggle** on phone and desktop:
+
+| Style | Id | What it is |
+|---|---|---|
+| **SketchUp** (default) | `sketchup` | The S1 look (owner likes it), renamed. Kept as is; only knobs that make it *more* SketchUp and less cartoon may be nudged, without changing its character (see S2.2). |
+| **Borderlands** | `borderlands` | **New.** Cel-shaded "hand-inked comic / concept art": thick black ink outlines, hard two-tone shading, ink hatching in shadow, saturated warm colours, painted-looking surfaces, bold stylised sky. |
+| **Realistic** | `real` | The I1 look; I4/I6 keep improving it. |
+
+`?style=sketch` stays accepted as an alias of `sketchup`. Only materials, lighting and
+rendering differ — data, geometry, player and logic are untouched. No external files: any
+texture is generated on a `<canvas>` / `DataTexture`.
+
+**Architecture** — refactor `src/world/style.ts` into a small style registry:
+- `StyleName = 'real' | 'sketchup' | 'borderlands'`; `setStyle(name)` works from any style
+  to any style (remove current → apply next), idempotent, leak-free.
+- One config per style (`src/world/style/sketchup.ts`, `borderlands.ts`, each exporting
+  its own `STYLE`-like object as the single place to tune it); shared helpers stay in
+  `src/world/style/` (toon materials, edge extractor, canvas textures, sky, overlays).
+- Per-style GPU resources are built lazily on first use and cached (edges, hulls, textures),
+  so switching back and forth never grows memory; `removeStyle` disposes nothing that
+  the cache still needs, and a full `disposeStyles()` frees everything.
+
+**Borderlands spec** (performance-first, no post-processing):
+- **Outlines — the signature.** Thick black ink lines (`#111`, ~2.5–3.5 px) on every
+  feature edge using the existing T-junction-safe edge extractor + `LineSegments2` on
+  **all** devices (thick lines are essential for the look; they are instanced quads,
+  cheap at this scene size). Two weights: outer/boundary + sharp (≥ 60°) edges thick,
+  softer creases (30–60°) thinner. For curved/non-planar meshes (chimney now; trees and
+  furniture later) add **inverted-hull silhouettes** (back faces, pushed out along
+  averaged normals in clip space for a constant pixel width, unlit black) — only where
+  needed, to stay inside the draw-call budget.
+- **Shading:** `MeshToonMaterial` with a hard 2-step gradient (e.g. `[0.5, 1.0]`, optional
+  thin 3rd highlight band), shadows **tinted** (cool violet-blue, not grey) and fairly
+  dark (~0.55), with **screen-space ink hatching** in the shadow band (diagonal lines from
+  `gl_FragCoord` in a small `onBeforeCompile` patch — no texture fetch, program-cached).
+- **Colour:** palette hues kept but pushed to saturated, warm, slightly darker comic
+  colours (saturation ×~1.25); glass tinted, still transparent, thin outline only.
+- **Surfaces:** canvas-generated "hand-painted" detail maps (brush strokes, ink speckle,
+  grunge) at low strength on large surfaces (walls, roof, ground, deck), world-space UVs;
+  painted grass strokes on the lawn instead of the grid.
+- **Sky & light:** bold stylised gradient (warm yellow-orange horizon → teal zenith) with
+  a few flat cartoon clouds baked into the sky shader/canvas; strong warm sun, hard-ish
+  single 1024 shadow rendered once; matching fog; no paper grain (optional subtle CSS
+  vignette knob).
+- **Budgets:** draw calls ≤ 80 (fills + lines + a few hulls; global budget is 120),
+  DPR ≤ 1.5, antialias only, no SSAO/bloom/post-processing, shared materials.
+
+**Style toggle (UI):**
+- A small pill button in the **top-right** corner (respects safe-area insets), showing
+  the current style (icon + short name). Tap/click opens a compact 3-option menu
+  (SketchUp · Borderlands · Realistic, current one highlighted); selecting applies
+  immediately; tap outside closes. Visible on both phone and desktop, above the
+  canvas and paper grain, consistent with the HUD styling.
+- Touch-safe: touches on the toggle never start the joystick or look-drag; on desktop
+  clicking it doesn't trigger pointer lock; while pointer-locked, **K** cycles styles
+  (and the pill updates). ≥ 40 px hit target while visually small; `button` with
+  `aria-label`, keyboard-focusable.
+- Choice persists in `localStorage`; `?style=` in the URL overrides it for that load.
+  If building a style for the first time takes > 100 ms, show a brief "Switching…" state.
+
+| # | Step | Status |
+|---|---|---|
+| S2.1 | Style registry refactor (`real` / `sketchup` / `borderlands`, `sketch` alias), any→any `setStyle`, per-style configs, lazy per-style caches | ✅ `src/world/style.ts` registry: `setStyle(scene, name)` any→any (current look removed, next applied; same look again only styles new meshes), `getStyle()` canonical, `isStyleBuilt()`, `removeStyle()`, `disposeStyles()`; names in `core/params.ts` (`sketch` alias, unknown → `sketchup`); configs `style/sketchup.ts` + `style/borderlands.ts` (shape in `style/config.ts`); per-scene, per-look caches (fills, line/hull objects, textures, sky, overlays) built on first use, re-attached on re-apply, never rebuilt; edge cache keyed per geometry + settings |
+| S2.2 | SketchUp = S1 look renamed (character unchanged; optional small "more SketchUp" nudges only if they read better) | ✅ identical S1 values (no nudges — the S1 look already reads right); same pipeline output |
+| S2.3 | Borderlands outlines: two-weight thick fat lines on all devices + inverted-hull silhouettes for curved meshes | ✅ `#111` `LineSegments2` everywhere: 3.2 px for boundaries + creases ≥ 60°, 2.2 px for 33–60° (weighted T-junction-safe extractor); edge threshold 33° so 12-gon facets get no lines — instead a clip-space constant-width (3.2 px) back-face hull, built only from "curved" facets (≥ 2 soft-crease neighbours) → only the chimney today; glass gets a thin outline |
+| S2.4 | Borderlands shading: hard 2-step toon, tinted dark shadows, screen-space shadow hatching, saturated palette, painted detail maps | ✅ gradient `[0.5, 1.0]`; `onBeforeCompile` ink patch (hooks checked against the r186 chunks in a unit test, falls back to plain toon if missing; one program key, shared uniforms): shadow band tinted violet-blue, single `gl_FragCoord` hatching in form shadows, crossed hatching in cast shadows on sun-facing surfaces; palette saturation × 1.25, lightness × 0.93; generated brush-stroke / grunge / ink-scratch detail map on walls, roof, cladding, deck, pavers, floors (4 m tiles) and painted grass tufts on the lawn (2.4 m tiles), all `DataTexture`s with world-space UVs |
+| S2.5 | Borderlands sky, clouds, sun, shadow, fog | ✅ own sky material swapped onto the dome: warm yellow-orange horizon → teal zenith, 10 flat-bottomed cartoon clouds (seeded puffs, shade band, `fwidth` ink outline), inked sun disc; warm sun 2.4 + violet hemi 1.9, `shadowOpacity` 0.45, hard 1024 shadow (PCF radius 1) rendered once per switch; warm fog; no paper grain, soft CSS vignette |
+| S2.6 | Style toggle UI (pill + 3-option menu, K cycles, localStorage, URL override, touch/pointer-lock safe) | ✅ `src/ui/style-toggle.ts`: top-right pill (safe-area aware, 40 px hit target, icon + name, `aria-label`, keyboard: Enter/Space/arrows/Esc), menu SketchUp · Borderlands · Realistic (current highlighted, `menuitemradio`), tap outside closes; above the start overlay; events never reach the canvas (joystick/look/pointer lock untouched, no `src/player/` change needed); K cycles; `localStorage` `houseSim.style`, `?style=` overrides for one load; "Switching…" while a look is built the first time |
+| S2.7 | Tests: unit (parse incl. alias/unknown → default, apply/remove idempotent per style, all 6 transitions leak-free); e2e quick (toggle visible on desktop + phone, each option switches, persists across reload, no console errors/warnings, draw-call budgets per style); `e2e:full` screenshots 3 styles × 5 poses × desktop/phone | ✅ 23 unit tests in `tests/style.test.ts` (62 total); `tests/e2e/style.spec.ts`: quick pass = toggle (click, outside tap, K, keyboard, reload persistence, `?style=` override + alias, player/overlay/pointer lock untouched), budgets per look at start + living room, leak-free transitions ×2, clean console; full pass adds an iPhone 13 touch check (drag on the pill starts no joystick/look) and 3 looks × 5 poses × desktop-hd/phone screenshots |
+| S2.8 | README "Styles" (3 styles, toggle, per-style tuning knobs), plan status, deploy | ✅ README "Styles" (incl. "push toward …" guides per look); deploy with the next push (coordinator) |
+
+**Done when:** all three looks are clearly distinct and polished (reviewed screenshots),
+the toggle works on phone and desktop without interfering with movement, switching any
+style to any other is leak-free, budgets are met (SketchUp ≤ 60, Borderlands ≤ 80, Real
+≤ 25 draw calls), and all tests are green.
+
 ### I2 — Whole building ⬜
 
 | # | Step | Status |
@@ -717,6 +838,7 @@ material/color variations, measure tool, gyroscope/VR mode.
 | 2026-09-25 | I1 | First walk implemented. Checks green: lint, typecheck, 39 unit tests (4 files: data incl. 8 room areas ±3 %, reachability, geometry, privacy), build (637 kB JS / 168 kB gzip), 8/8 e2e (1 teleport-settle flake fixed in the test hook). Room areas expected→actual m²: bedroom-1 13.76→13.76, boiler 5.10→5.10, hall 12.32→12.31, bathroom 6.50→6.50, bedroom-2 14.62→14.63, stairs 7.05→7.05, living+kitchen 47.95→47.95, terrace 37.58→37.42. Perf proxy (SwiftShader): 17–22 draw calls, 4.0–4.3 k triangles, scene 3.7 k tris / 992 collider tris, ~32 MB textures; fps not meaningful in software GL — real-phone ≥ 50 fps check pending (1.17). |
 | 2026-09-25 | S1 | Optional sketch style (`?style=sketch`, key K, `__houseSim.setStyle`). Checks green: lint, typecheck, 51 unit tests (12 new), build, e2e incl. the new style spec. Perf proxy (SwiftShader, desktop 1280×720): real 22 / 17 draw calls at start / living room (4.3 k / 4.0 k tris); sketch 39 / 29 draw calls (fills unchanged + one line draw per lined mesh); `renderer.info` triangles 27.0 k / 25.0 k because fat lines are instanced quads (~6 tris per segment, ~3.8 k segments in view); phones use 1 px GL lines. Shadow map 1024 in sketch (8 MB) vs 2048 in real (32 MB). |
 | 2026-09-25 | S1 | Owner change: **sketch is now the default look**; `?style=real` switches to the realistic look (`?style=sketch` still works). I1 e2e specs run against the default (sketch); the style spec checks default = sketch, `?style=real` = real and leak-free toggles; perf spec also records the realistic look at the living-room pose. |
+| 2026-09-25 | S2 | Three looks + style toggle: SketchUp (default, = S1), **Borderlands** (new), Realistic; top-right pill + menu, K cycles, `localStorage` + `?style=` override. Checks green: lint, typecheck, 62 unit tests (23 in `style.test.ts`), `npm run e2e` 7/7, `npm run e2e:full` 13/13 (7 project-specific skips) incl. iPhone 13 toggle-touch check and 3 looks × 5 poses × desktop-hd/phone screenshots (`test-results/style-shots/`). Perf proxy (SwiftShader) draw calls / `renderer.info` triangles at start → living room — desktop 640×360: SketchUp 39 / 27.0 k → 29 / 25.0 k; Borderlands 44 / 27.8 k → 31 / 25.6 k; Real 22 / 4.3 k → 17 / 4.0 k. Phone emulation (390×844 / Pixel 7): SketchUp 35 / 4.3 k → 29 / 4.0 k (1 px GL lines); Borderlands 38 / 27.6 k → 31 / 25.6 k (fat lines on phones too: instanced quads); Real 17 / 4.0 k (living). All within budgets (60 / 80 / 25). Switching is leak-free (geometry/texture counts identical on every revisit; each look's resources built once and cached). |
 
 ---
 
@@ -731,8 +853,8 @@ material/color variations, measure tool, gyroscope/VR mode.
 2. **Lightmap baker complexity** — mitigated: the fallback lighting (I4) is already
    shippable; the baker only improves it.
 3. **Reading dimensions from the plans** — mitigated by area tests + the overlay tool.
-   Details not on the plans (fence, garden, interior finishes/colors) follow the
-   Scandinavian proposal in §6, reviewed by the owner.
+   Details not on the plans (fence, garden, furniture, interior colours) follow the
+   The Local Project–style proposal in §6, reviewed by the owner.
 4. **iOS Safari memory limits / WebGL context loss** — keep inside the texture/geometry
    budget, handle `webglcontextlost` by reloading gracefully.
 5. **Transparency & vegetation overdraw on mobile** — solid low-poly vegetation,
