@@ -23,13 +23,16 @@
     "e2e:garden": "playwright test --project=desktop garden",
     "e2e:style": "playwright test --project=desktop style",
     "e2e:perf": "playwright test --project=desktop perf",
+    "e2e:materials": "playwright test --project=desktop materials",
     "e2e:mobile": "playwright test --project=pixel-7 --project=iphone-13 mobile",
     "plans:render": "node tools/render-plans.mjs",
     "plans:crop": "node tools/crop-plan.mjs",
     "plans:extract": "node tools/extract-plan-geometry.mjs",
     "plans:overlay": "node tools/overlay-screenshot.mjs",
     "shots": "node tools/screenshots.mjs",
-    "shots:styles": "node tools/style-shots.mjs"
+    "shots:styles": "node tools/style-shots.mjs",
+    "assets:fetch": "node tools/fetch-assets.mjs",
+    "assets:optimize": "node tools/optimize-assets.mjs"
   },
   "dependencies": {
     "three": "0.186.1",
@@ -45,6 +48,7 @@
     "eslint": "10.11.0",
     "eslint-config-prettier": "10.1.8",
     "globals": "17.12.0",
+    "ktx2-encoder": "0.6.0",
     "pdfjs-dist": "6.3.289",
     "prettier": "3.9.9",
     "typescript": "6.0.3",

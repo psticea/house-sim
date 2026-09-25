@@ -1,9 +1,12 @@
 /**
- * Shared material library (flat Scandinavian palette, plan.md §6.1). I4 swaps these for
- * textured PBR sets; geometry already carries world-space UVs (1 unit = 1 m).
+ * Shared material library. `PALETTE` holds the flat I1 colours (the stylised looks
+ * derive theirs from it — keep unchanged) plus shadow / transparency flags; the
+ * realistic look uses the I4 finishes (`finishes.ts`) and streamed PBR textures.
+ * Geometry carries world-space UVs (1 unit = 1 m).
  */
 import * as THREE from 'three';
 import type { MaterialId } from '../data/schema';
+import { FINISHES } from './finishes';
 
 interface MaterialSpec {
   color: string;
@@ -62,27 +65,35 @@ export const PALETTE: Record<MaterialId, MaterialSpec> = {
 
 export type MaterialLibrary = Record<MaterialId, THREE.Material>;
 
+/**
+ * The realistic look's materials: one `MeshStandardMaterial` per id with the I4 finish
+ * (colour / roughness / metalness, `finishes.ts`). Textures stream in later
+ * (`realLook.ts`) and are assigned to these same objects, so the style system's saved
+ * originals stay valid.
+ */
 export function createMaterials(): MaterialLibrary {
   const lib = {} as MaterialLibrary;
   for (const [id, spec] of Object.entries(PALETTE) as [MaterialId, MaterialSpec][]) {
-    const common = {
-      color: new THREE.Color(spec.color),
+    const f = FINISHES[id];
+    const m = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(f.color),
+      roughness: f.roughness,
+      metalness: f.metalness,
       transparent: spec.transparent ?? false,
       opacity: spec.opacity ?? 1,
       side: spec.side ?? THREE.FrontSide,
       depthWrite: !(spec.transparent ?? false),
-    };
-    // Matte surfaces use Lambert: cheaper on phones and free of the view-dependent
-    // multi-scattering sheen that Standard shows on large flat walls without an
-    // environment map. Glossier surfaces (tiles, metal, glass, frames) stay PBR.
-    const m =
-      spec.roughness >= 0.8 && !spec.metalness
-        ? new THREE.MeshLambertMaterial(common)
-        : new THREE.MeshStandardMaterial({
-            ...common,
-            roughness: spec.roughness,
-            metalness: spec.metalness ?? 0,
-          });
+    });
+    if (id === 'glass') {
+      // Reflections are added at full strength (premultiplied "over"): the dark,
+      // almost black body only lets `opacity` of the background through tinted, while
+      // the Fresnel reflection of the environment stays visible.
+      m.blending = THREE.CustomBlending;
+      m.blendSrc = THREE.OneFactor;
+      m.blendDst = THREE.OneMinusSrcAlphaFactor;
+      m.opacity = 0.16;
+      m.envMapIntensity = 1.2;
+    }
     m.name = id;
     lib[id] = m;
   }

@@ -30,8 +30,13 @@ const SHOTS: [string, 'pose' | 'view', Pose][] = [
   ['aerial', 'view', [-14, 14, -12, -135, -30]],
 ];
 
+// Switching to the realistic look also waits for its textures, sky and probes (I4), so
+// counts and screenshots are taken with the finished look.
 const setStyle = (page: Page, name: StyleName | 'sketch') =>
-  page.evaluate((n) => window.__houseSim!.setStyle(n), name);
+  page.evaluate(async (n) => {
+    await window.__houseSim!.setStyle(n);
+    if (n === 'real') await window.__houseSim!.texturesReady();
+  }, name);
 const getStyle = (page: Page) => page.evaluate(() => window.__houseSim!.getStyle());
 const frame = (page: Page) => page.evaluate(() => window.__houseSim!.nextFrame());
 const pill = (page: Page) => page.locator('.style-toggle .style-pill');
@@ -247,8 +252,9 @@ test.describe('styles', () => {
   test('screenshots: all three looks (desktop HD + phone), no warnings', async ({ page }, info) => {
     const device = { 'desktop-hd': 'desktop', 'iphone-13': 'phone' }[info.project.name];
     test.skip(!device, 'screenshot projects only (desktop-hd, iphone-13)');
-    // SwiftShader at the iPhone's DPR is slow: 3 looks × 6 shots take ~10 min there.
-    test.setTimeout(900_000);
+    // SwiftShader at HD / the iPhone's DPR is slow: the realistic look (PBR textures,
+    // probes) alone takes ~10–15 min there, all three looks ~20–25 min.
+    test.setTimeout(1_800_000);
     const s = await openSim(page);
     await hideStartOverlay(page);
     expect(await getStyle(page)).toBe('sketchup');

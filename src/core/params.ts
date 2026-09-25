@@ -1,6 +1,7 @@
 /**
  * URL parameters: `?debug`, `?pose=x,y,z,yawDeg,pitchDeg`, `?view=x,y,z,yawDeg,pitchDeg`,
- * `?tonemap=agx|neutral`, `?style=sketchup|borderlands|real` (`sketch` = `sketchup`, the default).
+ * `?tonemap=aces|agx|neutral`, `?style=sketchup|borderlands|real` (`sketch` = `sketchup`, the default),
+ * `?quality=low|medium|high|auto` (read by core/quality.ts), `?dynres=0` (fixed resolution).
  */
 
 /** The three looks (plan.md S2). */
@@ -22,6 +23,8 @@ export interface Params {
   style: StyleName;
   /** `?style=` if it names a known look (overrides the stored choice), else `null`. */
   styleParam: StyleName | null;
+  /** `?dynres=0`: keep the pixel ratio fixed (no dynamic resolution). */
+  fixedResolution: boolean;
 }
 
 /** Look used when neither the URL nor a stored choice names one. */
@@ -56,5 +59,6 @@ export function readParams(search: string = window.location.search): Params {
     tonemap: q.get('tonemap'),
     style: parseStyle(q.get('style')),
     styleParam: styleNameOf(q.get('style')),
+    fixedResolution: q.get('dynres') === '0',
   };
 }

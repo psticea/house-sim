@@ -22,3 +22,7 @@ Thumbs.db
 
 # Local design tooling
 .impeccable/
+
+# Downloaded CC0 originals (tools/fetch-assets.mjs) � large, local only; the licence list is tracked
+assets-src/*
+!assets-src/LICENSES.md

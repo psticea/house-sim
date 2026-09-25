@@ -13,6 +13,7 @@ export default tseslint.config(
       'playwright-report/**',
       'architecture-plans/**',
       '.plans-cache/**',
+      'assets-src/**',
     ],
   },
   js.configs.recommended,

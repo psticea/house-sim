@@ -10,20 +10,33 @@ import { DebugOverlay, estimateTextureMB, FrameStats } from './core/debug';
 import { Loop } from './core/loop';
 import { readParams, STYLE_NAMES, styleNameOf, DEFAULT_STYLE, type StyleName } from './core/params';
 import {
+  chooseQuality,
+  DynamicResolution,
+  lowerTier,
+  probeGpu,
+  TIER_SETTINGS,
+  type Tier,
+} from './core/quality';
+import {
   createRenderer,
   handleContextLoss,
   handleResize,
   isTouchDevice,
+  pixelRatioCap,
+  setDynamicPixelRatio,
   setPixelRatioCap,
+  setTierPixelRatioCap,
 } from './core/renderer';
 import { DesktopInput } from './player/input-desktop';
 import { TouchInput } from './player/input-touch';
 import { PLAYER, PlayerController, yawToward } from './player/controller';
 import { buildWorld } from './world/build';
 import { createLighting } from './world/lighting';
+import { RealLook } from './world/realLook';
 import { createSky } from './world/sky';
 import { getStyle, isStyleBuilt, setStyle, STYLE_LABELS } from './world/style';
 import { LoadingScreen } from './ui/loading';
+import { AssetProgress } from './ui/progress';
 import { RoomToast } from './ui/toast';
 import { StartOverlay } from './ui/hud';
 import { StyleToggle } from './ui/style-toggle';
@@ -50,11 +63,20 @@ export interface Stats {
   triangles: number;
   geometries: number;
   textures: number;
+  /** Estimated GPU texture memory (MB): maps, environment, probes, shadow maps. */
   textureMB: number;
   fps: number;
   frameMs: number;
   sceneTriangles: number;
   colliderTriangles: number;
+  /** Quality tier in use (plan.md §3) and where it came from. */
+  quality: Tier;
+  qualitySource: 'url' | 'stored' | 'auto' | 'benchmark';
+  pixelRatio: number;
+  /** Realistic look: PBR textures + sky loaded, downloaded MB, probes captured. */
+  texturesLoaded: boolean;
+  textureDownloadMB: number;
+  probes: number;
 }
 
 export interface HouseSimHooks {
@@ -85,6 +107,11 @@ export interface HouseSimHooks {
   setStyle(name: StyleName | 'sketch'): Promise<void>;
   /** Current look (canonical name): stored choice / `?style=` / default `sketchup`. */
   getStyle(): StyleName;
+  /**
+   * Starts loading the realistic look's textures if needed and resolves once they,
+   * the sky and the interior probes are in place (probes need the look to be shown).
+   */
+  texturesReady(): Promise<void>;
 }
 
 declare global {
@@ -129,9 +156,30 @@ export async function startApp(): Promise<void> {
   canvas.className = 'view';
   canvas.tabIndex = 0;
   app.appendChild(canvas);
+  // Quality tier (plan.md §3): `?quality=` → stored choice → GPU heuristic.
+  let storage: Storage | null;
+  try {
+    storage = window.localStorage;
+  } catch {
+    storage = null;
+  }
+  const touch = isTouchDevice();
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const choice = chooseQuality(window.location.search, storage, {
+    gpu: probeGpu(),
+    touch,
+    ...(nav.deviceMemory ? { memoryGB: nav.deviceMemory } : {}),
+  });
+  let tier: Tier = choice.tier;
+  let qualitySource: Stats['qualitySource'] = choice.source;
+  const quality = { ...TIER_SETTINGS[tier] };
+  setTierPixelRatioCap(quality.pixelRatio);
+  // Automated browsers get deterministic frames: no benchmark, no dynamic resolution.
+  const automated = navigator.webdriver;
+  const dynres = !automated && !params.fixedResolution;
   let renderer: THREE.WebGLRenderer;
   try {
-    renderer = createRenderer(canvas, params.tonemap);
+    renderer = createRenderer(canvas, params.tonemap, quality.antialias);
   } catch (e) {
     loading.error('WebGL 2 is not available on this device/browser.');
     throw e;
@@ -141,26 +189,47 @@ export async function startApp(): Promise<void> {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(65, 1, 0.05, 1000);
   const applyResize = handleResize(renderer, camera);
+  const dyn = new DynamicResolution(Math.min(window.devicePixelRatio || 1, pixelRatioCap()));
 
   await nextPaint();
   loading.progress(0.3, 'Building the house from the plans…');
   await nextPaint();
   const world = buildWorld(house);
   scene.add(world.group);
-  createSky(scene);
-  const touch = isTouchDevice();
-  const lighting = createLighting(scene, house.site, 2048);
+  const sky = createSky(scene);
+  const realFog = scene.fog as THREE.Fog;
+  const lighting = createLighting(scene, house.site, quality.shadowMapSize);
   scene.updateMatrixWorld(true);
   world.group.traverse((o) => o.updateMatrix());
-  const switchStyle = (name: StyleName | 'sketch'): void =>
+  const assetProgress = new AssetProgress(ui);
+  const realLook = new RealLook({
+    renderer,
+    scene,
+    camera,
+    materials: world.materials,
+    lighting,
+    sky,
+    fog: realFog,
+    quality,
+    onProgress: (f, done) => assetProgress.update(f, done),
+  });
+  // Textures of the realistic look stream in after the first walkable frame and after
+  // the warm-up benchmark (which may still lower the texture tier).
+  let benchmarkDone!: () => void;
+  const benchmark = new Promise<void>((r) => (benchmarkDone = r));
+  const switchStyle = (name: StyleName | 'sketch'): void => {
     setStyle(scene, name, {
       renderer,
       lighting,
       onPixelRatioCap: (cap) => {
         setPixelRatioCap(cap);
+        dyn.setMax(Math.min(window.devicePixelRatio || 1, pixelRatioCap()));
+        if (dynres) setDynamicPixelRatio(dyn.ratio);
         applyResize();
       },
     });
+    if (getStyle(scene) === 'real') void benchmark.then(() => realLook.load());
+  };
   // `?style=` wins for this load, then the stored choice, then the default (SketchUp).
   const initialStyle = params.styleParam ?? storedStyle() ?? DEFAULT_STYLE;
   switchStyle(initialStyle);
@@ -265,6 +334,47 @@ export async function startApp(): Promise<void> {
     };
   };
 
+  // Room the free camera is in (screenshots / aerial views): above the roof = outdoors.
+  const freeViewRoom = (): string =>
+    camera.position.y > 7.6
+      ? OUTSIDE
+      : locate(house, camera.position.x, camera.position.y - PLAYER.eye, camera.position.z).room;
+  // 1-s warm-up benchmark (auto tier only): a slow start lowers the tier before the
+  // realistic textures are requested. Then dynamic resolution takes over.
+  let benchActive = choice.source === 'auto' && !automated;
+  if (!benchActive) benchmarkDone();
+  const bench: number[] = [];
+  const frameTimes = (dt: number): void => {
+    const ms = dt * 1000;
+    if (benchActive) {
+      bench.push(ms);
+      if (bench.reduce((a, b) => a + b, 0) >= 1000) {
+        benchActive = false;
+        const median = [...bench].sort((a, b) => a - b)[Math.floor(bench.length / 2)] ?? 0;
+        if (median > 33 && tier !== 'low') {
+          tier = lowerTier(tier);
+          qualitySource = 'benchmark';
+          const next = TIER_SETTINGS[tier];
+          quality.pixelRatio = next.pixelRatio;
+          quality.textures = next.textures;
+          quality.anisotropy = next.anisotropy;
+          quality.probes = next.probes;
+          setTierPixelRatioCap(quality.pixelRatio);
+          dyn.setMax(Math.min(window.devicePixelRatio || 1, pixelRatioCap()));
+          applyResize();
+        }
+        benchmarkDone();
+      }
+    }
+    if (dynres) {
+      const r = dyn.update(ms);
+      if (r !== null) {
+        setDynamicPixelRatio(r);
+        applyResize();
+      }
+    }
+  };
+
   const wish = new THREE.Vector3();
   const LOOK_MOUSE = 0.0022;
   const LOOK_TOUCH = 0.0058;
@@ -291,8 +401,10 @@ export async function startApp(): Promise<void> {
         } else {
           player.applyToCamera(camera);
         }
-        renderer.render(scene, camera);
         const i = info();
+        realLook.update(frameDt, freeView ? freeViewRoom() : i.room, getStyle(scene) === 'real');
+        renderer.render(scene, camera);
+        frameTimes(frameDt);
         if (i.place !== lastPlace) {
           lastPlace = i.place;
           if (!overlay.visible || i.place !== OUTSIDE) toast.show(i.placeName);
@@ -306,7 +418,7 @@ export async function startApp(): Promise<void> {
             triangles: r.render.triangles,
             geometries: r.memory.geometries,
             textures: r.memory.textures,
-            textureMB: estimateTextureMB(scene),
+            textureMB: estimateTextureMB(scene, realLook.ownedTextures()),
             x: i.x,
             y: i.y,
             z: i.z,
@@ -323,6 +435,7 @@ export async function startApp(): Promise<void> {
     isReady: false,
     teleport: async (x, y, z, yawD, pitchD) => {
       freeView = null;
+      realLook.snap();
       player.teleport(
         x,
         y,
@@ -343,15 +456,22 @@ export async function startApp(): Promise<void> {
         triangles: r.render.triangles,
         geometries: r.memory.geometries,
         textures: r.memory.textures,
-        textureMB: estimateTextureMB(scene),
+        textureMB: estimateTextureMB(scene, realLook.ownedTextures()),
         fps: stats.fps,
         frameMs: stats.frameMs,
         sceneTriangles: world.triangles,
         colliderTriangles: world.colliderTriangles,
+        quality: tier,
+        qualitySource,
+        pixelRatio: renderer.getPixelRatio(),
+        texturesLoaded: realLook.loaded,
+        textureDownloadMB: realLook.bytes / (1024 * 1024),
+        probes: realLook.probeCount,
       };
     },
     walk: async (dx, dz, seconds, run = false) => {
       freeView = null;
+      realLook.snap();
       const len = Math.hypot(dx, dz) || 1;
       const speed = run ? PLAYER.runSpeed : PLAYER.walkSpeed;
       const n = Math.round(seconds / PLAYER.fixedDt);
@@ -362,6 +482,7 @@ export async function startApp(): Promise<void> {
     },
     walkTo: async (x, z, opts = {}) => {
       freeView = null;
+      realLook.snap();
       const speed = opts.run ? PLAYER.runSpeed : PLAYER.walkSpeed;
       const maxSteps = Math.round((opts.timeout ?? 30) / PLAYER.fixedDt);
       let reached = false;
@@ -383,6 +504,7 @@ export async function startApp(): Promise<void> {
     },
     view: async (pose) => {
       freeView = pose;
+      realLook.snap();
       await loop.nextFrame();
     },
     look: async (yawD, pitchD) => {
@@ -398,6 +520,16 @@ export async function startApp(): Promise<void> {
       await loop.nextFrame();
     },
     getStyle: () => getStyle(scene),
+    texturesReady: async () => {
+      await benchmark;
+      await realLook.load();
+      // Probes are captured a few frames after loading, while the realistic look shows.
+      for (let k = 0; k < 20 && realLook.probesPending; k++) {
+        if (getStyle(scene) !== 'real') break;
+        await loop.nextFrame();
+      }
+      await loop.nextFrame();
+    },
   };
   window.__houseSim = hooks;
 

@@ -1,7 +1,7 @@
 // Dev-only: screenshots of the review poses for one or more looks, one page load per
 // look (poses via the __houseSim hooks — much faster than a reload per shot).
 // Output: test-results/shots/<style>-<pose>[-phone].png (git-ignored).
-// Usage: node tools/style-shots.mjs [baseUrl] [styles] [poses] [phone]
+// Usage: node tools/style-shots.mjs [baseUrl] [styles] [poses] [phone|desk] [extraQuery] [suffix]
 //   e.g. node tools/style-shots.mjs http://localhost:5173/ borderlands start,living-east
 //        node tools/style-shots.mjs http://localhost:5173/ sketchup,borderlands,real "" phone
 import fs from 'node:fs';
@@ -12,6 +12,8 @@ const base = process.argv[2] || 'http://localhost:5173/';
 const styles = (process.argv[3] || 'borderlands').split(',').filter(Boolean);
 const only = (process.argv[4] || '').split(',').filter(Boolean);
 const phone = process.argv[5] === 'phone';
+const extra = process.argv[6] || '';
+const suffix = process.argv[7] || '';
 const outDir = path.resolve('test-results', 'shots');
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -34,6 +36,12 @@ const POSES = [
   ['rear-garden', 'pose', [20.3, -0.1, 9.5, -25, -4]],
   ['terrace-out', 'pose', [18.9, 0, 4.8, -90, -4]],
   ['living-out', 'pose', [13.2, 0, 3.4, -90, 0]],
+  // I4: materials close-ups.
+  ['facade-north', 'pose', [7.5, -0.05, -6.5, 160, 12]],
+  ['bathroom', 'pose', [5.9, 0, 4.2, 180, -32]],
+  ['bedroom-3', 'pose', [3.9, 2.95, 5.8, 55, 12]],
+  ['stairs', 'pose', [8.9, 0, 3.0, 180, 10]],
+  ['lawn-close', 'pose', [8.8, -0.1, 9.9, -105, -35]],
   // The start view with the style menu open (UI check).
   ['menu', 'menu', null],
 ];
@@ -59,9 +67,11 @@ for (const style of styles) {
       problems.push(`${style}: ${m.type()} ${m.text()}`);
   });
   page.on('pageerror', (e) => problems.push(`${style}: pageerror ${e.message}`));
-  await page.goto(`${base}?style=${style}`);
+  await page.goto(`${base}?style=${style}${extra ? `&${extra}` : ''}`);
   await page.waitForFunction(() => window.__houseSim?.isReady === true, null, { timeout: 120000 });
   await page.evaluate(() => document.querySelector('.start')?.classList.add('off'));
+  // Realistic look: wait for the streamed textures, sky and probes (I4).
+  if (style === 'real') await page.evaluate(() => window.__houseSim.texturesReady());
   const start = await page.evaluate(() => window.__houseSim.getPlayer());
   for (const [name, kind, pose] of POSES) {
     if (only.length && !only.includes(name)) continue;
@@ -76,7 +86,7 @@ for (const style of styles) {
       [kind, pose, start],
     );
     if (kind === 'menu') await page.locator('.style-pill').click();
-    const file = path.join(outDir, `${style}-${name}${phone ? '-phone' : ''}.png`);
+    const file = path.join(outDir, `${style}-${name}${phone ? '-phone' : ''}${suffix}.png`);
     await page.screenshot({ path: file, timeout: 180000 });
     const s = await page.evaluate(() => window.__houseSim.getStats());
     console.log(style.padEnd(12), name.padEnd(14), `calls=${s.drawCalls} tris=${s.triangles}`);

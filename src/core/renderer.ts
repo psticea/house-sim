@@ -6,30 +6,50 @@ export const isTouchDevice = (): boolean =>
   (window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
 
 let capOverride: number | null = null;
+let tierCap: number | null = null;
+let dynamicRatio: number | null = null;
 
 /** Extra DPR cap (e.g. 1.5 in the sketch style); `null` removes it. */
 export function setPixelRatioCap(cap: number | null): void {
   capOverride = cap;
 }
 
+/** DPR cap of the quality tier (plan.md §3); `null` = the device default below. */
+export function setTierPixelRatioCap(cap: number | null): void {
+  tierCap = cap;
+}
+
+/** Dynamic-resolution pixel ratio (clamped to the cap); `null` = the cap itself. */
+export function setDynamicPixelRatio(ratio: number | null): void {
+  dynamicRatio = ratio;
+}
+
 export function pixelRatioCap(): number {
-  // Phones: ≤ 1.5 (fill-rate bound); desktop: ≤ 2.
-  const base = isTouchDevice() ? 1.5 : 2;
-  return capOverride === null ? base : Math.min(base, capOverride);
+  // Phones: ≤ 1.5 (fill-rate bound); desktop: ≤ 2 — then the tier's and the look's caps.
+  let cap = isTouchDevice() ? 1.5 : 2;
+  if (tierCap !== null) cap = Math.min(cap, tierCap);
+  return capOverride === null ? cap : Math.min(cap, capOverride);
+}
+
+/** Pixel ratio to render at: device ratio, capped, then the dynamic-resolution value. */
+export function targetPixelRatio(): number {
+  const r = Math.min(window.devicePixelRatio || 1, pixelRatioCap());
+  return dynamicRatio === null ? r : Math.min(r, Math.max(0.5, dynamicRatio));
 }
 
 export function createRenderer(
   canvas: HTMLCanvasElement,
   tonemap: string | null = null,
+  antialias = true,
 ): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: true,
+    antialias,
     alpha: false,
     powerPreference: 'high-performance',
     stencil: false,
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelRatioCap()));
+  renderer.setPixelRatio(targetPixelRatio());
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // ACES Filmic keeps the bright, warm Scandinavian palette more saturated than AgX
@@ -53,7 +73,7 @@ export function handleResize(
   const apply = (): void => {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelRatioCap()));
+    renderer.setPixelRatio(targetPixelRatio());
     renderer.setSize(w, h, false);
     camera.aspect = w / Math.max(1, h);
     // Keep a sensible horizontal field of view in portrait.

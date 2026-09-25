@@ -361,7 +361,8 @@ function fillMaterial(
     gradientMap: cache.gradient,
     map: surfaceTexture(st, cache, kind),
     transparent: original.transparent,
-    opacity: original.opacity,
+    // The I1 palette opacity (the realistic glass is tuned separately).
+    opacity: PALETTE[id].opacity ?? original.opacity,
     side: original.side,
     depthWrite: original.depthWrite,
     polygonOffset: true,
@@ -505,7 +506,7 @@ function saveEnvironment(scene: THREE.Scene, options: StyleOptions): Saved {
             mesh: sky,
             material: skyMat,
             values: Object.fromEntries(
-              ['zenith', 'horizon', 'ground'].map((k) => [k, skyMat.uniforms[k]?.value]),
+              ['zenith', 'horizon', 'ground', 'hdriMix'].map((k) => [k, skyMat.uniforms[k]?.value]),
             ),
           }
         : null,
@@ -562,6 +563,8 @@ function applyEnvironment(scene: THREE.Scene, st: SceneState, active: Active): v
       for (const k of ['zenith', 'horizon', 'ground'] as const) {
         if (u[k]) u[k].value = new THREE.Color(cfg.sky[k]);
       }
+      // The realistic look's HDRI sky (sky.ts) is off in the stylised looks.
+      if (u.hdriMix) u.hdriMix.value = 0;
     }
   }
   if (lit) {

@@ -308,6 +308,46 @@ canvas.view {
   }
 }
 
+/* Realistic look: materials streaming in after the first walkable frame */
+.asset-progress {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 14px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.asset-progress.on {
+  opacity: 0.9;
+}
+.asset-progress > b {
+  display: block;
+  width: 64px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+.asset-progress > b > i {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.25s ease;
+}
+
 /* Crosshair (desktop, pointer locked) */
 .crosshair {
   position: absolute;

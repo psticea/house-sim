@@ -7,7 +7,15 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 **Live:** https://psticea.github.io/house-sim/
 
 - What we want: [`goal.md`](goal.md) · How and roadmap: [`plan.md`](plan.md)
-- Current release: **I3 "Garden & fence"** — start on the parking, walk in through the
+- Current release: **I4 "Materials & textures"** — the **Realistic** look (`?style=real`)
+  gets CC0 PBR materials (KTX2): natural oak parquet, warm sand stone-look tiles in the
+  bathrooms, exterior wood boards and slats, grey standing-seam metal (RAL 7045),
+  micro-textured warm-white plaster, oak board ceiling, concrete pavers, stone slabs,
+  gravel, lawn, timber fence, Corten, bark; clear glass with sky reflections, RAL 1011
+  frames; an HDRI partly-cloudy sky with image-based lighting, interior reflection probes
+  and eye adaptation between inside and outside; low / medium / high quality tiers with
+  dynamic resolution. SketchUp and Borderlands are unchanged.
+- Previous: **I3 "Garden & fence"** — start on the parking, walk in through the
   north entrance, visit every room on all three levels (all doors open), step out onto
   the east terrace through the glass wall, and walk all around the garden: gently
   sloping lawn on the surveyed spot heights, parking pavers, stone paths and stepping
@@ -18,7 +26,7 @@ model transcribed from the architectural drawings (no Blender), rendered with th
   plan's positions, meadow strips with wildflowers along the fences, Corten edging,
   raised vegetable beds, a swing, a fire pit with a bench and log stools, olive trees in
   clay pots on the deck, the bin corner, neighbour houses and distant hills.
-- Previous: **I2 "Whole building"** — upper floor, basement, walkable stairs, sloped
+- Before: **I2 "Whole building"** — upper floor, basement, walkable stairs, sloped
   attic ceilings, wood-board living-room ceiling, standing-seam roof with roof windows,
   hidden gutters, snow guards, chimney, entrance canopy, south sunshade, rain chains and
   the basement light well.
@@ -39,7 +47,7 @@ Three looks of the same scene; only materials, lights and rendering settings dif
 | ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **SketchUp** (default) | `sketchup`    | Hand-drawn architecture with a light cartoon touch: pastel toon fills with subtle bands, thin dark-grey edge lines (fat lines on desktop, 1 px lines on phones), one soft pale shadow, pale sky + fog, a grid on the ground, faint paper grain; trees and pots get a thin silhouette outline.                                                     |
 | **Borderlands**        | `borderlands` | Cel-shaded comic ink: thick black outlines in two weights (fat lines on every device) + inverted-hull silhouettes on curved meshes (chimney, trees, pots), hard 2-step toon, violet-tinted shadows with screen-space ink hatching, saturated warm colours, painted surfaces and grass strokes, bold sky with inked cartoon clouds, soft vignette. |
-| **Realistic**          | `real`        | Flat palette materials, ACES tone mapping, 2048 shadow map — the base that the material (I4) and baked-lighting (I6) work continues to improve.                                                                                                                                                                                                   |
+| **Realistic**          | `real`        | PBR materials from CC0 texture sets (KTX2, streamed in after the first walkable frame — the house appears in flat colours first), HDRI sky + image-based lighting, interior reflection probes, eye adaptation, ACES tone mapping, static sun shadow map (1024 / 2048 px by tier). Baked lighting (I6) continues it.                               |
 
 - **Style toggle:** the small pill in the top-right corner (phone and desktop) shows the
   current look; tap/click it and pick SketchUp · Borderlands · Realistic. Desktop: **K**
@@ -76,6 +84,49 @@ Three looks of the same scene; only materials, lights and rendering settings dif
     **Calmer / more legible:** `ink.strength` 0.15, `crossStrength: 0` (single hatching
     only), `tintStrength` 0.4, `shadowOpacity` 0.4, `lineWidth` 1.8, `vignette: 0`.
 
+## Quality tiers
+
+| Tier     | Pixel ratio cap | MSAA | Realistic textures (hero / standard albedo) | Anisotropy | Shadow map | Interior probes |
+| -------- | --------------- | ---- | ------------------------------------------- | ---------- | ---------- | --------------- |
+| `low`    | 1               | off  | 1K / 512 px                                 | 2          | 1024       | off             |
+| `medium` | 1.5             | on   | 2K / 1K                                     | 4          | 1024       | 3               |
+| `high`   | 2               | on   | 2K / 1K (lawn + pavers 2K)                  | 8          | 2048       | 3               |
+
+- **Auto detection** (`src/core/quality.ts`, no third-party data or requests): a guess
+  from the unmasked GPU name (Adreno / Mali / Apple / desktop GPUs, `deviceMemory`),
+  then a 1-s warm-up benchmark drops one tier when the median frame is slower than
+  33 ms. `?quality=low|medium|high` overrides it and is remembered (`localStorage` key
+  `houseSim.quality`); `?quality=auto` forgets the override.
+- **Dynamic resolution:** the pixel ratio moves between 0.75 and the tier cap from the
+  smoothed frame time (drops 0.125 after 0.5 s above 22 ms, rises after 3 s below
+  17.5 ms). The stylised looks keep their own pixel-ratio cap (≤ 1.5); the lower of the
+  two applies. `?dynres=0` pins the resolution (screenshots); automated browsers
+  (`navigator.webdriver`) skip the benchmark and dynamic resolution.
+
+## Materials & assets pipeline (Realistic look)
+
+- CC0 sources only (Poly Haven, ambientCG) — the list with URLs and authors is in
+  [`assets-src/LICENSES.md`](assets-src/LICENSES.md). The downloaded originals live in
+  `assets-src/` (git-ignored); only the optimised files in `public/assets/` are tracked
+  (≈ 16.6 MB for all three tiers).
+- `npm run assets:fetch` downloads the originals (`tools/fetch-assets.mjs`, config in
+  `tools/assets.config.mjs`); `npm run assets:optimize` (`tools/optimize-assets.mjs`,
+  Node only, `ktx2-encoder` WASM) resizes per tier, normalises each albedo to its target
+  tint and encodes **KTX2**: Basis ETC1S for albedo and ORM (occlusion / roughness /
+  metalness), UASTC + zstd for normal maps; it also generates the standing-seam metal
+  normals, a fine micro-normal, and the sky (`public/assets/sky/`: UASTC 2K background +
+  1K JPEG for the PMREM environment). Output: `public/assets/textures/<set>/<map>-<px>.ktx2`
+  and `manifest.json`. `REUSE=1` skips files that already exist.
+- Runtime: `src/core/assets.ts` (three's `KTX2Loader`; the Basis transcoder is bundled
+  from three by Vite — no CDN), `src/world/finishes.ts` (**one finish per material id**:
+  colour, roughness, texture set, real-world tile size, anti-tiling, normal strength —
+  the place to tune the look), `src/world/realLook.ts` (texture streaming, anti-tiling
+  shader patch, HDRI environment, reflection probes, eye adaptation, light constants
+  `REAL_LIGHT`). UVs are world-space metres, so every set is scaled to its real size
+  (parquet boards ≈ 18 cm, tiles 60 × 60 cm).
+- Tone mapping: ACES filmic (AgX and Neutral were compared with the textures: AgX looked
+  greyer and washed out, Neutral flatter).
+
 ## Develop
 
 Requires Node ≥ 22.12 (tested with Node 24).
@@ -95,7 +146,7 @@ npm run typecheck    # tsc --noEmit (strict)
 npm test             # Vitest: room areas (3 levels), dimensions, openings, stair math, reachability, geometry, site & garden, privacy
 npx playwright install chromium   # once
 npm run e2e          # quick pass: desktop only, small viewport, no screenshots
-npm run e2e:walk     # one spec only (also e2e:garden, e2e:style, e2e:perf, e2e:mobile)
+npm run e2e:walk     # one spec only (also e2e:garden, e2e:style, e2e:perf, e2e:materials, e2e:mobile)
 npm run e2e:full     # final pass: + HD desktop, Pixel 7, iPhone 13, all screenshots
 npm run shots:styles -- http://localhost:5173/ borderlands   # look-dev shots (dev server)
 ```
@@ -114,10 +165,13 @@ in `test-results/style-shots/`).
   estimated texture memory, player position and room.
 - `?pose=x,y,z,yawDeg,pitchDeg` — start at a pose (metres, y = feet; yaw 0 looks plan-north).
 - `?view=x,y,z,yawDeg,pitchDeg` — free camera (physics paused), e.g. aerial views.
+- `?quality=low|medium|high|auto`, `?dynres=0` — quality tier / fixed resolution (see Quality tiers).
 - `window.__houseSim` — `ready`, `teleport()`, `getPlayer()` (position, `level`, `room`,
   `place`…), `getStats()`, `walk(dx, dz, s)`, `walkTo(x, z)`, `view()`, `look()`,
-  `nextFrame()`, `setStyle('sketchup' | 'borderlands' | 'real')`, `getStyle()` (used by the
-  e2e tests).
+  `nextFrame()`, `setStyle('sketchup' | 'borderlands' | 'real')`, `getStyle()`,
+  `texturesReady()` (resolves when the realistic textures, sky and probes are in; used by the
+  e2e tests). `getStats()` also reports `quality`, `pixelRatio`, `textureMB` (GPU estimate:
+  compressed mips, env maps, shadow maps), `textureDownloadMB`, `probes`.
 - `npm run shots -- http://localhost:5173/ upper-hall,bedroom-3,storage` — review shots
   of named poses (see `tools/screenshots.mjs`; garden poses: `garden-aerial`,
   `gate-street`, `north-side`, `south-garden`, `rear-garden`, `terrace-out`, `living-out`)
@@ -144,12 +198,15 @@ src/world/    builders: walls (layers + holes), openings, curtain wall, slabs, r
               seams, gutters, snow guards, board ceiling), stairs, exterior, terrain +
               draped paving, garden (fence, vegetation, features, context), lighting, sky,
               merge-by-material mesh builder, plan section,
-              style registry + SketchUp / Borderlands looks (style.ts + style/)
+              style registry + SketchUp / Borderlands looks (style.ts + style/),
+              realistic finishes + PBR runtime (finishes.ts, realLook.ts)
 src/player/   capsule controller (three-mesh-bvh shapecast), touch + desktop input
-src/core/     renderer, frame loop, debug overlay, URL params
+src/core/     renderer, frame loop, debug overlay, URL params, quality tiers, asset loading
 src/ui/       loading screen, start card, room toast, styles
 tests/        Vitest unit tests; tests/e2e/ Playwright
-tools/        dev-only plan tools (render / crop / extract / overlay screenshots)
+tools/        dev-only plan tools (render / crop / extract / overlay screenshots), asset
+              pipeline (fetch / optimize), review screenshots
+public/assets/ optimised KTX2 textures + sky (tracked); assets-src/ CC0 originals (local)
 ```
 
 ## Privacy rule — the plans stay local

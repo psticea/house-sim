@@ -1,0 +1,436 @@
+{
+  "sets": {
+    "oak": {
+      "kind": "hero",
+      "sizeM": 1.7,
+      "maps": {
+        "albedo": {
+          "low": "oak/albedo-1024.ktx2",
+          "medium": "oak/albedo-2048.ktx2",
+          "high": "oak/albedo-2048.ktx2"
+        },
+        "normal": {
+          "low": "oak/normal-512.ktx2",
+          "medium": "oak/normal-1024.ktx2",
+          "high": "oak/normal-1024.ktx2"
+        },
+        "orm": {
+          "low": "oak/orm-512.ktx2",
+          "medium": "oak/orm-1024.ktx2",
+          "high": "oak/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "oak/albedo-1024.ktx2": 229836,
+        "oak/albedo-2048.ktx2": 853276,
+        "oak/normal-512.ktx2": 77214,
+        "oak/normal-1024.ktx2": 353761,
+        "oak/orm-512.ktx2": 40220,
+        "oak/orm-1024.ktx2": 151069
+      },
+      "tint": "#C9A77C"
+    },
+    "tile": {
+      "kind": "hero",
+      "sizeM": 2.2,
+      "maps": {
+        "albedo": {
+          "low": "tile/albedo-1024.ktx2",
+          "medium": "tile/albedo-2048.ktx2",
+          "high": "tile/albedo-2048.ktx2"
+        },
+        "normal": {
+          "low": "tile/normal-512.ktx2",
+          "medium": "tile/normal-1024.ktx2",
+          "high": "tile/normal-1024.ktx2"
+        },
+        "orm": {
+          "low": "tile/orm-512.ktx2",
+          "medium": "tile/orm-1024.ktx2",
+          "high": "tile/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "tile/albedo-1024.ktx2": 219845,
+        "tile/albedo-2048.ktx2": 803687,
+        "tile/normal-512.ktx2": 154432,
+        "tile/normal-1024.ktx2": 524908,
+        "tile/orm-512.ktx2": 38684,
+        "tile/orm-1024.ktx2": 130346
+      },
+      "tint": "#CDBFA7"
+    },
+    "extwood": {
+      "kind": "hero",
+      "sizeM": 1.5,
+      "maps": {
+        "albedo": {
+          "low": "extwood/albedo-1024.ktx2",
+          "medium": "extwood/albedo-2048.ktx2",
+          "high": "extwood/albedo-2048.ktx2"
+        },
+        "normal": {
+          "low": "extwood/normal-512.ktx2",
+          "medium": "extwood/normal-1024.ktx2",
+          "high": "extwood/normal-1024.ktx2"
+        },
+        "orm": {
+          "low": "extwood/orm-512.ktx2",
+          "medium": "extwood/orm-1024.ktx2",
+          "high": "extwood/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "extwood/albedo-1024.ktx2": 230216,
+        "extwood/albedo-2048.ktx2": 825077,
+        "extwood/normal-512.ktx2": 120783,
+        "extwood/normal-1024.ktx2": 506643,
+        "extwood/orm-512.ktx2": 21816,
+        "extwood/orm-1024.ktx2": 81159
+      },
+      "tint": "#A9825A"
+    },
+    "woodgrain": {
+      "kind": "standard",
+      "sizeM": 1.83,
+      "maps": {
+        "albedo": {
+          "low": "woodgrain/albedo-512.ktx2",
+          "medium": "woodgrain/albedo-1024.ktx2",
+          "high": "woodgrain/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "woodgrain/normal-512.ktx2",
+          "medium": "woodgrain/normal-1024.ktx2",
+          "high": "woodgrain/normal-1024.ktx2"
+        },
+        "orm": {
+          "low": "woodgrain/orm-512.ktx2",
+          "medium": "woodgrain/orm-1024.ktx2",
+          "high": "woodgrain/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "woodgrain/albedo-512.ktx2": 82954,
+        "woodgrain/albedo-1024.ktx2": 232617,
+        "woodgrain/normal-512.ktx2": 76618,
+        "woodgrain/normal-1024.ktx2": 341965,
+        "woodgrain/orm-512.ktx2": 61329,
+        "woodgrain/orm-1024.ktx2": 201397
+      },
+      "tint": "#D3B894"
+    },
+    "pavers": {
+      "kind": "standard",
+      "sizeM": 2,
+      "maps": {
+        "albedo": {
+          "low": "pavers/albedo-512.ktx2",
+          "medium": "pavers/albedo-1024.ktx2",
+          "high": "pavers/albedo-2048.ktx2"
+        },
+        "normal": {
+          "low": "pavers/normal-512.ktx2",
+          "medium": "pavers/normal-1024.ktx2",
+          "high": "pavers/normal-1024.ktx2"
+        },
+        "orm": {
+          "low": "pavers/orm-512.ktx2",
+          "medium": "pavers/orm-1024.ktx2",
+          "high": "pavers/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "pavers/albedo-512.ktx2": 88810,
+        "pavers/albedo-1024.ktx2": 242293,
+        "pavers/albedo-2048.ktx2": 878113,
+        "pavers/normal-512.ktx2": 133124,
+        "pavers/normal-1024.ktx2": 583014,
+        "pavers/orm-512.ktx2": 36105,
+        "pavers/orm-1024.ktx2": 135080
+      },
+      "tint": "#A8A399"
+    },
+    "concrete": {
+      "kind": "standard",
+      "sizeM": 2.5,
+      "maps": {
+        "albedo": {
+          "low": "concrete/albedo-512.ktx2",
+          "medium": "concrete/albedo-1024.ktx2",
+          "high": "concrete/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "concrete/normal-512.ktx2",
+          "medium": "concrete/normal-512.ktx2",
+          "high": "concrete/normal-512.ktx2"
+        },
+        "orm": {
+          "low": "concrete/orm-512.ktx2",
+          "medium": "concrete/orm-1024.ktx2",
+          "high": "concrete/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "concrete/albedo-512.ktx2": 92897,
+        "concrete/albedo-1024.ktx2": 243110,
+        "concrete/normal-512.ktx2": 182512,
+        "concrete/orm-512.ktx2": 53697,
+        "concrete/orm-1024.ktx2": 183495
+      },
+      "tint": "#A8A99E"
+    },
+    "stone": {
+      "kind": "standard",
+      "sizeM": 3,
+      "maps": {
+        "albedo": {
+          "low": "stone/albedo-512.ktx2",
+          "medium": "stone/albedo-1024.ktx2",
+          "high": "stone/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "stone/normal-512.ktx2",
+          "medium": "stone/normal-1024.ktx2",
+          "high": "stone/normal-1024.ktx2"
+        },
+        "orm": {
+          "low": "stone/orm-512.ktx2",
+          "medium": "stone/orm-1024.ktx2",
+          "high": "stone/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "stone/albedo-512.ktx2": 85138,
+        "stone/albedo-1024.ktx2": 226090,
+        "stone/normal-512.ktx2": 97332,
+        "stone/normal-1024.ktx2": 570675,
+        "stone/orm-512.ktx2": 52782,
+        "stone/orm-1024.ktx2": 175581
+      },
+      "tint": "#C4BEB2"
+    },
+    "gravel": {
+      "kind": "standard",
+      "sizeM": 2,
+      "maps": {
+        "albedo": {
+          "low": "gravel/albedo-512.ktx2",
+          "medium": "gravel/albedo-1024.ktx2",
+          "high": "gravel/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "gravel/normal-512.ktx2",
+          "medium": "gravel/normal-512.ktx2",
+          "high": "gravel/normal-512.ktx2"
+        },
+        "orm": {
+          "low": "gravel/orm-512.ktx2",
+          "medium": "gravel/orm-1024.ktx2",
+          "high": "gravel/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "gravel/albedo-512.ktx2": 98878,
+        "gravel/albedo-1024.ktx2": 265590,
+        "gravel/normal-512.ktx2": 333580,
+        "gravel/orm-512.ktx2": 62441,
+        "gravel/orm-1024.ktx2": 208051
+      },
+      "tint": "#BFB5A3"
+    },
+    "grass": {
+      "kind": "standard",
+      "sizeM": 1.4,
+      "maps": {
+        "albedo": {
+          "low": "grass/albedo-512.ktx2",
+          "medium": "grass/albedo-1024.ktx2",
+          "high": "grass/albedo-2048.ktx2"
+        },
+        "normal": {
+          "low": "grass/normal-512.ktx2",
+          "medium": "grass/normal-512.ktx2",
+          "high": "grass/normal-512.ktx2"
+        },
+        "orm": {
+          "low": "grass/orm-512.ktx2",
+          "medium": "grass/orm-1024.ktx2",
+          "high": "grass/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "grass/albedo-512.ktx2": 101654,
+        "grass/albedo-1024.ktx2": 289756,
+        "grass/albedo-2048.ktx2": 1077211,
+        "grass/normal-512.ktx2": 322897,
+        "grass/orm-512.ktx2": 64695,
+        "grass/orm-1024.ktx2": 217404
+      },
+      "tint": "#6B8747"
+    },
+    "asphalt": {
+      "kind": "small",
+      "sizeM": 3,
+      "maps": {
+        "albedo": {
+          "low": "asphalt/albedo-512.ktx2",
+          "medium": "asphalt/albedo-512.ktx2",
+          "high": "asphalt/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "asphalt/normal-512.ktx2",
+          "medium": "asphalt/normal-512.ktx2",
+          "high": "asphalt/normal-512.ktx2"
+        },
+        "orm": {
+          "low": "asphalt/orm-512.ktx2",
+          "medium": "asphalt/orm-512.ktx2",
+          "high": "asphalt/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "asphalt/albedo-512.ktx2": 94597,
+        "asphalt/albedo-1024.ktx2": 251212,
+        "asphalt/normal-512.ktx2": 271300,
+        "asphalt/orm-512.ktx2": 65023,
+        "asphalt/orm-1024.ktx2": 215980
+      },
+      "tint": "#56575A"
+    },
+    "corten": {
+      "kind": "small",
+      "sizeM": 2.2,
+      "maps": {
+        "albedo": {
+          "low": "corten/albedo-512.ktx2",
+          "medium": "corten/albedo-512.ktx2",
+          "high": "corten/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "corten/normal-512.ktx2",
+          "medium": "corten/normal-512.ktx2",
+          "high": "corten/normal-512.ktx2"
+        },
+        "orm": {
+          "low": "corten/orm-512.ktx2",
+          "medium": "corten/orm-512.ktx2",
+          "high": "corten/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "corten/albedo-512.ktx2": 95152,
+        "corten/albedo-1024.ktx2": 254680,
+        "corten/normal-512.ktx2": 131284,
+        "corten/orm-512.ktx2": 56414,
+        "corten/orm-1024.ktx2": 188253
+      },
+      "tint": "#8A4B2C"
+    },
+    "bark": {
+      "kind": "small",
+      "sizeM": 1,
+      "maps": {
+        "albedo": {
+          "low": "bark/albedo-512.ktx2",
+          "medium": "bark/albedo-512.ktx2",
+          "high": "bark/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "bark/normal-512.ktx2",
+          "medium": "bark/normal-512.ktx2",
+          "high": "bark/normal-512.ktx2"
+        },
+        "orm": {
+          "low": "bark/orm-512.ktx2",
+          "medium": "bark/orm-512.ktx2",
+          "high": "bark/orm-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "bark/albedo-512.ktx2": 99484,
+        "bark/albedo-1024.ktx2": 275829,
+        "bark/normal-512.ktx2": 302683,
+        "bark/orm-512.ktx2": 66192,
+        "bark/orm-1024.ktx2": 222802
+      },
+      "tint": "#5F4E40"
+    },
+    "detail-plaster": {
+      "kind": "detail",
+      "sizeM": 2,
+      "maps": {
+        "normal": {
+          "low": "detail-plaster/normal-512.ktx2",
+          "medium": "detail-plaster/normal-512.ktx2",
+          "high": "detail-plaster/normal-512.ktx2"
+        }
+      },
+      "bytes": {
+        "detail-plaster/normal-512.ktx2": 172041
+      }
+    },
+    "metal": {
+      "kind": "normal-only",
+      "sizeM": 1,
+      "maps": {
+        "normal": {
+          "low": "metal/normal-512.ktx2",
+          "medium": "metal/normal-1024.ktx2",
+          "high": "metal/normal-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "metal/normal-512.ktx2": 16395,
+        "metal/normal-1024.ktx2": 30120
+      }
+    },
+    "metal-flat": {
+      "kind": "normal-only",
+      "sizeM": 1,
+      "maps": {
+        "normal": {
+          "low": "metal-flat/normal-512.ktx2",
+          "medium": "metal-flat/normal-1024.ktx2",
+          "high": "metal-flat/normal-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "metal-flat/normal-512.ktx2": 15966,
+        "metal-flat/normal-1024.ktx2": 28901
+      }
+    },
+    "detail-fine": {
+      "kind": "detail",
+      "sizeM": 0.5,
+      "maps": {
+        "normal": {
+          "low": "detail-fine/normal-512.ktx2",
+          "medium": "detail-fine/normal-512.ktx2",
+          "high": "detail-fine/normal-512.ktx2"
+        }
+      },
+      "bytes": {
+        "detail-fine/normal-512.ktx2": 142101
+      }
+    }
+  },
+  "generated": "tools/optimize-assets.mjs",
+  "sky": {
+    "background": "sky/sky-bg.ktx2",
+    "environment": "sky/sky-env.jpg",
+    "width": 2048,
+    "scale": 1.0340812499999998,
+    "sunU": 0.594970703125,
+    "sunElevationDeg": 47.900390625,
+    "horizon": [
+      0.42561630066606726,
+      0.4573712039500318,
+      0.5499431032687216
+    ],
+    "bytes": {
+      "sky/sky-bg.ktx2": 845451,
+      "sky/sky-env.jpg": 67209
+    }
+  }
+}
