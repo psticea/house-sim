@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+test-results
+playwright-report
+blob-report
+architecture-plans
+.plans-cache
+package-lock.json
+goal.md
+plan.md
+.impeccable

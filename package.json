@@ -1,0 +1,48 @@
+{
+  "name": "house-sim",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Walkable first-person 3D web model of a family house and its garden (phone first).",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:https": "vite --host --mode https",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . --max-warnings 0 && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "e2e": "playwright test",
+    "plans:render": "node tools/render-plans.mjs",
+    "plans:crop": "node tools/crop-plan.mjs",
+    "plans:extract": "node tools/extract-plan-geometry.mjs",
+    "plans:overlay": "node tools/overlay-screenshot.mjs",
+    "shots": "node tools/screenshots.mjs"
+  },
+  "dependencies": {
+    "three": "0.186.1",
+    "three-mesh-bvh": "0.9.15"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@napi-rs/canvas": "1.0.9",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.13.6",
+    "@types/three": "0.186.0",
+    "@vitejs/plugin-basic-ssl": "2.3.0",
+    "eslint": "10.11.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.12.0",
+    "pdfjs-dist": "6.3.289",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1",
+    "vite": "8.3.1",
+    "vitest": "5.0.1"
+  }
+}

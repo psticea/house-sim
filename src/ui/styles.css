@@ -1,0 +1,252 @@
+:root {
+  --paper: #f4f1ea;
+  --ink: #2b2b2b;
+  --muted: #6d6a64;
+  --sage: #a3b09a;
+  --glass: rgba(244, 241, 234, 0.86);
+  font-family:
+    'Inter',
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  color: var(--ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #dfe8ee;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+canvas.view {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  outline: none;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+/* Loading */
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  z-index: 20;
+  transition: opacity 0.5s ease;
+}
+#loading.done {
+  opacity: 0;
+  pointer-events: none;
+}
+#loading .inner {
+  width: min(280px, 70vw);
+  text-align: center;
+}
+#loading h1,
+.start h1 {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-size: 1.4rem;
+  margin: 0 0 1rem;
+}
+#loading .bar {
+  height: 3px;
+  background: #e2ddd3;
+  border-radius: 2px;
+  overflow: hidden;
+}
+#loading .bar > i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--ink);
+  transition: transform 0.2s ease;
+}
+#loading .label {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+#loading.error .label {
+  color: #a4442a;
+}
+
+/* Start overlay */
+.start {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(40, 40, 38, 0.18);
+  pointer-events: auto;
+  z-index: 10;
+  transition: opacity 0.25s ease;
+}
+.start.off {
+  opacity: 0;
+  pointer-events: none;
+}
+.start .card {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  padding: 1.4rem 1.6rem 1.3rem;
+  max-width: min(420px, 86vw);
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+}
+.start p {
+  margin: 0 0 1.1rem;
+  line-height: 1.6;
+  font-size: 0.92rem;
+  color: #45423d;
+}
+.start button {
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 1.4rem;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+
+/* Room toast */
+.toast {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 18px);
+  transform: translate(-50%, -8px);
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  opacity: 0;
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+  white-space: nowrap;
+}
+.toast.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Crosshair (desktop, pointer locked) */
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+}
+body.locked .crosshair {
+  opacity: 1;
+}
+
+/* Joystick */
+.joy-base {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  background: rgba(244, 241, 234, 0.18);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.joy-base.on {
+  opacity: 1;
+}
+.joy-knob {
+  position: absolute;
+  left: 34px;
+  top: 34px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(244, 241, 234, 0.85);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+.joy-knob.run {
+  background: var(--sage);
+}
+.touch-hint {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom) + 14px);
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  display: none;
+}
+.touch-hint.left {
+  left: calc(env(safe-area-inset-left) + 18px);
+}
+.touch-hint.right {
+  right: calc(env(safe-area-inset-right) + 18px);
+}
+body.touch .touch-hint {
+  display: block;
+}
+
+/* Debug */
+.debug {
+  position: absolute;
+  left: calc(env(safe-area-inset-left) + 8px);
+  top: calc(env(safe-area-inset-top) + 8px);
+  margin: 0;
+  padding: 6px 8px;
+  font:
+    11px/1.4 ui-monospace,
+    'SF Mono',
+    Consolas,
+    monospace;
+  color: #f4f1ea;
+  background: rgba(20, 20, 20, 0.55);
+  border-radius: 6px;
+}

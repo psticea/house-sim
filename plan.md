@@ -12,8 +12,8 @@ Legend: ✅ done · 🔄 in progress · ⬜ not started · ⏸ blocked
 | Iteration | Deliverable | Status |
 |---|---|---|
 | **I0** | Planning: repo, plans read, `goal.md`, `plan.md`, `.gitignore` | ✅ |
-| **I1** | **First walk** — public URL: start outside, walk into every ground-floor room (first deliverable) | ⬜ ← next |
-| I2 | Whole building — upper floor, basement, stairs, roof & facade details | ⬜ |
+| **I1** | **First walk** — public URL: start outside, walk into every ground-floor room (first deliverable) | ✅ (real-phone check pending) |
+| I2 | Whole building — upper floor, basement, stairs, roof & facade details | ⬜ ← next |
 | I3 | Garden & fence — lot, terrain, paving, parking, lawn, trees, Scandinavian fence | ⬜ |
 | I4 | Materials — Scandinavian PBR textures, glass, frames, quality tiers | ⬜ |
 | I5 | Basic furniture — every room furnished (procedural + CC0) | ⬜ |
@@ -520,7 +520,7 @@ Order note: furniture (I5) comes **before** baked lighting (I6) so furniture sha
 | 0.4 | `plan.md` — tech choices, budgets, art direction, roadmap | ✅ |
 | 0.5 | `.gitignore` — PDFs and derived plan images stay local only | ✅ |
 
-### I1 — First walk (first deliverable) ⬜
+### I1 — First walk (first deliverable) ✅
 
 **Deliverable:** a public GitHub Pages link. On a phone (and desktop) you start outside on
 the lot next to the parking, walk up to the house, enter through the north entrance and
@@ -536,24 +536,24 @@ performance — before investing in looks.
 
 | # | Step | Status |
 |---|---|---|
-| 1.1 | Scaffold: Vite + TypeScript (strict) + three (pinned), ESLint/Prettier, Vitest; scripts `dev`, `build`, `test`, `lint`, `typecheck` | ⬜ |
-| 1.2 | CI workflow (lint, typecheck, test, build) + deploy workflow to GitHub Pages (Vite `base: '/house-sim/'`); enable Pages → "GitHub Actions" in repo settings (owner) | ⬜ |
-| 1.3 | Core: renderer (WebGL2, DPR cap 1.5, AgX tone mapping), resize, frame loop, debug overlay (fps, draw calls, triangles, texture memory) | ⬜ |
-| 1.4 | `tools/render-plans.mjs`: PDF → PNG into git-ignored `.plans-cache/` (local reference for extraction & overlay) | ⬜ |
-| 1.5 | Data schema (`schema.ts`) + grid & levels (`grid.ts`) | ⬜ |
-| 1.6 | Ground-floor data (`ground.ts`): exterior & interior walls, all openings of sheet 05 (Ue/Ui doors, F windows, curtain wall), room polygons with expected areas, terrace | ⬜ |
-| 1.7 | Data tests: room areas ±3 %, outer dims 18.71 × 7.91, openings fit walls & don't overlap, reachability of every ground-floor room from the start point | ⬜ |
-| 1.8 | Builders v1: walls with opening holes (incl. gable walls), ground slab, ceilings at 2.68 m, upper-floor slab (as ceiling), simple roof shell (40°, eaves +4.23, ridge +7.50) + low-slope roofs, living-room open to the roof, merge-by-material | ⬜ |
-| 1.9 | Openings v1: simple frames, glass panes, door leaves open 90°, sliding doors open | ⬜ |
-| 1.10 | Site v1: flat lawn on the lot outline (rotated as on the site plan), parking pad, entrance path, terrace deck; no fence yet | ⬜ |
-| 1.11 | Player: capsule + three-mesh-bvh collision, gravity, step-up ≤ 0.2 m, start pose at the parking facing the entrance; stairs blocked by an invisible collider | ⬜ |
-| 1.12 | Input: touch (left joystick, right drag-look, edge = run) + desktop (WASD + pointer lock, Shift = run) | ⬜ |
-| 1.13 | Look v1: palette colors from §6.1 as flat materials, glass, hemisphere + sun with a shadow map rendered once, gradient sky + light fog | ⬜ |
-| 1.14 | Room name toast on entering a room (point-in-polygon) | ⬜ |
-| 1.15 | Overlay page (`overlay.html`, dev only): top view of generated ground floor over sheet 05 → alignment checked | ⬜ |
-| 1.16 | Playwright smoke test: loads without errors, scripted walk visits every ground-floor room | ⬜ |
-| 1.17 | Phone test on a reference device: record fps / draw calls / triangles in the progress log | ⬜ |
-| 1.18 | Release `v0.1`: public URL in `README.md`, status here updated | ⬜ |
+| 1.1 | Scaffold: Vite + TypeScript (strict) + three (pinned), ESLint/Prettier, Vitest; scripts `dev`, `build`, `test`, `lint`, `typecheck` | ✅ |
+| 1.2 | CI workflow (lint, typecheck, test, build) + deploy workflow to GitHub Pages (Vite `base: '/house-sim/'`); enable Pages → "GitHub Actions" in repo settings (owner) | ✅ `ci.yml` + `deploy.yml` (upload-pages-artifact + deploy-pages); Pages source = GitHub Actions |
+| 1.3 | Core: renderer (WebGL2, DPR cap 1.5, AgX tone mapping), resize, frame loop, debug overlay (fps, draw calls, triangles, texture memory) | ✅ (ACES Filmic by default — kept the palette more saturated than AgX; `?tonemap=agx` switches) |
+| 1.4 | `tools/render-plans.mjs`: PDF → PNG into git-ignored `.plans-cache/` (local reference for extraction & overlay) | ✅ |
+| 1.5 | Data schema (`schema.ts`) + grid & levels (`grid.ts`) | ✅ |
+| 1.6 | Ground-floor data (`ground.ts`): exterior & interior walls, all openings of sheet 05 (Ue/Ui doors, F windows, curtain wall), room polygons with expected areas, terrace | ✅ |
+| 1.7 | Data tests: room areas ±3 %, outer dims 18.71 × 7.91, openings fit walls & don't overlap, reachability of every ground-floor room from the start point | ✅ all 8 ground-floor areas within ±3 % (terrace 37.42 vs 37.58, others ≤ 0.01 m² off) |
+| 1.8 | Builders v1: walls with opening holes (incl. gable walls), ground slab, ceilings at 2.68 m, upper-floor slab (as ceiling), simple roof shell (40°, eaves +4.23, ridge +7.50) + low-slope roofs, living-room open to the roof, merge-by-material | ✅ |
+| 1.9 | Openings v1: simple frames, glass panes, door leaves open 90°, sliding doors open | ✅ |
+| 1.10 | Site v1: flat lawn on the lot outline (rotated as on the site plan), parking pad, entrance path, terrace deck; no fence yet | ✅ |
+| 1.11 | Player: capsule + three-mesh-bvh collision, gravity, step-up ≤ 0.2 m, start pose at the parking facing the entrance; stairs blocked by an invisible collider | ✅ |
+| 1.12 | Input: touch (left joystick, right drag-look, edge = run) + desktop (WASD + pointer lock, Shift = run) | ✅ |
+| 1.13 | Look v1: palette colors from §6.1 as flat materials, glass, hemisphere + sun with a shadow map rendered once, gradient sky + light fog | ✅ |
+| 1.14 | Room name toast on entering a room (point-in-polygon) | ✅ |
+| 1.15 | Overlay page (`overlay.html`, dev only): top view of generated ground floor over sheet 05 → alignment checked | ✅ `.plans-cache/overlay-05.png` (local only) — walls/openings align with sheet 05 |
+| 1.16 | Playwright smoke test: loads without errors, scripted walk visits every ground-floor room | ✅ 8 Playwright tests (desktop + Pixel 7 + iPhone 13 emulation, SwiftShader) |
+| 1.17 | Phone test on a reference device: record fps / draw calls / triangles in the progress log | ⏸ needs owner device test — proxy (SwiftShader, no GPU): 17–22 draw calls, ~4.0–4.3 k triangles rendered, 32 MB est. texture memory |
+| 1.18 | Release `v0.1`: public URL in `README.md`, status here updated | 🔄 pushed by coordinator; owner to test |
 
 **Done when:** link works on phone + desktop · every ground-floor room reachable, no
 walking through walls · all data tests green · overlay matches sheet 05 · ≥ 50 fps on
@@ -646,6 +646,7 @@ material/color variations, measure tool, gyroscope/VR mode.
 | Date | Iteration / step | Note |
 |---|---|---|
 | 2026-09-24 | I0 | Planning complete: plans read, `goal.md` + `plan.md` written, PDFs kept local only |
+| 2026-09-25 | I1 | First walk implemented. Checks green: lint, typecheck, 39 unit tests (4 files: data incl. 8 room areas ±3 %, reachability, geometry, privacy), build (637 kB JS / 168 kB gzip), 8/8 e2e (1 teleport-settle flake fixed in the test hook). Room areas expected→actual m²: bedroom-1 13.76→13.76, boiler 5.10→5.10, hall 12.32→12.31, bathroom 6.50→6.50, bedroom-2 14.62→14.63, stairs 7.05→7.05, living+kitchen 47.95→47.95, terrace 37.58→37.42. Perf proxy (SwiftShader): 17–22 draw calls, 4.0–4.3 k triangles, scene 3.7 k tris / 992 collider tris, ~32 MB textures; fps not meaningful in software GL — real-phone ≥ 50 fps check pending (1.17). |
 
 ---
 

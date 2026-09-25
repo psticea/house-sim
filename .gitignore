@@ -19,3 +19,6 @@ blob-report/
 .DS_Store
 Thumbs.db
 *.log
+
+# Local design tooling
+.impeccable/
