@@ -184,6 +184,7 @@ describe('openings', () => {
       'F-08': { w: 1.2, h: 1.2, hp: 4.0 },
       'F-09': { w: 1.5, h: 1.5, hp: 3.25 },
       'F-02u': { w: 0.9, h: 0.9, hp: 0.8 },
+      F01: { w: 1.15, h: 0.75, hp: 1.0 },
       'CW-door': { w: 0.9, h: 2.505, hp: 0 },
     };
     for (const level of levels) {

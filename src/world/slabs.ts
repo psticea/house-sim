@@ -1,13 +1,15 @@
 /** Horizontal slabs: room floors, the upper slab (= ground-floor ceiling), site patches. */
 import type { HouseModel, Slab, SitePatch } from '../data/schema';
+import { SHELL } from '../data/grid';
 import type { MeshBuilder } from './meshBuilder';
 
 export function buildSlab(
   mesh: MeshBuilder,
   collider: MeshBuilder,
   slab: Slab,
-  floorOnly = false,
+  floorOnlyDefault = false,
 ): void {
+  const floorOnly = slab.floorOnly ?? floorOnlyDefault;
   mesh.prism(
     slab.polygon,
     slab.bottom,
@@ -15,12 +17,14 @@ export function buildSlab(
     {
       top: slab.material,
       bottom: floorOnly ? null : (slab.bottomMaterial ?? slab.material),
-      sides: floorOnly ? null : (slab.sideMaterial ?? slab.material),
+      sides: floorOnly || slab.noSides ? null : (slab.sideMaterial ?? slab.material),
     },
     slab.holes ?? [],
   );
-  if (slab.collide)
-    collider.prism(slab.polygon, slab.bottom, slab.top, { top: 'concrete' }, slab.holes ?? []);
+  if (slab.collide) {
+    const top = slab.colliderTop ?? slab.top;
+    collider.prism(slab.polygon, slab.bottom, top, { top: 'concrete' }, slab.holes ?? []);
+  }
 }
 
 export function buildPatch(mesh: MeshBuilder, collider: MeshBuilder, p: SitePatch): void {
@@ -32,8 +36,15 @@ export function buildPatch(mesh: MeshBuilder, collider: MeshBuilder, p: SitePatc
 /** Lawn on the lot, the surrounding land, and invisible walls on the lot line (no fence until I3). */
 export function buildGround(mesh: MeshBuilder, collider: MeshBuilder, model: HouseModel): void {
   const { lot, lawnY } = model.site;
-  mesh.prism(lot, lawnY - 0.1, lawnY, { top: 'lawn', bottom: null, sides: 'lawn' });
-  collider.prism(lot, lawnY - 0.5, lawnY, { top: 'concrete' });
+  // The house has its own floors (and a basement under them): cut its footprint out.
+  const footprint: [number, number][] = [
+    [SHELL.west, SHELL.north],
+    [SHELL.east, SHELL.north],
+    [SHELL.east, SHELL.south],
+    [SHELL.west, SHELL.south],
+  ];
+  mesh.prism(lot, lawnY - 0.1, lawnY, { top: 'lawn', bottom: null, sides: 'lawn' }, [footprint]);
+  collider.prism(lot, lawnY - 0.5, lawnY, { top: 'concrete' }, [footprint]);
 
   // Surrounding land: a large disc slightly below the lawn, with the lot cut out.
   const R = 600;

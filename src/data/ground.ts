@@ -11,7 +11,7 @@
  * 1.20 | 1.75⁵. Room polygons are the plan's own room fills (finished inner faces).
  */
 import { LEVELS, SHELL } from './grid';
-import type { Level, Opening, Room, Slab, Stairs, Wall, WallLayer, Zone } from './schema';
+import type { Level, Opening, Polygon, Room, Slab, Stairs, Wall, WallLayer, Zone } from './schema';
 
 const EXT_T = SHELL.exteriorWall; // 0.455
 const CLAD = SHELL.claddingLayer; // 0.205 insulation + battens + metal sheet
@@ -239,6 +239,18 @@ export const groundWalls: Wall[] = [
     top: H,
     layers: inner(0.115),
     source: 'brick 11.5 cm x 8.275…8.39 between the stair flights',
+  },
+  {
+    // Closes the space under the landing above the basement-stair partition (sheet 04
+    // brick z 6.06…6.175 continues up to the landing soffit).
+    id: 'i-under-landing',
+    level: 'ground',
+    kind: 'interior',
+    from: [8.39, 6.06],
+    to: [9.375, 6.06],
+    top: (LEVELS.upperFloor / 17) * 8,
+    layers: inner(0.23),
+    source: 'sheet 04 partition z 6.06…6.175 + end of flight 1 at z 5.945',
   },
 ];
 
@@ -631,19 +643,58 @@ export const groundZones: Zone[] = [
   },
 ];
 
-/** Ground floor finished floor (per room, plus thresholds generated from openings). */
+/**
+ * Ground floor finished floor (per room, plus thresholds generated from openings). In
+ * the stair room only the part outside the basement-stair opening is floor.
+ */
 const floorSlab = (room: Room): Slab => ({
   id: `floor-${room.id}`,
-  polygon: room.polygon,
+  polygon: room.id === 'stairs' ? STAIR_ROOM_FLOOR : room.polygon,
   bottom: -0.05,
   top: 0,
   material: room.floor,
+  floorOnly: true,
 });
 
-/** Main stair: 17 risers × 17.4 cm, 16 treads × 29 cm (sheet 05 "17Ctr x 17.4 cm / 16Tr x 29 cm"). */
+/**
+ * Opening of the basement stair in the ground floor (sheet 04: flight x 7.325…8.275
+ * from riser 14 at z 4.168, winders, bottom flight z 6.175…7.125 under the landing).
+ */
+export const BASEMENT_STAIR_HOLE: Polygon = [
+  [7.325, 4.168],
+  [8.275, 4.168],
+  [8.275, 6.175],
+  [9.375, 6.175],
+  [9.375, 7.125],
+  [7.325, 7.125],
+];
+
+/** Stair-room floor = room polygon minus the basement-stair opening. */
+const STAIR_ROOM_FLOOR: Polygon = [
+  [8.425, 3.625],
+  [9.375, 3.625],
+  [9.375, 6.175],
+  [8.275, 6.175],
+  [8.275, 4.168],
+  [7.325, 4.168],
+  [7.325, 3.74],
+  [8.425, 3.74],
+];
+
+const RISE = LEVELS.upperFloor / 17;
+/** Nosing line of flight 2 (rises −z from the landing at z 5.905 to +2.95 at z 3.875). */
+const flight2Nosing = (z: number): number => RISE * (10 + (5.905 - z) / 0.29);
+
+/**
+ * Main stair (sheets 05/06): 17 risers × 17.4 cm, 16 treads × 29 cm = 8 treads up
+ * the east flight, the landing, 7 treads up the west flight; riser 17 arrives at
+ * +2.95 at z 3.875 (tread fills on sheet 06: 3.625 + 8 × 0.29 = 5.945 and
+ * 5.905 − 7 × 0.29 = 3.875).
+ */
 export const mainStairs: Stairs = {
   id: 'main-stairs',
   level: 'ground',
+  topY: LEVELS.upperFloor,
   risers: 17,
   riserHeight: 0.174,
   treads: 16,
@@ -657,25 +708,83 @@ export const mainStairs: Stairs = {
       firstRiser: 1,
       treads: 8,
       going: 0.29,
+      solid: true,
+      rampFoot: true,
     },
-    // Risers 10–17 rise northwards on the west side (x 7.325…8.275), arriving at +2.95.
+    // Risers 10–16 rise northwards on the west side (x 7.325…8.275), riser 17 → +2.95.
     {
       x: [7.325, 8.275],
-      z: [3.625, 5.945],
+      z: [3.875, 5.905],
       direction: '-z',
       firstRiser: 10,
-      treads: 8,
+      treads: 7,
       going: 0.29,
+      solid: false,
+      soffitTop: LEVELS.groundCeiling,
+      rampFoot: true,
     },
   ],
-  landings: [{ x: [7.325, 9.375], z: [5.945, 7.125], riser: 9 }],
-  // I1: the stair is not walkable yet — the first two treads can be stepped on.
-  blockers: [
-    { min: [7.325, 0, 4.205], max: [9.4, 3.2, 7.125] },
-    { min: [7.325, 0, 3.74], max: [8.425, 3.2, 4.205] },
+  landings: [
+    {
+      // Landing fill on sheet 06 (notch around the end of the 11.5 cm middle wall).
+      polygon: [
+        [7.325, 5.905],
+        [8.275, 5.905],
+        [8.275, 6.175],
+        [8.39, 6.175],
+        [8.39, 5.945],
+        [9.375, 5.945],
+        [9.375, 7.125],
+        [7.325, 7.125],
+      ],
+      riser: 9,
+      // One riser thick: the basement stair winds underneath.
+      thickness: RISE,
+    },
   ],
-  // "parapet riflaj teava circulara Ø = 1 cm", "mana curenta h = 90 cm".
-  railing: { x: 9.35, z: [3.9, 7.1] },
+  railings: [
+    {
+      // "parapet riflaj teava circulara Ø = 1 cm" along the living-room side (sheet 05,
+      // x ≈ 9.35), handrail 90 cm over the nosings.
+      id: 'main-rail-living',
+      top: [
+        [9.35, RISE * (1 + 0.3 / 0.29) + 0.9, 3.925],
+        [9.35, RISE * 9 + 0.9, 5.945],
+        [9.35, RISE * 9 + 0.9, 7.1],
+      ],
+      bottom: 'treads',
+      rodSpacing: 0.1,
+      collide: true,
+    },
+    {
+      // Rod balustrade on top of the middle wall (+2.68) along the upper flight
+      // (sheets 05/06: "parapet riflaj" at x ≈ 8.2 / 8.45), from the upper floor edge.
+      id: 'main-rail-well',
+      top: [
+        [8.3325, LEVELS.upperFloor + 0.9, 3.76],
+        [8.3325, LEVELS.upperFloor + 0.9, 3.875],
+        [8.3325, flight2Nosing(3.876) + 0.9, 3.876],
+        [8.3325, flight2Nosing(5.75) + 0.9, 5.75],
+      ],
+      bottom: [LEVELS.upperFloor, LEVELS.upperFloor, LEVELS.groundCeiling, LEVELS.groundCeiling],
+      rodSpacing: 0.1,
+      collide: true,
+      // Strip on the wall's stair-side face, so the 16 cm ledge can't be stepped onto.
+      colliderShift: [-0.0575, 0],
+    },
+    {
+      // "mana curenta h = 90 cm" on the middle wall along the lower flight.
+      id: 'main-handrail',
+      top: [
+        [8.44, RISE * (1 - 0.1 / 0.29) + 0.9, 3.525],
+        [8.44, RISE * 9 + 0.9, 5.945],
+      ],
+    },
+  ],
+  connects: [
+    { level: 'ground', room: 'stairs' },
+    { level: 'upper', room: 'upper-hall' },
+  ],
 };
 
 export const groundLevel: Level = {

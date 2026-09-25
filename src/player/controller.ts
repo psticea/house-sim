@@ -1,7 +1,8 @@
 /**
  * Capsule character controller on a static BVH collider (three-mesh-bvh shapecast,
  * after the library's characterMovement example): fixed 120 Hz steps, gravity,
- * automatic step-up ≤ 0.2 m, no tunnelling (≤ 2.5 cm travel per step at run speed).
+ * automatic step-up ≤ 0.2 m, ground snapping ≤ 0.2 m (smooth descent of stair ramps),
+ * no tunnelling (≤ 2.5 cm travel per step at run speed).
  */
 import * as THREE from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
@@ -136,6 +137,14 @@ export class PlayerController {
     this.position.y += this.velocity.y * dt;
     const up = this.resolve(true);
     this.grounded = up > 0.6;
+    if (!this.grounded && wasGrounded) {
+      // Stick to the ground when walking down ramps and small steps: probe up to the
+      // step height below and settle there if a walkable surface is found.
+      const y0 = this.position.y;
+      this.position.y -= PLAYER.stepUp;
+      if (this.resolve(true) > 0.6) this.grounded = true;
+      else this.position.y = y0;
+    }
     if (!this.grounded && wasGrounded) this.velocity.y = 0;
     // Safety net: never fall out of the world.
     if (this.position.y < -20) this.teleport(this.position.x, 2, this.position.z);

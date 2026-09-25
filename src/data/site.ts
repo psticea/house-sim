@@ -100,20 +100,6 @@ export const site: Site = {
       collide: true,
     },
     {
-      // "curte de lumina" (basement light well) covered by a grating, x 7.325…9.375.
-      id: 'light-well',
-      polygon: [
-        [7.325, 7.58],
-        [9.375, 7.58],
-        [9.375, 8.03],
-        [7.325, 8.03],
-      ],
-      top: -0.04,
-      thickness: 0.06,
-      material: 'grating',
-      collide: true,
-    },
-    {
       // Public road reaching the lot's south-west corner ("circulatie auto publica").
       id: 'road',
       polygon: [

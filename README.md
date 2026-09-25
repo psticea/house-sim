@@ -7,9 +7,14 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 **Live:** https://psticea.github.io/house-sim/
 
 - What we want: [`goal.md`](goal.md) · How and roadmap: [`plan.md`](plan.md)
-- Current release: **I1 "First walk"** — start on the parking, walk in through the north
-  entrance, visit every ground-floor room (all doors open), step out onto the east
-  terrace through the glass wall. Upper floor and basement are massing only.
+- Current release: **I2 "Whole building"** — start on the parking, walk in through the
+  north entrance, visit every room on all three levels (all doors open): the ground
+  floor, up the main stair to the upper hall, bedroom 3, the study (look down into the
+  double-height living room through its interior window), the upper bathroom, and down
+  the basement stair to the storage; step out onto the east terrace through the glass
+  wall. Sloped attic ceilings, wood-board living-room ceiling, standing-seam roof with
+  roof windows, hidden gutters, snow guards, chimney, entrance canopy, south sunshade,
+  rain chains and the basement light well.
 
 ## Controls
 
@@ -78,7 +83,7 @@ Checks:
 ```sh
 npm run lint         # ESLint (strict, type-checked) + Prettier
 npm run typecheck    # tsc --noEmit (strict)
-npm test             # Vitest: room areas, dimensions, openings, reachability, geometry, privacy
+npm test             # Vitest: room areas (3 levels), dimensions, openings, stair math, reachability, geometry, privacy
 npx playwright install chromium   # once
 npm run e2e          # quick pass: desktop only, small viewport, no screenshots
 npm run e2e:walk     # one spec only (also e2e:style, e2e:perf, e2e:mobile)
@@ -100,9 +105,12 @@ in `test-results/style-shots/`).
   estimated texture memory, player position and room.
 - `?pose=x,y,z,yawDeg,pitchDeg` — start at a pose (metres, y = feet; yaw 0 looks plan-north).
 - `?view=x,y,z,yawDeg,pitchDeg` — free camera (physics paused), e.g. aerial views.
-- `window.__houseSim` — `ready`, `teleport()`, `getPlayer()`, `getStats()`, `walk(dx, dz, s)`,
-  `walkTo(x, z)`, `view()`, `look()`, `nextFrame()`, `setStyle('sketchup' | 'borderlands' | 'real')`,
-  `getStyle()` (used by the e2e tests).
+- `window.__houseSim` — `ready`, `teleport()`, `getPlayer()` (position, `level`, `room`,
+  `place`…), `getStats()`, `walk(dx, dz, s)`, `walkTo(x, z)`, `view()`, `look()`,
+  `nextFrame()`, `setStyle('sketchup' | 'borderlands' | 'real')`, `getStyle()` (used by the
+  e2e tests).
+- `npm run shots -- http://localhost:5173/ upper-hall,bedroom-3,storage` — review shots
+  of named poses (see `tools/screenshots.mjs`) into `test-results/shots/`.
 
 ### Test on a phone (same Wi-Fi)
 
@@ -117,9 +125,11 @@ With HTTPS, accept the certificate warning once. Remote-debug Android Chrome via
 ## Project layout
 
 ```
-src/data/     typed house model: schema, grid & levels, ground floor, upper massing, roof, site
-src/world/    builders: walls (layers + holes), openings, curtain wall, slabs, roof, stairs,
-              exterior, lighting, sky, merge-by-material mesh builder, plan section,
+src/data/     typed house model: schema, grid & levels, basement, ground floor, upper floor,
+              roof + exterior elements, site, stair math (ramps), topology (rooms, levels)
+src/world/    builders: walls (layers + holes), openings, curtain wall, slabs, roof (windows,
+              seams, gutters, snow guards, board ceiling), stairs, exterior, lighting, sky,
+              merge-by-material mesh builder, plan section,
               style registry + SketchUp / Borderlands looks (style.ts + style/)
 src/player/   capsule controller (three-mesh-bvh shapecast), touch + desktop input
 src/core/     renderer, frame loop, debug overlay, URL params
@@ -147,8 +157,11 @@ Local plan tools (need the PDFs in `architecture-plans/`):
 npm run plans:render -- 4        # all sheets → .plans-cache/sheet-XX@4x.png
 npm run plans:crop -- 05 150 150 560 600 3 west   # zoomed crop (PDF points)
 npm run plans:extract -- 05      # vector segments + positioned text → .plans-cache/geom-05.json
-npm run dev  &  npm run plans:overlay   # generated plan section over sheet 05 → .plans-cache/overlay-05.png
+npm run dev  &  npm run plans:overlay   # model over sheets 04–10 → .plans-cache/overlay-XX.png
 ```
 
-`overlay.html` (dev server only) draws a horizontal section of the generated geometry at
-+1.00 m over the local sheet 05 raster to check alignment.
+`overlay.html?sheet=04|05|06|07|08e|08w|09|10` (dev server only) draws the generated model
+over the local sheet raster at the same scale: a horizontal section 1 m above the floor
+for the plans (04 basement, 05 ground, 06 upper), the roof-level feature edges in top
+view (07), and an orthographic WebGL elevation for the facades (08 east/west, 09 north,
+10 south) with the reference levels dashed.

@@ -115,3 +115,76 @@ export function levelById(model: HouseModel, id: LevelId): Level {
   if (!l) throw new Error(`no level ${id}`);
   return l;
 }
+
+/** Feet within this distance below a level's floor still count as being on it. */
+const LEVEL_TOLERANCE = 0.6;
+
+export interface Location {
+  level: LevelId;
+  room: string;
+  place: { id: string; name: string };
+}
+
+/**
+ * Level, room and toast place of a player at (x, y, z) (y = feet). The level is the
+ * highest one whose floor is at most 0.6 m above the feet; where that level has no
+ * room (stair well, landing), the room of the level below is used (e.g. the upper
+ * part of the main stair still reads as "Stairs").
+ */
+export function locate(model: HouseModel, x: number, y: number, z: number): Location {
+  const levels = [...model.levels].sort((a, b) => b.floorY - a.floorY);
+  const i = Math.max(
+    0,
+    levels.findIndex((l) => y >= l.floorY - LEVEL_TOLERANCE),
+  );
+  const own = levels[i]!;
+  for (let k = i; k < levels.length; k++) {
+    const lv = levels[k]!;
+    const place = placeAt(lv, x, z);
+    if (place.id !== OUTSIDE) return { level: own.id, room: roomAt(lv, x, z), place };
+  }
+  return { level: own.id, room: OUTSIDE, place: { id: OUTSIDE, name: 'Garden' } };
+}
+
+export interface HouseEdge {
+  a: string;
+  b: string;
+  via: string;
+}
+
+/** Node id of a room in the whole-house graph (`outside` stays `outside`). */
+export const nodeId = (level: LevelId, room: string): string =>
+  room === OUTSIDE ? OUTSIDE : `${level}:${room}`;
+
+/** Whole-house graph: every level's space graph plus the stairs between levels. */
+export function houseGraph(model: HouseModel): HouseEdge[] {
+  const edges: HouseEdge[] = [];
+  for (const level of model.levels) {
+    for (const e of spaceGraph(level)) {
+      edges.push({ a: nodeId(level.id, e.a), b: nodeId(level.id, e.b), via: e.via });
+    }
+    for (const st of level.stairs) {
+      const [lo, hi] = st.connects;
+      edges.push({ a: nodeId(lo.level, lo.room), b: nodeId(hi.level, hi.room), via: st.id });
+    }
+  }
+  return edges;
+}
+
+/** Rooms (as `level:room` node ids) reachable from outside over doors and stairs. */
+export function reachableAll(model: HouseModel, start: string = OUTSIDE): Set<string> {
+  const edges = houseGraph(model);
+  const seen = new Set<string>([start]);
+  const queue = [start];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    for (const e of edges) {
+      const next = e.a === cur ? e.b : e.b === cur ? e.a : null;
+      if (next && !seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return seen;
+}

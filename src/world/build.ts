@@ -5,7 +5,9 @@
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import type { HouseModel, Opening } from '../data/schema';
-import { SHELL } from '../data/grid';
+import { LEVELS, SHELL } from '../data/grid';
+import { STAIR_HOLE_SKIRTS } from '../data/basement';
+import { BASEMENT_STAIR_HOLE } from '../data/ground';
 import { buildCurtainWall } from './curtain';
 import { buildExteriorElement } from './exterior';
 import { castsShadow, createMaterials, type MaterialLibrary } from './materials';
@@ -53,11 +55,40 @@ export function buildGeometry(model: HouseModel): { mesh: MeshBuilder; collider:
     for (const st of level.stairs) buildStairs(mesh, collider, st, level.floorY);
   }
 
-  // Ground floor structure under the finished floors (collision only; hidden visually).
-  collider.box('concrete', [SHELL.west, -0.4, SHELL.north], [SHELL.east, 0, SHELL.south]);
+  // Ground floor structure under the finished floors (collision only; hidden visually),
+  // with the opening of the basement stair.
+  const footprint: [number, number][] = [
+    [SHELL.west, SHELL.north],
+    [SHELL.east, SHELL.north],
+    [SHELL.east, SHELL.south],
+    [SHELL.west, SHELL.south],
+  ];
+  collider.prism(footprint, -0.4, 0, { top: 'concrete' }, [BASEMENT_STAIR_HOLE]);
   // Screed 1 cm under the finished floors: fills the few strips between room polygons
   // (e.g. along the open stair/living edge) without competing with the room floors.
-  mesh.box('oak', [SHELL.west, -0.06, SHELL.north], [16.625, -0.01, SHELL.south], { bottom: null });
+  mesh.prism(
+    [
+      [SHELL.west, SHELL.north],
+      [16.625, SHELL.north],
+      [16.625, SHELL.south],
+      [SHELL.west, SHELL.south],
+    ],
+    -0.06,
+    -0.01,
+    { top: 'oak', bottom: null, sides: null },
+    [BASEMENT_STAIR_HOLE],
+  );
+  // Plaster edges of the stair opening where no wall face continues downwards.
+  for (const s of STAIR_HOLE_SKIRTS) {
+    mesh.quad(
+      'plaster',
+      [s.a[0], LEVELS.basementFloor + 2.24, s.a[1]],
+      [s.b[0], LEVELS.basementFloor + 2.24, s.b[1]],
+      [s.b[0], 0, s.b[1]],
+      [s.a[0], 0, s.a[1]],
+      [s.facing[0], 0, s.facing[1]],
+    );
+  }
 
   buildRoof(mesh, model.roof);
   buildChimney(mesh, model.roof);

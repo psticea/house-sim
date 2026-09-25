@@ -4,7 +4,8 @@
  */
 import * as THREE from 'three';
 import { house } from './data/house';
-import { OUTSIDE, levelById, placeAt, roomAt } from './data/topology';
+import type { LevelId } from './data/schema';
+import { OUTSIDE, locate } from './data/topology';
 import { DebugOverlay, estimateTextureMB, FrameStats } from './core/debug';
 import { Loop } from './core/loop';
 import { readParams, STYLE_NAMES, styleNameOf, DEFAULT_STYLE, type StyleName } from './core/params';
@@ -34,7 +35,9 @@ export interface PlayerInfo {
   /** Degrees; 0 = looking toward plan north (−z), positive = turned left. */
   yaw: number;
   pitch: number;
-  /** Room id on the current level (`outside` when not in a room). */
+  /** Level the feet are on (`basement` | `ground` | `upper`). */
+  level: LevelId;
+  /** Room id (`outside` when not in a room); stair wells report the stair room below. */
   room: string;
   /** Zone or room id used for the toast (e.g. `play-corner`, `entrance`, `parking`). */
   place: string;
@@ -165,7 +168,6 @@ export async function startApp(): Promise<void> {
   loading.progress(0.7, 'Compiling shaders…');
   await nextPaint();
   const player = new PlayerController(world.bvh);
-  const ground = levelById(house, 'ground');
   const start = house.site.start;
   player.teleport(
     start.position[0],
@@ -248,17 +250,17 @@ export async function startApp(): Promise<void> {
 
   const info = (): PlayerInfo => {
     const p = player.position;
-    const lv = ground;
-    const place = placeAt(lv, p.x, p.z);
+    const loc = locate(house, p.x, p.y, p.z);
     return {
       x: p.x,
       y: p.y,
       z: p.z,
       yaw: deg(player.yaw),
       pitch: deg(player.pitch),
-      room: p.y < 2.5 ? roomAt(lv, p.x, p.z) : OUTSIDE,
-      place: place.id,
-      placeName: place.name,
+      level: loc.level,
+      room: loc.room,
+      place: loc.place.id,
+      placeName: loc.place.name,
       grounded: player.grounded,
     };
   };

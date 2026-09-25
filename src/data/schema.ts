@@ -152,36 +152,94 @@ export interface Slab {
   bottomMaterial?: MaterialId;
   sideMaterial?: MaterialId;
   collide?: boolean;
+  /** Finished floor: only the top face is drawn (sides/bottom hidden by the structure). */
+  floorOnly?: boolean;
+  /** Top and bottom only (side faces coincide with walls or are drawn separately). */
+  noSides?: boolean;
+  /** Top of the collision prism when it differs from `top` (e.g. finish on a structural slab). */
+  colliderTop?: number;
 }
+
+export type PlanDir = '+x' | '-x' | '+z' | '-z';
 
 export interface StairFlight {
   /** Footprint of the flight: x range, z range. */
   x: readonly [number, number];
   z: readonly [number, number];
   /** Direction of ascent in plan. */
-  direction: '+z' | '-z';
-  /** Index (1-based) of the first riser of this flight. */
+  direction: PlanDir;
+  /** Index (1-based) of the riser at the flight's lower edge. */
   firstRiser: number;
   treads: number;
   going: number;
+  /**
+   * `solid`: masonry down to the stair's bottom level. Otherwise a sloped slab whose
+   * soffit runs from 17 cm under the lower level to `soffitTop` (absolute y) at the top.
+   */
+  solid: boolean;
+  soffitTop?: number;
+  /** Extend the walking ramp one going beyond the lower edge (onto a floor/landing). */
+  rampFoot: boolean;
+}
+
+/** Flat landing at the top of riser `riser` (plan polygon). */
+export interface StairLanding {
+  polygon: Polygon;
+  riser: number;
+  /** Slab thickness under the landing top (default: solid down to the bottom level). */
+  thickness?: number;
+}
+
+/**
+ * Winder turn: tread polygons plus a helicoidal walking ramp around `pivot`: the ramp
+ * height is `lowRiser`·rise along the ray `lowDir`, `highRiser`·rise along `highDir`,
+ * interpolated by angle. `x`/`z` bound the ramp region.
+ */
+export interface StairWinders {
+  treads: readonly { polygon: Polygon; riser: number }[];
+  pivot: Vec2;
+  lowDir: Vec2;
+  highDir: Vec2;
+  lowRiser: number;
+  highRiser: number;
+  x: readonly [number, number];
+  z: readonly [number, number];
+}
+
+/** Rod balustrade (Ø 1 cm) or wall-mounted handrail. Points are world coordinates. */
+export interface Railing {
+  id: string;
+  /** Handrail line. */
+  top: readonly (readonly [number, number, number])[];
+  /**
+   * Bottom of the rod infill at each point (world y), or `treads` = on the stair's
+   * treads. Omitted: wall-mounted handrail (brackets only).
+   */
+  bottom?: readonly number[] | 'treads';
+  /** Rod spacing (m). */
+  rodSpacing?: number;
+  /** Solid collision strip from the bottom to the handrail. */
+  collide?: boolean;
+  /** Plan offset of the collision strip from the handrail line (e.g. to a wall face). */
+  colliderShift?: Vec2;
 }
 
 export interface Stairs {
   id: string;
   level: LevelId;
+  /** Level the stair arrives at (world y). */
+  topY: number;
   risers: number;
+  /** Riser height printed on the plan; geometry divides (topY − floorY) exactly. */
   riserHeight: number;
   treads: number;
   going: number;
   flights: readonly StairFlight[];
-  landings: readonly {
-    x: readonly [number, number];
-    z: readonly [number, number];
-    riser: number;
-  }[];
-  /** Invisible blockers (I1: stairs are not walkable yet). */
-  blockers: readonly Box[];
-  railing?: { x: number; z: readonly [number, number] };
+  landings: readonly StairLanding[];
+  winders?: StairWinders;
+  railings: readonly Railing[];
+  /** Rooms joined by the stair (bottom, top) — used by the reachability graph. */
+  connects: readonly [{ level: LevelId; room: string }, { level: LevelId; room: string }];
 }
 
 export interface Box {
@@ -223,7 +281,7 @@ export interface RoofSegment {
 export interface RoofWindow {
   id: string;
   code: string;
-  /** Plan projection of the window. */
+  /** Plan projection of the window (outer frame on the roof surface). */
   x: readonly [number, number];
   z: readonly [number, number];
 }
@@ -237,9 +295,15 @@ export interface Roof {
   segments: readonly RoofSegment[];
   windows: readonly RoofWindow[];
   chimney: { center: Vec2; radius: number; top: number };
+  /** Hidden gutter ("jgheab ascuns") recessed along both eaves. */
+  gutter: { width: number; lip: number; depth: number };
+  /** Standing seams ("falturi") along the slope: first seam x, spacing, size. */
+  seams: { x0: number; spacing: number; width: number; height: number };
+  /** Tubular snow guards ("parazapezi"): plan depth from each eave face, x range. */
+  snowGuards: { inset: number; x: readonly [number, number]; tubes: number };
 }
 
-/** Simple exterior elements (canopy, sunshade, fins, slat screens…). */
+/** Simple exterior elements (canopy, sunshade, fins, slat screens, rain chains…). */
 export type ExteriorElement =
   | {
       id: string;
@@ -247,6 +311,9 @@ export type ExteriorElement =
       box: Box;
       material: MaterialId;
       topMaterial?: MaterialId;
+      bottomMaterial?: MaterialId;
+      /** Standing seams on the top face, running along z, every `spacing` m. */
+      seams?: number;
       collide?: boolean;
       castShadow?: boolean;
     }
@@ -261,6 +328,16 @@ export type ExteriorElement =
       spacing: number;
       material: MaterialId;
       collide?: boolean;
+    }
+  | {
+      id: string;
+      /** Rain chain ("lant scurgere pluviale"): alternating oval links. */
+      type: 'chain';
+      x: number;
+      z: number;
+      y: readonly [number, number];
+      link: number;
+      material: MaterialId;
     };
 
 export interface SitePatch {

@@ -246,7 +246,8 @@ test.describe('styles', () => {
   test('screenshots: all three looks (desktop HD + phone), no warnings', async ({ page }, info) => {
     const device = { 'desktop-hd': 'desktop', 'iphone-13': 'phone' }[info.project.name];
     test.skip(!device, 'screenshot projects only (desktop-hd, iphone-13)');
-    test.setTimeout(600_000);
+    // SwiftShader at the iPhone's DPR is slow: 3 looks × 6 shots take ~10 min there.
+    test.setTimeout(900_000);
     const s = await openSim(page);
     await hideStartOverlay(page);
     expect(await getStyle(page)).toBe('sketchup');

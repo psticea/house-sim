@@ -56,6 +56,14 @@ export const roof: Roof = {
     { id: 'fz-s4', code: 'FZ-01', x: [10.468, 11.298], z: [5.675, 6.995] },
   ],
   chimney: { center: [11.65, 6.907], radius: 0.135, top: LEVELS.chimneyTop },
+  // Sheet 07: gutter lines z −0.305 / −0.136 from the eave face −0.33 (mirrored south).
+  gutter: { width: 0.194, lip: 0.025, depth: 0.1 },
+  // Sheet 07: seams every 50 cm ("falturi = 50 cm"), first seam 21 cm from the west
+  // gable (x −0.121), last at x 17.90; elevations 08–10 show the same rhythm.
+  seams: { x0: -0.121, spacing: 0.5005, width: 0.025, height: 0.035 },
+  // Sheet 07: two tubes 5 cm apart at z 0.056 / 0.106 (north) and 7.145 / 7.194
+  // (south) over 18.19 m; elevation 10 "+4.61".
+  snowGuards: { inset: 0.411, x: [-0.07, 18.12], tubes: 2 },
 };
 
 export const exterior: ExteriorElement[] = [
@@ -66,6 +74,25 @@ export const exterior: ExteriorElement[] = [
     box: { min: [4.595, LEVELS.canopyBottom, -2.28], max: [11.595, LEVELS.canopyTop, SHELL.north] },
     material: 'cladWood',
     topMaterial: 'roofMetal',
+    bottomMaterial: 'cladWood',
+    seams: 0.5,
+  },
+  {
+    // Spout of the canopy's hidden gutter (north edge) to x 12.621 (sheets 06/07).
+    id: 'canopy-gutter',
+    type: 'box',
+    box: { min: [11.595, 2.8, -2.205], max: [12.621, 2.86, -2.125] },
+    material: 'roofMetal',
+  },
+  {
+    // "lant scurgere pluviale" 1.02⁵ east of the canopy (sheets 07/09).
+    id: 'canopy-rain-chain',
+    type: 'chain',
+    x: 12.59,
+    z: -2.165,
+    y: [LEVELS.exteriorGround, 2.8],
+    link: 0.07,
+    material: 'metalBlack',
   },
   {
     // Concrete base of the slat screen, z −2.225…−1.775 (sheet 05); height 0.85 per
@@ -95,8 +122,28 @@ export const exterior: ExteriorElement[] = [
       min: [2.193, LEVELS.sunshadeBottom, SHELL.south],
       max: [15.51, LEVELS.sunshadeTop, 8.08],
     },
+    // Metal structure (black fascia), wood-board soffit, standing-seam top (item 11).
     material: 'metalBlack',
     topMaterial: 'roofMetal',
+    bottomMaterial: 'cladWood',
+    seams: 0.5,
+  },
+  {
+    // Spout of the sunshade's hidden gutter to x 1.223 (sheet 06 z 7.938…8.018).
+    id: 'sunshade-gutter',
+    type: 'box',
+    box: { min: [1.223, 2.62, 7.938], max: [2.193, 2.68, 8.018] },
+    material: 'roofMetal',
+  },
+  {
+    // Rain chain 97 cm west of the sunshade (elevation 10, roof plan).
+    id: 'sunshade-rain-chain',
+    type: 'chain',
+    x: 1.25,
+    z: 7.978,
+    y: [-0.08, 2.62],
+    link: 0.07,
+    material: 'metalBlack',
   },
   ...(
     [
@@ -123,6 +170,40 @@ export const exterior: ExteriorElement[] = [
     width: 0.05,
     spacing: 0.15,
     material: 'woodSlat',
+    collide: true,
+  },
+  // "curte de lumina" (sheet 04): 15 cm concrete walls x 7.175…9.525, z …8.175, bottom
+  // −1.65, covered by a grating; window F01 of the basement stair opens into it.
+  ...(
+    [
+      ['light-well-w', [7.175, -1.75, 7.525], [7.325, -0.05, 8.175]],
+      ['light-well-e', [9.375, -1.75, 7.525], [9.525, -0.05, 8.175]],
+      ['light-well-s', [7.325, -1.75, 8.025], [9.375, -0.05, 8.175]],
+    ] as const
+  ).map(([id, min, max]): ExteriorElement => ({
+    id,
+    type: 'box',
+    box: { min, max },
+    material: 'concrete',
+  })),
+  {
+    id: 'light-well-floor',
+    type: 'box',
+    box: { min: [7.325, -1.75, 7.525], max: [9.375, -1.65, 8.025] },
+    material: 'stone',
+  },
+  {
+    // Closes the underside of the facade cladding (plinth −0.30) over the well.
+    id: 'light-well-lintel',
+    type: 'box',
+    box: { min: [7.325, -0.32, 7.525], max: [9.375, -0.3, SHELL.south] },
+    material: 'plasterExterior',
+  },
+  {
+    id: 'light-well-grating',
+    type: 'box',
+    box: { min: [7.325, -0.08, SHELL.south], max: [9.375, -0.04, 8.025] },
+    material: 'grating',
     collide: true,
   },
 ];

@@ -83,9 +83,10 @@ export interface WallBuildContext {
   roof: Roof;
 }
 
-function sillMaterial(o: Opening, fallback: MaterialId): MaterialId {
+function sillMaterial(o: Opening, fallback: MaterialId, interior: boolean): MaterialId {
   if (o.sill > 0.01) return fallback;
-  return o.kind === 'window' ? 'frame' : 'stone';
+  if (o.kind === 'window') return 'frame';
+  return interior ? 'oak' : 'stone';
 }
 
 /** Solid layers of a (non-curtain) wall + its collider. */
@@ -132,7 +133,9 @@ export function buildWall(
           if (nv < -0.99 && !isHole) continue; // bottom of the wall: never visible
           const facing: V3 = [ws.ax[0] * nu, nv, ws.ax[2] * nu];
           let mat: MaterialId = layer.material;
-          if (opening && nv > 0.99) mat = sillMaterial(opening, layer.material);
+          if (opening && nv > 0.99) {
+            mat = sillMaterial(opening, layer.material, wall.kind === 'interior');
+          }
           ctx.mesh.quad(
             mat,
             ws.p(a[0], a[1], wLeft),

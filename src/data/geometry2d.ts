@@ -113,12 +113,22 @@ export function wallTopProfile(w: Wall, roof: Roof, levelFloorY: number): Vec2[]
     ];
   }
   const seg = roofSegment(roof, w.top.roof);
+  if (Math.abs(dir[1]) < 1e-9) {
+    // Wall parallel to the eaves: the roof underside slopes across its thickness — use
+    // the higher face so the top disappears into the roof build-up (no gap).
+    const t = wallThickness(w) / 2;
+    const v =
+      Math.max(roofUndersideY(roof, seg, w.from[1] - t), roofUndersideY(roof, seg, w.from[1] + t)) -
+      levelFloorY;
+    return [
+      [0, v],
+      [length, v],
+    ];
+  }
   const us = new Set<number>([0, length]);
-  if (Math.abs(dir[1]) > 1e-9) {
-    for (const kz of roofUndersideKinks(roof, seg)) {
-      const u = (kz - w.from[1]) / dir[1];
-      if (u > 1e-6 && u < length - 1e-6) us.add(u);
-    }
+  for (const kz of roofUndersideKinks(roof, seg)) {
+    const u = (kz - w.from[1]) / dir[1];
+    if (u > 1e-6 && u < length - 1e-6) us.add(u);
   }
   return [...us]
     .sort((a, b) => a - b)

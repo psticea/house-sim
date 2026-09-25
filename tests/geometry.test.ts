@@ -79,4 +79,34 @@ describe('generated geometry', () => {
     // Window F-03 is glass: blocked.
     expect(hit(new THREE.Vector3(2.575, 1.4, -1.0), new THREE.Vector3(0, 0, 1), 2)).not.toBeNull();
   });
+
+  it('walkable surfaces on all three levels: floors, stair ramps, no stair blocker', () => {
+    const world = buildWorld(house);
+    const ray = new THREE.Raycaster();
+    const floorAt = (x: number, fromY: number, z: number): number | null => {
+      ray.set(new THREE.Vector3(x, fromY, z), new THREE.Vector3(0, -1, 0));
+      const h = world.bvh.raycastFirst(ray.ray, THREE.DoubleSide, 0, 20);
+      return h ? h.point.y : null;
+    };
+    // Upper floor (+2.95) in bedroom 3, basement (−2.53) in the storage.
+    expect(floorAt(2.0, 5, 3.0)).toBeCloseTo(2.95, 3);
+    expect(floorAt(11.0, -1, 5.0)).toBeCloseTo(-2.53, 3);
+    // Main stair: ramp through the nosings (lower flight z 4.8, upper flight z 4.6).
+    const r = 2.95 / 17;
+    expect(floorAt(8.9, 2.0, 4.8)).toBeCloseTo(r * (1 + 1.175 / 0.29), 3);
+    expect(floorAt(7.8, 2.9, 4.6)).toBeCloseTo(r * (10 + 1.305 / 0.29), 3);
+    // Basement stair (upper flight at z 5.0), not hidden under the lawn / ground slab.
+    expect(floorAt(7.8, -0.2, 5.0)).toBeCloseTo(-2.53 + (2.53 / 14) * (7 + 1.128 / 0.28), 3);
+    // Head room over both stairs: nothing between the ramp and 2 m above it.
+    for (const [x, z] of [
+      [8.9, 4.2],
+      [7.8, 4.4],
+      [7.8, 5.6],
+    ] as const) {
+      const y = floorAt(x, 10, z);
+      expect(y, `stair well ${x}, ${z}`).toBeGreaterThan(0);
+    }
+    const y = floorAt(7.8, 1.2, 4.6);
+    expect(y, 'basement stair under the upper flight').toBeLessThan(0);
+  });
 });

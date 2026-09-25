@@ -291,7 +291,8 @@ describe('style edges and hulls', () => {
       total += segs.length / 6;
     }
     expect(total).toBeGreaterThan(100);
-  });
+    // Whole-house edge extraction: seconds under parallel test load (I2 building).
+  }, 30_000);
 });
 
 describe('Borderlands config and ink shading', () => {
@@ -606,5 +607,5 @@ describe('style registry: setStyle / removeStyle / disposeStyles', () => {
     removeStyle(scene);
     expect(world.group.children.every((m) => m.children.length === 0)).toBe(true);
     disposeStyles(scene);
-  });
+  }, 30_000);
 });
