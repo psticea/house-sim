@@ -35,7 +35,19 @@ export type MaterialId =
   | 'lawn'
   | 'field' // land outside the lot
   | 'asphalt'
-  | 'grating'; // drainage / light-well gratings
+  | 'grating' // drainage / light-well gratings
+  // Garden (I3, plan.md §6.3–6.4): natural materials, earthy palette.
+  | 'timber' // oiled timber: fence boards/slats, gates, beds, swing, bench, bin screen
+  | 'corten' // weathering-steel edging, fire-pit bowl
+  | 'gravel' // drainage strips along the facades, fire-pit circle
+  | 'soil' // bark mulch / soil in beds
+  | 'clay' // terracotta planters (and fruit)
+  | 'bark' // tree trunks and branches
+  | 'barkBirch' // white birch bark
+  | 'foliage' // olive-green canopies, shrubs, vegetables
+  | 'foliageLight' // silver-sage canopies (birch, olive trees)
+  | 'meadow' // tall grasses along the fences
+  | 'flowers'; // wildflowers in the meadow and beds
 
 /** A layer of a wall build-up, listed from the wall's LEFT face to its RIGHT face. */
 export interface WallLayer {
@@ -343,11 +355,13 @@ export type ExteriorElement =
 export interface SitePatch {
   id: string;
   polygon: Polygon;
-  /** Top surface height (world y). */
+  /** Top surface height (world y); nominal value next to the house when draped. */
   top: number;
   thickness: number;
   material: MaterialId;
   collide?: boolean;
+  /** Follows the terrain (src/data/terrain.ts): top = terrain + `drape` (m). */
+  drape?: number;
 }
 
 export interface Site {
@@ -356,6 +370,7 @@ export interface Site {
   lotArea: number;
   /** Rotation of true north from plan north (−z), degrees, positive = toward −x (west). */
   trueNorthDeg: number;
+  /** Finished ground (lawn) next to the house; the terrain blends to the spot heights. */
   lawnY: number;
   patches: readonly SitePatch[];
   start: { position: readonly [number, number, number]; lookAt: Vec2 };

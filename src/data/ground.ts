@@ -10,6 +10,7 @@
  * outer face at x = −0.33) and south chain 2.62 | 2.00 | 63⁵ | 2.00 | 5.20 | 3.30 |
  * 1.20 | 1.75⁵. Room polygons are the plan's own room fills (finished inner faces).
  */
+import { GARDEN_ZONES } from './garden';
 import { LEVELS, SHELL } from './grid';
 import type { Level, Opening, Polygon, Room, Slab, Stairs, Wall, WallLayer, Zone } from './schema';
 
@@ -641,6 +642,8 @@ export const groundZones: Zone[] = [
       [-8.462, 14.525],
     ],
   },
+  // Garden places (I3): front garden, paths, north side, rear garden, fire pit, beds…
+  ...GARDEN_ZONES,
 ];
 
 /**

@@ -16,9 +16,17 @@ export const SKETCHUP: StyleConfig = {
   edgeThresholdDeg: 30,
   jitter: 0.003,
   jitterMaxM: 0.012,
-  noLines: ['glass', 'lawn', 'field', 'asphalt'],
+  noLines: ['glass', 'lawn', 'field', 'asphalt', 'meadow', 'flowers', 'foliage', 'foliageLight'],
   linedTransparent: [],
-  hulls: null,
+  /**
+   * Architecture keeps the S1 look (no hulls); rounded vegetation and pots get a thin
+   * silhouette outline, like SketchUp's profiles (canopies: outline only, no creases).
+   */
+  hulls: {
+    width: 1.3,
+    maxCreaseDeg: 30,
+    only: ['foliage', 'foliageLight', 'bark', 'barkBirch', 'clay'],
+  },
   shadowOpacity: 0.35,
   shadowRadius: 3,
   shadowMapSize: 1024,
@@ -31,7 +39,7 @@ export const SKETCHUP: StyleConfig = {
   paletteGround: { saturation: 0.7, lightness: 1.4, maxLightness: 0.8, neverDarker: true },
   groundPattern: 'grid',
   groundPatternStrength: 0.08,
-  surfaces: {},
+  surfaces: { gravel: 'hatch', soil: 'hatch' },
   paint: { strength: 0, tileM: 4 },
   grass: { strength: 0, tileM: 1.5 },
   light: {

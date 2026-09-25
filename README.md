@@ -7,14 +7,21 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 **Live:** https://psticea.github.io/house-sim/
 
 - What we want: [`goal.md`](goal.md) · How and roadmap: [`plan.md`](plan.md)
-- Current release: **I2 "Whole building"** — start on the parking, walk in through the
-  north entrance, visit every room on all three levels (all doors open): the ground
-  floor, up the main stair to the upper hall, bedroom 3, the study (look down into the
-  double-height living room through its interior window), the upper bathroom, and down
-  the basement stair to the storage; step out onto the east terrace through the glass
-  wall. Sloped attic ceilings, wood-board living-room ceiling, standing-seam roof with
-  roof windows, hidden gutters, snow guards, chimney, entrance canopy, south sunshade,
-  rain chains and the basement light well.
+- Current release: **I3 "Garden & fence"** — start on the parking, walk in through the
+  north entrance, visit every room on all three levels (all doors open), step out onto
+  the east terrace through the glass wall, and walk all around the garden: gently
+  sloping lawn on the surveyed spot heights, parking pavers, stone paths and stepping
+  stones, gravel drainage strips, oiled-timber fence on blackened-steel posts (1.2 m
+  horizontal slats on the street side with a closed sliding car gate and an open
+  pedestrian gate with a letterbox, 1.8 m vertical boards on the sides and rear), silver
+  birches, a serviceberry, a multi-stem tree, apple and cherry trees and shrubs on the
+  plan's positions, meadow strips with wildflowers along the fences, Corten edging,
+  raised vegetable beds, a swing, a fire pit with a bench and log stools, olive trees in
+  clay pots on the deck, the bin corner, neighbour houses and distant hills.
+- Previous: **I2 "Whole building"** — upper floor, basement, walkable stairs, sloped
+  attic ceilings, wood-board living-room ceiling, standing-seam roof with roof windows,
+  hidden gutters, snow guards, chimney, entrance canopy, south sunshade, rain chains and
+  the basement light well.
 
 ## Controls
 
@@ -28,11 +35,11 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 
 Three looks of the same scene; only materials, lights and rendering settings differ.
 
-| Look                   | Id            | What it is                                                                                                                                                                                                                                                                                                                           |
-| ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **SketchUp** (default) | `sketchup`    | Hand-drawn architecture with a light cartoon touch: pastel toon fills with subtle bands, thin dark-grey edge lines (fat lines on desktop, 1 px lines on phones), one soft pale shadow, pale sky + fog, a grid on the ground, faint paper grain.                                                                                      |
-| **Borderlands**        | `borderlands` | Cel-shaded comic ink: thick black outlines in two weights (fat lines on every device) + inverted-hull silhouettes on curved meshes (chimney), hard 2-step toon, violet-tinted shadows with screen-space ink hatching, saturated warm colours, painted surfaces and grass strokes, bold sky with inked cartoon clouds, soft vignette. |
-| **Realistic**          | `real`        | Flat palette materials, ACES tone mapping, 2048 shadow map — the base that the material (I4) and baked-lighting (I6) work continues to improve.                                                                                                                                                                                      |
+| Look                   | Id            | What it is                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SketchUp** (default) | `sketchup`    | Hand-drawn architecture with a light cartoon touch: pastel toon fills with subtle bands, thin dark-grey edge lines (fat lines on desktop, 1 px lines on phones), one soft pale shadow, pale sky + fog, a grid on the ground, faint paper grain; trees and pots get a thin silhouette outline.                                                     |
+| **Borderlands**        | `borderlands` | Cel-shaded comic ink: thick black outlines in two weights (fat lines on every device) + inverted-hull silhouettes on curved meshes (chimney, trees, pots), hard 2-step toon, violet-tinted shadows with screen-space ink hatching, saturated warm colours, painted surfaces and grass strokes, bold sky with inked cartoon clouds, soft vignette. |
+| **Realistic**          | `real`        | Flat palette materials, ACES tone mapping, 2048 shadow map — the base that the material (I4) and baked-lighting (I6) work continues to improve.                                                                                                                                                                                                   |
 
 - **Style toggle:** the small pill in the top-right corner (phone and desktop) shows the
   current look; tap/click it and pick SketchUp · Borderlands · Realistic. Desktop: **K**
@@ -52,7 +59,9 @@ Three looks of the same scene; only materials, lights and rendering settings dif
   `bands` / `bandBrightness` (shading steps), `lineColor`, `lineWidth`, `sharpLines`
   (second, heavier weight for boundaries and creases ≥ `minDeg`), `fatLines`
   (`always` | `desktop` | `never`), `edgeThresholdDeg`, `jitter` (line-end overshoot),
-  `hulls` (silhouette width), `shadowOpacity` / `shadowRadius`, `ink` (shadow tint,
+  `hulls` (silhouette width; `only` limits them to listed materials — SketchUp outlines
+  only vegetation and pots this way, canopies get a silhouette but no crease lines),
+  `shadowOpacity` / `shadowRadius`, `ink` (shadow tint,
   hatching spacing / width / strength, `hatchBelow` / `crossBelow` levels),
   `palette` / `paletteGround` (saturation, lightness, clamps), `surfaces` + `paint` /
   `grass` (generated maps and their strength / tile size), `groundPattern`,
@@ -83,10 +92,10 @@ Checks:
 ```sh
 npm run lint         # ESLint (strict, type-checked) + Prettier
 npm run typecheck    # tsc --noEmit (strict)
-npm test             # Vitest: room areas (3 levels), dimensions, openings, stair math, reachability, geometry, privacy
+npm test             # Vitest: room areas (3 levels), dimensions, openings, stair math, reachability, geometry, site & garden, privacy
 npx playwright install chromium   # once
 npm run e2e          # quick pass: desktop only, small viewport, no screenshots
-npm run e2e:walk     # one spec only (also e2e:style, e2e:perf, e2e:mobile)
+npm run e2e:walk     # one spec only (also e2e:garden, e2e:style, e2e:perf, e2e:mobile)
 npm run e2e:full     # final pass: + HD desktop, Pixel 7, iPhone 13, all screenshots
 npm run shots:styles -- http://localhost:5173/ borderlands   # look-dev shots (dev server)
 ```
@@ -110,7 +119,9 @@ in `test-results/style-shots/`).
   `nextFrame()`, `setStyle('sketchup' | 'borderlands' | 'real')`, `getStyle()` (used by the
   e2e tests).
 - `npm run shots -- http://localhost:5173/ upper-hall,bedroom-3,storage` — review shots
-  of named poses (see `tools/screenshots.mjs`) into `test-results/shots/`.
+  of named poses (see `tools/screenshots.mjs`; garden poses: `garden-aerial`,
+  `gate-street`, `north-side`, `south-garden`, `rear-garden`, `terrace-out`, `living-out`)
+  into `test-results/shots/`.
 
 ### Test on a phone (same Wi-Fi)
 
@@ -126,9 +137,12 @@ With HTTPS, accept the certificate warning once. Remote-debug Android Chrome via
 
 ```
 src/data/     typed house model: schema, grid & levels, basement, ground floor, upper floor,
-              roof + exterior elements, site, stair math (ramps), topology (rooms, levels)
+              roof + exterior elements, site, terrain (spot heights → triangulated grid),
+              garden (fence, gates, planting, features, places), stair math (ramps),
+              topology (rooms, levels)
 src/world/    builders: walls (layers + holes), openings, curtain wall, slabs, roof (windows,
-              seams, gutters, snow guards, board ceiling), stairs, exterior, lighting, sky,
+              seams, gutters, snow guards, board ceiling), stairs, exterior, terrain +
+              draped paving, garden (fence, vegetation, features, context), lighting, sky,
               merge-by-material mesh builder, plan section,
               style registry + SketchUp / Borderlands looks (style.ts + style/)
 src/player/   capsule controller (three-mesh-bvh shapecast), touch + desktop input
@@ -157,11 +171,13 @@ Local plan tools (need the PDFs in `architecture-plans/`):
 npm run plans:render -- 4        # all sheets → .plans-cache/sheet-XX@4x.png
 npm run plans:crop -- 05 150 150 560 600 3 west   # zoomed crop (PDF points)
 npm run plans:extract -- 05      # vector segments + positioned text → .plans-cache/geom-05.json
-npm run dev  &  npm run plans:overlay   # model over sheets 04–10 → .plans-cache/overlay-XX.png
+npm run dev  &  npm run plans:overlay   # model over sheets 03–10 → .plans-cache/overlay-XX.png
 ```
 
-`overlay.html?sheet=04|05|06|07|08e|08w|09|10` (dev server only) draws the generated model
-over the local sheet raster at the same scale: a horizontal section 1 m above the floor
+`overlay.html?sheet=03|04|05|06|07|08e|08w|09|10` (dev server only) draws the generated model
+over the local sheet raster at the same scale: the site data (lot, paving, house, fence
+and gates, trees, shrubs, beds, places) over the rotated 1:200 site plan (03), a
+horizontal section 1 m above the floor
 for the plans (04 basement, 05 ground, 06 upper), the roof-level feature edges in top
 view (07), and an orthographic WebGL elevation for the facades (08 east/west, 09 north,
 10 south) with the reference levels dashed.

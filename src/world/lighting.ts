@@ -28,22 +28,48 @@ export function createLighting(scene: THREE.Scene, site: Site, shadowMapSize: nu
 
   const dir = sunDirection(site);
   const sun = new THREE.DirectionalLight('#fff4e2', 3.4);
-  const target = new THREE.Vector3(8.5, 0, 6);
+  // Centre of the lot; the static shadow covers the whole garden (lot + fence + trees).
+  const target = new THREE.Vector3();
+  for (const [x, z] of site.lot) target.add(new THREE.Vector3(x, 0, z));
+  target.divideScalar(site.lot.length);
   sun.position.copy(target).addScaledVector(dir, 60);
   sun.target.position.copy(target);
   sun.castShadow = true;
   sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
   const cam = sun.shadow.camera;
-  cam.left = -24;
-  cam.right = 24;
-  cam.top = 20;
-  cam.bottom = -20;
-  cam.near = 20;
-  cam.far = 110;
+  fitShadowCamera(cam, sun.position, target, site.lot, [-0.4, 9]);
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
   scene.add(sun, sun.target);
   sun.target.updateMatrixWorld();
   cam.updateProjectionMatrix();
   return { sun, hemi, sunDirection: dir };
+}
+
+/**
+ * Tight orthographic bounds (light space) around the lot polygon extruded over the
+ * height range `ys` (0.5 m margin), so no texel is spent outside the garden.
+ */
+export function fitShadowCamera(
+  cam: THREE.OrthographicCamera,
+  from: THREE.Vector3,
+  target: THREE.Vector3,
+  lot: Site['lot'],
+  ys: readonly [number, number],
+): void {
+  const view = new THREE.Matrix4().lookAt(from, target, new THREE.Vector3(0, 1, 0));
+  view.setPosition(from);
+  view.invert();
+  const box = new THREE.Box3();
+  const p = new THREE.Vector3();
+  for (const [x, z] of lot) {
+    for (const y of ys) box.expandByPoint(p.set(x, y, z).applyMatrix4(view));
+  }
+  const m = 0.5;
+  cam.left = box.min.x - m;
+  cam.right = box.max.x + m;
+  cam.bottom = box.min.y - m;
+  cam.top = box.max.y + m;
+  cam.near = Math.max(0.5, -box.max.z - 10);
+  cam.far = -box.min.z + 10;
 }

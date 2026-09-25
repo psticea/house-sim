@@ -46,6 +46,18 @@ export const PALETTE: Record<MaterialId, MaterialSpec> = {
   field: { color: '#85A062', roughness: 1, castShadow: false },
   asphalt: { color: '#56575A', roughness: 0.95, castShadow: false },
   grating: { color: '#5E6263', roughness: 0.6, metalness: 0.4, castShadow: true },
+  // Garden (I3): natural materials in the §6.1 earthy palette (sand, clay, ochre, olive).
+  timber: { color: '#A48C6E', roughness: 0.85, castShadow: true },
+  corten: { color: '#8A4B2C', roughness: 0.8, castShadow: true },
+  gravel: { color: '#BFB5A3', roughness: 1, castShadow: false },
+  soil: { color: '#5C4A3B', roughness: 1, castShadow: false },
+  clay: { color: '#B5714F', roughness: 0.9, castShadow: true },
+  bark: { color: '#5F4E40', roughness: 0.95, castShadow: true },
+  barkBirch: { color: '#E7E2D8', roughness: 0.9, castShadow: true },
+  foliage: { color: '#6F7B47', roughness: 1, castShadow: true },
+  foliageLight: { color: '#9AA27A', roughness: 1, castShadow: true },
+  meadow: { color: '#AAA26A', roughness: 1, castShadow: false },
+  flowers: { color: '#D7AE5C', roughness: 1, castShadow: false },
 };
 
 export type MaterialLibrary = Record<MaterialId, THREE.Material>;

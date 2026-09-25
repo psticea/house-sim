@@ -25,6 +25,11 @@ interface Edge {
   u: THREE.Vector3; // unit direction a → b
   len: number;
   side: THREE.Vector3; // unit, in the face plane, pointing from the edge into the face
+  /** Extent along the canonical (sign-normalised) direction, and max endpoint norm. */
+  s0: number;
+  s1: number;
+  r: number;
+  sg: number;
 }
 
 const _ab = new THREE.Vector3();
@@ -86,14 +91,27 @@ function extractEdges(
       u.divideScalar(len);
       const side = _p.subVectors(c, a);
       side.addScaledVector(u, -side.dot(u)).normalize();
-      edges.push({ face, a, u, len, side: side.clone() });
+      const s = canonicalSign(u);
+      const pa = a.dot(u) * s;
+      const pb = pa + len * s;
+      edges.push({
+        face,
+        a,
+        u,
+        len,
+        side: side.clone(),
+        s0: Math.min(pa, pb),
+        s1: Math.max(pa, pb),
+        r: Math.max(a.length(), b.length()),
+        sg: s,
+      });
     }
   }
 
   // Line hash: collinear edges share a bin keyed by the quantised line (canonical
   // direction + point closest to the origin). A value close to a bin border also goes
   // into the neighbouring bin, so two edges on the same line always meet somewhere.
-  const bins = new Map<string, number[]>();
+  const bins = new Map<number, number[]>();
   const edgeBins = edges.map((e) => lineBins(e.a, e.u));
   edgeBins.forEach((keys, i) => {
     for (const key of keys) {
@@ -105,20 +123,25 @@ function extractEdges(
 
   const thick: number[] = [];
   const thin: number[] = [];
-  const seen = new Set<number>();
+  // Candidate de-duplication (an edge sits in up to 64 bins): last edge that visited it.
+  const seen = new Int32Array(edges.length).fill(-1);
   const cand: { face: number; t0: number; t1: number; side: THREE.Vector3 }[] = [];
   edges.forEach((e, i) => {
     // Collinear, overlapping edges of other faces.
-    seen.clear();
     cand.length = 0;
     for (const key of edgeBins[i]!) {
       for (const j of bins.get(key) ?? []) {
-        if (j === i || seen.has(j)) continue;
-        seen.add(j);
+        if (j === i || seen[j] === i) continue;
+        seen[j] = i;
         const f = edges[j]!;
         if (f.face === e.face) continue;
         const cos = f.u.dot(e.u);
         if (Math.abs(cos) < 1 - 1e-6) continue;
+        // Cheap interval reject (f's extent mapped onto e's canonical direction); the margin
+        // covers the direction tolerance above (|Δu| < 1.5e-3), so no true overlap is lost.
+        const rel = e.sg * f.sg * (cos > 0 ? 1 : -1);
+        const m = 1.5e-3 * Math.max(e.r, f.r) + LINE_TOL;
+        if ((rel > 0 ? f.s1 : -f.s0) + m < e.s0 || (rel > 0 ? f.s0 : -f.s1) - m > e.s1) continue;
         _p.subVectors(f.a, e.a);
         const ta = _p.dot(e.u);
         if (_p.addScaledVector(e.u, -ta).lengthSq() > LINE_TOL * LINE_TOL) continue;
@@ -190,11 +213,19 @@ function extractEdges(
   return { thin: new Float32Array(thin), thick: new Float32Array(thick) };
 }
 
+/** Mixes a quantised value into a 32-bit key (collisions only add candidates). */
+const mixKey = (h: number, k: number): number => {
+  const x = Math.imul(h ^ (k + 0x9e3779b9), 0x85ebca6b);
+  return (x ^ (x >>> 13)) | 0;
+};
+
 /** Hash bins of the infinite line through `a` along unit `u` (1 key, or a few near bin borders). */
-function lineBins(a: THREE.Vector3, u: THREE.Vector3): string[] {
-  // Canonical direction sign (u and -u describe the same line).
-  const flip = Math.abs(u.x) > 1e-3 ? u.x < 0 : Math.abs(u.y) > 1e-3 ? u.y < 0 : u.z < 0;
-  const s = flip ? -1 : 1;
+/** Canonical direction sign (u and −u describe the same line). */
+const canonicalSign = (u: THREE.Vector3): number =>
+  (Math.abs(u.x) > 1e-3 ? u.x < 0 : Math.abs(u.y) > 1e-3 ? u.y < 0 : u.z < 0) ? -1 : 1;
+
+function lineBins(a: THREE.Vector3, u: THREE.Vector3): number[] {
+  const s = canonicalSign(u);
   const t = a.dot(u);
   const vals = [
     [u.x * s, DIR_BIN, DIR_BAND],
@@ -204,17 +235,15 @@ function lineBins(a: THREE.Vector3, u: THREE.Vector3): string[] {
     [a.y - u.y * t, POINT_BIN, POINT_BAND],
     [a.z - u.z * t, POINT_BIN, POINT_BAND],
   ] as const;
-  let keys = [''];
+  let keys = [0x2545f491];
   for (const [v, bin, band] of vals) {
     const q = v / bin;
     const k = Math.floor(q);
-    const opts = [k];
-    if (q - k < band / bin) opts.push(k - 1);
-    else if (k + 1 - q < band / bin) opts.push(k + 1);
+    const alt = q - k < band / bin ? k - 1 : k + 1 - q < band / bin ? k + 1 : null;
     keys =
-      opts.length === 1
-        ? keys.map((p) => `${p}${k},`)
-        : keys.flatMap((p) => opts.map((o) => `${p}${o},`));
+      alt === null
+        ? keys.map((p) => mixKey(p, k))
+        : keys.flatMap((p) => [mixKey(p, k), mixKey(p, alt)]);
   }
   return keys;
 }

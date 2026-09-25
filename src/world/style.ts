@@ -63,6 +63,8 @@ export const GROUND_PATTERN: ReadonlySet<MaterialId> = new Set<MaterialId>([
   'field',
   'asphalt',
   'pavers',
+  'gravel',
+  'soil',
 ]);
 
 export interface StyleOptions {
@@ -410,8 +412,11 @@ function meshParts(
       if (all.length > 0) parts.push(lineObject(all, cache.thin, `${id}-edges`));
     }
   }
-  if (cache.hull && cfg.hulls && !see && !cfg.noLines.includes(id)) {
-    const g = curvedHullGeometry(mesh.geometry, cfg.hulls.maxCreaseDeg);
+  if (cache.hull && cfg.hulls && !see) {
+    // `only` lists the hull materials explicitly (they may have no feature lines);
+    // otherwise every lined mesh with curved facets gets one.
+    const wanted = cfg.hulls.only ? cfg.hulls.only.includes(id) : !cfg.noLines.includes(id);
+    const g = wanted ? curvedHullGeometry(mesh.geometry, cfg.hulls.maxCreaseDeg) : null;
     if (g) {
       const hull = new THREE.Mesh(g, cache.hull);
       hull.name = `${id}-hull`;

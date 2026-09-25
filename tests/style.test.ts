@@ -328,7 +328,9 @@ describe('Borderlands config and ink shading', () => {
     expect(SKETCHUP.lineWidth).toBe(1.3);
     expect(SKETCHUP.fatLines).toBe('desktop');
     expect(SKETCHUP.ink).toBeNull();
-    expect(SKETCHUP.hulls).toBeNull();
+    // Hulls only on rounded vegetation / pots, never on the architecture (S1 look).
+    expect(SKETCHUP.hulls!.only).toEqual(['foliage', 'foliageLight', 'bark', 'barkBirch', 'clay']);
+    expect(SKETCHUP.hulls!.maxCreaseDeg).toBeLessThanOrEqual(SKETCHUP.edgeThresholdDeg);
     expect(SKETCHUP.paperOverlay).toBeGreaterThan(0);
     expect(STYLES).toEqual({ sketchup: SKETCHUP, borderlands: BORDERLANDS });
   });
@@ -601,7 +603,12 @@ describe('style registry: setStyle / removeStyle / disposeStyles', () => {
     scene.traverse((o) => {
       if (o.name.endsWith('-hull')) hulls.push(o.name);
     });
-    expect(hulls).toEqual(['metalBlack-hull']);
+    // Curved meshes only: chimney (metalBlack), vegetation, pots, fire pit / edging.
+    expect(hulls.sort()).toEqual(
+      ['bark', 'barkBirch', 'clay', 'corten', 'foliage', 'foliageLight', 'metalBlack'].map(
+        (id) => `${id}-hull`,
+      ),
+    );
     const glass = world.group.getObjectByName('glass')!;
     expect(glass.children.map((c) => c.name)).toEqual(['glass-edges']);
     removeStyle(scene);

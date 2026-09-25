@@ -11,10 +11,11 @@ import { BASEMENT_STAIR_HOLE } from '../data/ground';
 import { buildCurtainWall } from './curtain';
 import { buildExteriorElement } from './exterior';
 import { castsShadow, createMaterials, type MaterialLibrary } from './materials';
+import { buildSite } from './garden';
 import { MeshBuilder } from './meshBuilder';
 import { buildOpening } from './openings';
 import { buildChimney, buildRoof } from './roof';
-import { buildGround, buildPatch, buildSlab } from './slabs';
+import { buildSlab } from './slabs';
 import { buildStairs } from './stairs';
 import { buildWall } from './walls';
 
@@ -27,8 +28,14 @@ export interface BuiltWorld {
   colliderTriangles: number;
 }
 
-/** Pure geometry pass (usable in Node tests): visual and collision triangle soups. */
-export function buildGeometry(model: HouseModel): { mesh: MeshBuilder; collider: MeshBuilder } {
+/**
+ * Pure geometry pass (usable in Node tests): visual and collision triangle soups.
+ * `site: false` builds the building only (no terrain, paving, garden, context).
+ */
+export function buildGeometry(
+  model: HouseModel,
+  opts: { site?: boolean } = {},
+): { mesh: MeshBuilder; collider: MeshBuilder } {
   const mesh = new MeshBuilder();
   const collider = new MeshBuilder();
   const ctx = { mesh, collider, roof: model.roof };
@@ -99,13 +106,12 @@ export function buildGeometry(model: HouseModel): { mesh: MeshBuilder; collider:
     [c.center[0] + c.radius, 3, c.center[1] + c.radius],
   );
   for (const e of model.exterior) buildExteriorElement(mesh, collider, e);
-  for (const p of model.site.patches) buildPatch(mesh, collider, p);
-  buildGround(mesh, collider, model);
+  if (opts.site ?? true) buildSite(mesh, collider, model);
   return { mesh, collider };
 }
 
-export function buildWorld(model: HouseModel): BuiltWorld {
-  const { mesh, collider } = buildGeometry(model);
+export function buildWorld(model: HouseModel, opts: { site?: boolean } = {}): BuiltWorld {
+  const { mesh, collider } = buildGeometry(model, opts);
   const materials = createMaterials();
   const group = new THREE.Group();
   group.name = 'house';

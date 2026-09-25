@@ -50,9 +50,10 @@ export interface StyleConfig {
   linedTransparent: readonly MaterialId[];
   /**
    * Inverted-hull silhouettes for curved meshes (faceted surfaces whose facets meet at
-   * < `maxCreaseDeg`, e.g. the chimney): width in CSS px; `null` = off.
+   * < `maxCreaseDeg`, e.g. the chimney): width in CSS px; `only` restricts them to the
+   * listed materials (e.g. vegetation); `null` = off.
    */
-  hulls: { width: number; maxCreaseDeg: number } | null;
+  hulls: { width: number; maxCreaseDeg: number; only?: readonly MaterialId[] } | null;
   /** How much darker shadowed surfaces are than sunlit ones (0 = no shadows, 1 = black). */
   shadowOpacity: number;
   /** Shadow blur radius (shadow-map texels, PCF). */

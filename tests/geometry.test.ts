@@ -13,9 +13,11 @@ describe('generated geometry', () => {
     const c = new THREE.Vector3();
     for (const [id, g] of geos) {
       const pos = g.getAttribute('position');
+      let bad = 0;
       for (let i = 0; i < pos.count; i++) {
-        expect(Number.isFinite(pos.getX(i) + pos.getY(i) + pos.getZ(i)), id).toBe(true);
+        if (!Number.isFinite(pos.getX(i) + pos.getY(i) + pos.getZ(i))) bad++;
       }
+      expect(bad, `${id} non-finite positions`).toBe(0);
       let degenerate = 0;
       for (let t = 0; t < pos.count; t += 3) {
         a.fromBufferAttribute(pos, t);
@@ -26,25 +28,23 @@ describe('generated geometry', () => {
       expect(degenerate, `${id} degenerate triangles`).toBe(0);
       const nor = g.getAttribute('normal');
       for (let i = 0; i < nor.count; i++) {
-        expect(Number.isFinite(nor.getX(i) + nor.getY(i) + nor.getZ(i)), id).toBe(true);
+        if (!Number.isFinite(nor.getX(i) + nor.getY(i) + nor.getZ(i))) bad++;
       }
+      expect(bad, `${id} non-finite normals`).toBe(0);
     }
   });
 
   it('stays well inside the triangle budget and keeps draw calls low', () => {
     expect(mesh.triangleCount).toBeGreaterThan(1000);
     expect(mesh.triangleCount).toBeLessThan(400_000);
-    // One mesh per material.
-    expect(geos.size).toBeLessThanOrEqual(30);
+    // One mesh per material (house 22 + garden 11).
+    expect(geos.size).toBeLessThanOrEqual(34);
   });
 
   it('house fits the building envelope (roof below the ridge, walls inside the shell)', () => {
     const box = new THREE.Box3();
-    for (const [id, g] of geos) {
-      if (
-        ['field', 'lawn', 'asphalt', 'pavers', 'stone', 'deck', 'concrete', 'grating'].includes(id)
-      )
-        continue;
+    for (const [id, g] of buildGeometry(house, { site: false }).mesh.toGeometries()) {
+      if (['concrete', 'grating', 'stone'].includes(id)) continue; // light well
       box.union(g.boundingBox!);
     }
     expect(box.max.y).toBeLessThanOrEqual(7.95); // chimney top +7.90

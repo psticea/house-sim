@@ -18,7 +18,8 @@ interface Counts {
 }
 const OUT = 'test-results/style-shots';
 const LIVING: Pose = [10.4, 0, 3.6, -90, 8];
-const BUDGET: Record<StyleName, number> = { sketchup: 60, borderlands: 80, real: 25 };
+// I3 budgets (garden, fence, vegetation added: 11 materials + their lines / hulls).
+const BUDGET: Record<StyleName, number> = { sketchup: 70, borderlands: 90, real: 35 };
 const STYLES: StyleName[] = ['sketchup', 'borderlands', 'real'];
 
 // [name, kind, pose] — `start` is the load pose (captured at runtime).

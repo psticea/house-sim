@@ -1,14 +1,14 @@
 // Dev-only: screenshot overlay.html (generated model over the local plan rasters) into
 // .plans-cache/overlay-<sheet>.png — never into the repo.
 // Usage: npm run plans:overlay [-- baseUrl] [sheets]   (needs `npm run dev` running)
-//   sheets: comma list of 04,05,06,07,08e,08w,09,10 (default: all)
+//   sheets: comma list of 03,04,05,06,07,08e,08w,09,10 (default: all)
 import path from 'node:path';
 import { chromium } from '@playwright/test';
 import { CACHE_DIR, requirePlans } from './plans-common.mjs';
 
 requirePlans();
 const base = process.argv[2] ?? 'http://localhost:5173/';
-const sheets = (process.argv[3] ?? '04,05,06,07,08e,08w,09,10').split(',').filter(Boolean);
+const sheets = (process.argv[3] ?? '03,04,05,06,07,08e,08w,09,10').split(',').filter(Boolean);
 const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });

@@ -34,7 +34,7 @@ export default defineConfig({
     {
       // Quick functional pass (`npm run e2e`): small viewport, no screenshots.
       name: 'desktop',
-      testMatch: /(walk|perf|style)\.spec\.ts/,
+      testMatch: /(walk|garden|perf|style)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 640, height: 360 },

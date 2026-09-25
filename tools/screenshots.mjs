@@ -62,6 +62,15 @@ const shots = [
   ['west-elev', 'view', [-22, 3.8, 3.625, -90, 0], DESK],
   ['north-elev', 'view', [9.0, 3.8, -26, 180, 0], DESK],
   ['south-elev', 'view', [9.0, 3.8, 33, 0, 0], DESK],
+  // I3: garden & fence.
+  ['garden-aerial', 'view', [8.6, 34, 6.0, 0, -89.9], DESK],
+  ['garden-aerial-sw', 'view', [-16, 18, 26, -51, -32], DESK],
+  ['gate-street', 'pose', [-7.8, -0.2, 19.5, 5, 0], DESK],
+  ['north-side', 'pose', [11.9, -0.05, -0.63, -90, -4], DESK],
+  ['south-garden', 'pose', [8.8, -0.1, 9.9, -105, -6], DESK],
+  ['rear-garden', 'pose', [20.3, -0.1, 9.5, -25, -4], DESK],
+  ['terrace-out', 'pose', [18.9, 0, 4.8, -90, -4], DESK],
+  ['living-out', 'pose', [13.2, 0, 3.4, -90, 0], DESK],
 ];
 
 const browser = await chromium.launch({

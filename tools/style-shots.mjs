@@ -26,6 +26,14 @@ const POSES = [
   ['terrace-south', 'pose', [14.0, 0, 8.6, 90, 0]],
   ['aerial-se', 'view', [30, 12, 20, 55, -22]],
   ['south-elev', 'view', [9.0, 3.8, 33, 0, 0]],
+  // I3: garden & fence.
+  ['garden-aerial', 'view', [8.6, 34, 6.0, 0, -89.9]],
+  ['gate-street', 'pose', [-7.8, -0.2, 19.5, 5, 0]],
+  ['north-side', 'pose', [11.9, -0.05, -0.63, -90, -4]],
+  ['south-garden', 'pose', [8.8, -0.1, 9.9, -105, -6]],
+  ['rear-garden', 'pose', [20.3, -0.1, 9.5, -25, -4]],
+  ['terrace-out', 'pose', [18.9, 0, 4.8, -90, -4]],
+  ['living-out', 'pose', [13.2, 0, 3.4, -90, 0]],
   // The start view with the style menu open (UI check).
   ['menu', 'menu', null],
 ];

@@ -14,7 +14,7 @@ test.describe('first walk (desktop)', () => {
     await expect(page.locator('.start button')).toHaveText('Click to start');
     const st = await sim.stats(page);
     expect(st.drawCalls).toBeGreaterThan(5);
-    expect(st.drawCalls).toBeLessThanOrEqual(60);
+    expect(st.drawCalls).toBeLessThanOrEqual(70);
     expect(st.triangles).toBeLessThan(400_000);
     await shot(page, info, 'test-results/e2e-shots/start-desktop.png');
     expect(s.errors).toEqual([]);

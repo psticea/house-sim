@@ -9,6 +9,16 @@
  * (east / west / north / south) rendered with WebGL at the sheet's scale.
  */
 import * as THREE from 'three';
+import {
+  FIRE_PIT,
+  GARDEN_ZONES,
+  GRAVEL,
+  MEADOWS,
+  RAISED_BEDS,
+  SHRUBS,
+  TREES,
+  fencePerimeter,
+} from '../data/garden';
 import { house } from '../data/house';
 import type { LevelId, MaterialId } from '../data/schema';
 import { levelById } from '../data/topology';
@@ -21,6 +31,13 @@ const S = (20 / 25.4) * 72; // 1:50 — points per metre
 type Sheet =
   | { kind: 'plan'; id: string; x0: number; z0: number; level: LevelId; cut: number }
   | { kind: 'roof'; id: string; x0: number; z0: number }
+  | {
+      /** Site plan 1:200, rotated on the page: NW house corner (−0.275, −0.275) at `nw` pt. */
+      kind: 'site';
+      id: string;
+      nw: [number, number];
+      rotDeg: number;
+    }
   | {
       kind: 'elevation';
       id: string;
@@ -36,6 +53,8 @@ type Sheet =
 // Calibrations measured on the vector geometry (grid axes on plans, facade edges and
 // level lines on the elevations; see src/data/*.ts headers).
 const SHEETS: Record<string, Sheet> = {
+  // Site plan: house outline corner fitted on the vector geometry (see src/data/site.ts).
+  '03': { kind: 'site', id: '03', nw: [616.213, 219.279], rotDeg: 7.68 },
   '04': { kind: 'plan', id: '04', x0: 200.25, z0: 60.65, level: 'basement', cut: 1.0 },
   '05': { kind: 'plan', id: '05', x0: 184.165, z0: 258.745, level: 'ground', cut: 1.0 },
   '06': { kind: 'plan', id: '06', x0: 195.16, z0: 256.575, level: 'upper', cut: 0.95 },
@@ -114,7 +133,8 @@ async function loadRaster(id: string): Promise<{ img: HTMLImageElement; scale: n
 async function main(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const sheet = SHEETS[params.get('sheet') ?? '05'] ?? SHEETS['05']!;
-  const pxPerM = Number(params.get('ppm') ?? '90');
+  // The 1:200 site view spans ~40 m: cap the scale so the canvas stays screen-sized.
+  const pxPerM = Math.min(Number(params.get('ppm') ?? '90'), sheet.kind === 'site' ? 42 : Infinity);
   const alpha = Number(params.get('alpha') ?? '0.85');
   const canvas = document.getElementById('c') as HTMLCanvasElement;
   const status = document.getElementById('status')!;
@@ -127,7 +147,9 @@ async function main(): Promise<void> {
   const view =
     sheet.kind === 'elevation'
       ? { h0: sheet.uRange[0], h1: sheet.uRange[1], v0: -1.5, v1: 9 }
-      : { h0: -3, h1: 21, v0: -4, v1: 10.5 };
+      : sheet.kind === 'site'
+        ? { h0: -13, h1: 28, v0: -5, v1: 19 }
+        : { h0: -3, h1: 21, v0: -4, v1: 10.5 };
   const W = Math.round((view.h1 - view.h0) * pxPerM);
   const H = Math.round((view.v1 - view.v0) * pxPerM);
   canvas.width = W;
@@ -140,7 +162,24 @@ async function main(): Promise<void> {
   if (raster) {
     const k = raster.scale;
     ctx.globalAlpha = 0.55;
-    if (sheet.kind === 'elevation') {
+    if (sheet.kind === 'site') {
+      // Page (pt) → house frame: rotate by rotDeg about the NW corner, 1:200 scale.
+      const S200 = S / 4;
+      const c = Math.cos((sheet.rotDeg * Math.PI) / 180);
+      const s = Math.sin((sheet.rotDeg * Math.PI) / 180);
+      const [nx, ny] = sheet.nw;
+      const m = pxPerM / (S200 * k);
+      ctx.setTransform(
+        m * c,
+        -m * s,
+        m * s,
+        m * c,
+        pxPerM * ((-nx * c - ny * s) / S200 - 0.275 - view.h0),
+        pxPerM * ((nx * s - ny * c) / S200 - 0.275 - view.v0),
+      );
+      ctx.drawImage(raster.img, 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    } else if (sheet.kind === 'elevation') {
       const sx = (sheet.a + view.h0 * S) * k;
       const sy = (sheet.y0 - view.v1 * S) * k;
       ctx.drawImage(
@@ -185,11 +224,69 @@ async function main(): Promise<void> {
   };
 
   let info: string;
-  if (sheet.kind === 'plan') {
+  if (sheet.kind === 'site') {
+    // 2) Site data: lot, paving/deck, house outline, fence (runs + gates), planting, features.
+    const poly = (
+      p: readonly (readonly [number, number])[],
+      color: string,
+      dash: number[] = [],
+    ) => {
+      ctx.strokeStyle = color;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      p.forEach(([x, z], i) => (i ? ctx.lineTo(...toPx(x, z)) : ctx.moveTo(...toPx(x, z))));
+      ctx.closePath();
+      ctx.stroke();
+      ctx.setLineDash([]);
+    };
+    const ring = (x: number, z: number, r: number, color: string) => {
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.arc(...toPx(x, z), r * pxPerM, 0, Math.PI * 2);
+      ctx.stroke();
+    };
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = 1.6;
+    poly(house.site.lot, '#0a8f5a', [8, 5]);
+    for (const p of house.site.patches) poly(p.polygon, '#1f5fe0');
+    poly(
+      [
+        [-0.33, -0.33],
+        [18.38, -0.33],
+        [18.38, 7.58],
+        [-0.33, 7.58],
+      ],
+      '#e0271f',
+    );
+    for (const g of GRAVEL) poly(g.polygon, '#8a3fc2');
+    for (const b of RAISED_BEDS)
+      poly([b.min, [b.max[0], b.min[1]], b.max, [b.min[0], b.max[1]]], '#b87a00');
+    for (const m of MEADOWS) poly(m.polygon, '#b8a100', [3, 3]);
+    ctx.lineWidth = 3;
+    for (const s of fencePerimeter()) {
+      line([s.a[0], s.a[1]], [s.b[0], s.b[1]], s.kind === 'gate' ? '#e01fb3' : '#000000');
+    }
+    ctx.lineWidth = 1.6;
+    for (const t of TREES) {
+      ring(t.x, t.z, 1.0, '#0a5f2a');
+      ring(t.x, t.z, t.trunkR, '#0a5f2a');
+    }
+    for (const s of SHRUBS) ring(s.x, s.z, s.r, '#3f8f2a');
+    ring(FIRE_PIT.x, FIRE_PIT.z, FIRE_PIT.r, '#e0271f');
+    ctx.fillStyle = '#0a8f5a';
+    ctx.font = '600 12px system-ui';
+    for (const zn of GARDEN_ZONES) {
+      const cx = zn.polygon.reduce((a, p) => a + p[0], 0) / zn.polygon.length;
+      const cz = zn.polygon.reduce((a, p) => a + p[1], 0) / zn.polygon.length;
+      ctx.fillText(zn.name, ...toPx(cx - 1, cz));
+    }
+    info =
+      'Sheet 03: site data over the plan (1:200). Dashed green = lot, blue = paving/deck, red = house outline, black = fence, magenta = gates, green rings = trees (Ø 2.0 plan symbols) / shrubs, purple = gravel, ochre = beds / meadow.';
+  } else if (sheet.kind === 'plan') {
     // 2) Generated geometry cut 1 m above the level's floor (like the plan cut).
     const level = levelById(house, sheet.level);
     const y = level.floorY + sheet.cut;
-    const { mesh } = buildGeometry(house);
+    const { mesh } = buildGeometry(house, { site: false });
     const segs = sectionSegments(mesh.toGeometries(), y);
     ctx.globalAlpha = alpha;
     ctx.lineWidth = 1.6;
@@ -215,7 +312,7 @@ async function main(): Promise<void> {
     info = `Sheet ${sheet.id}: section at ${y.toFixed(2)} m, ${segs.length} segments. Red = walls, blue = frames/glass, green = door leaves, black = rails, dashed = rooms.`;
   } else if (sheet.kind === 'roof') {
     // 2) Top view of the roof-level feature edges (everything above +2.4 m).
-    const { mesh } = buildGeometry(house);
+    const { mesh } = buildGeometry(house, { site: false });
     ctx.globalAlpha = alpha;
     ctx.lineWidth = 1.2;
     let n = 0;
@@ -235,7 +332,7 @@ async function main(): Promise<void> {
     info = `Sheet 07: roof top view, ${n} feature edges above +2.40 (red = sheet/seams/gutters, black = windows/snow guards/chimney, cyan = glass).`;
   } else {
     // 2) Orthographic elevation (WebGL), same scale, transparent background.
-    const world = buildWorld(house);
+    const world = buildWorld(house, { site: false });
     const scene = new THREE.Scene();
     scene.add(world.group);
     scene.add(new THREE.HemisphereLight('#ffffff', '#666666', 2.2));

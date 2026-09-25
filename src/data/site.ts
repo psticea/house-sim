@@ -25,7 +25,8 @@ export const site: Site = {
   lot: LOT,
   lotArea: 574,
   trueNorthDeg: 7.68,
-  lawnY: -0.08,
+  // Lawn 4 cm under the paving at the CTA -0.05 (terrain: src/data/terrain.ts).
+  lawnY: -0.09,
   patches: [
     {
       // "circulatie auto privata dalata" (hatched), 2 spaces, 80 m²: between the street
@@ -41,6 +42,7 @@ export const site: Site = {
       thickness: 0.1,
       material: 'pavers',
       collide: true,
+      drape: 0.04,
     },
     {
       // Natural stone path: west strip (sheet 03), north strip and covered entrance
@@ -63,6 +65,7 @@ export const site: Site = {
       thickness: 0.1,
       material: 'stone',
       collide: true,
+      drape: 0.04,
     },
     {
       // "platforma gospodareasca" (bins), 1.50 m².
@@ -77,6 +80,7 @@ export const site: Site = {
       thickness: 0.1,
       material: 'concrete',
       collide: true,
+      drape: 0.04,
     },
     {
       // WPC deck on pedestals, ±0.00: loggia + east strip to x 19.776 + south strip to
@@ -110,9 +114,11 @@ export const site: Site = {
         [-13.2, 60],
         [-12.36, 29.27],
       ],
-      top: -0.1,
-      thickness: 0.05,
+      // Flush with the parking at the gates (terrain there is about -0.22).
+      top: -0.18,
+      thickness: 0.1,
       material: 'asphalt',
+      collide: true,
     },
   ],
   // On the parking, facing the west gable and the path that leads north around the
