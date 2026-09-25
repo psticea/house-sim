@@ -21,13 +21,37 @@ export const BORDERLANDS: StyleConfig = {
   edgeThresholdDeg: 33,
   jitter: 0.002,
   jitterMaxM: 0.01,
-  noLines: ['lawn', 'field', 'asphalt', 'meadow', 'flowers', 'foliage', 'foliageLight'],
+  noLines: [
+    'lawn',
+    'field',
+    'asphalt',
+    'meadow',
+    'flowers',
+    'foliage',
+    'foliageLight',
+    // Soft upholstery: silhouette hull only (no creases to draw, saves the edge pass).
+    'linen',
+  ],
   linedTransparent: ['glass'],
-  /** Curved meshes only: the chimney (metalBlack), vegetation (canopies: hull only), pots, fire pit. */
+  /**
+   * Curved meshes only: the chimney (metalBlack), vegetation (canopies: hull only), pots,
+   * fire pit, soft furniture (linen upholstery, ceramics, cane; I5).
+   */
   hulls: {
     width: 3.2,
     maxCreaseDeg: 33,
-    only: ['metalBlack', 'foliage', 'foliageLight', 'bark', 'barkBirch', 'clay', 'corten'],
+    only: [
+      'metalBlack',
+      'foliage',
+      'foliageLight',
+      'bark',
+      'barkBirch',
+      'clay',
+      'corten',
+      'linen',
+      'ceramic',
+      'cane',
+    ],
   },
   shadowOpacity: 0.45,
   shadowRadius: 1,
@@ -66,6 +90,8 @@ export const BORDERLANDS: StyleConfig = {
     timber: 'paint',
     gravel: 'paint',
     soil: 'paint',
+    joinery: 'paint',
+    travertine: 'paint',
   },
   paint: { strength: 0.24, tileM: 4 },
   grass: { strength: 0.7, tileM: 2.4 },

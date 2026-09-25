@@ -14,7 +14,7 @@ test.describe('first walk (desktop)', () => {
     await expect(page.locator('.start button')).toHaveText('Click to start');
     const st = await sim.stats(page);
     expect(st.drawCalls).toBeGreaterThan(5);
-    expect(st.drawCalls).toBeLessThanOrEqual(70);
+    expect(st.drawCalls).toBeLessThanOrEqual(90);
     expect(st.triangles).toBeLessThan(400_000);
     await shot(page, info, 'test-results/e2e-shots/start-desktop.png');
     expect(s.errors).toEqual([]);
@@ -24,14 +24,14 @@ test.describe('first walk (desktop)', () => {
     await page.setViewportSize(SMALL);
     const s = await openSim(page);
     const rooms: [string, number, number][] = [
-      ['bedroom-1', 2.0, 1.5],
+      ['bedroom-1', 2.3, 2.8],
       ['boiler-laundry', 6.0, 1.2],
       ['entrance-hall', 8.4, 1.2],
       ['bathroom', 5.9, 5.0],
       ['bedroom-2', 2.3, 5.5],
       ['stairs', 8.9, 3.85],
       ['living-kitchen', 13.0, 3.0],
-      ['terrace', 18.0, 4.0],
+      ['terrace', 18.2, 2.4],
     ];
     for (const [id, x, z] of rooms) {
       const p = await sim.teleport(page, x, 0.3, z, 0, 0);
@@ -139,9 +139,12 @@ test.describe('first walk (desktop)', () => {
       ).room,
     ).toBe('living-kitchen');
     expect((await leg([[10.6, 5.5]])).place).toBe('play-corner');
+    // Along the walkway between the island and the sofa to the glass door.
     expect(
       (
         await leg([
+          [10.9, 3.2],
+          [15.5, 3.2],
           [16.0, 2.37],
           [17.6, 2.37],
         ])
@@ -237,6 +240,23 @@ test.describe('first walk (desktop)', () => {
     p = await sim.walk(page, 1, 0, 3, true);
     expect(p.x).toBeLessThan(9.51 - 0.2);
     expect(p.y).toBeCloseTo(2.95, 2);
+    // Furniture (I5): the sofa, island, kitchen run, dining table and the beds block the
+    // player (walked into at run speed; the player stays on the floor, not on top).
+    const blocks: [string, [number, number, number], [number, number], (q: typeof p) => boolean][] =
+      [
+        ['sofa', [12.6, 0, 3.2], [0, 1], (q) => q.z < 3.85 - 0.2],
+        ['island', [12.2, 0, 3.2], [0, -1], (q) => q.z > 2.6 + 0.2],
+        ['kitchen run', [12.2, 0, 1.25], [0, -1], (q) => q.z > 0.745 + 0.2],
+        ['dining table', [15.2, 0, 4.4], [0, 1], (q) => q.z < 5.3 - 0.2],
+        ['bed 1', [2.3, 0, 2.8], [0, -1], (q) => q.z > 2.225 + 0.2],
+        ['bed 3', [2.0, 2.95, 5.25], [1, 0], (q) => q.x < 2.525 - 0.2],
+      ];
+    for (const [name, [x, y, z], [dx, dz], ok] of blocks) {
+      await sim.teleport(page, x, y, z);
+      p = await sim.walk(page, dx, dz, 3, true);
+      expect(ok(p), `${name} blocks (${p.x.toFixed(2)}, ${p.z.toFixed(2)})`).toBe(true);
+      expect(p.y, `${name}: stays on the floor`).toBeCloseTo(y, 1);
+    }
     expect(s.errors).toEqual([]);
   });
 

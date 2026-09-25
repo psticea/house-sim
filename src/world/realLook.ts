@@ -396,6 +396,14 @@ export class RealLook {
     this.snapNext = true;
   }
 
+  /** The scene changed (furniture arrived): capture the interior probes again. */
+  refreshProbes(): void {
+    if (this.loaded && this.env && this.o.quality.probes) {
+      this.probesPending = true;
+      this.framesSinceLoad = 0;
+    }
+  }
+
   /** GPU textures owned by the look that may not be assigned right now (memory estimate). */
   ownedTextures(): THREE.Texture[] {
     const out: THREE.Texture[] = [...this.baseTextures.values()];

@@ -24,7 +24,7 @@ const POSES = [
   ['living-east', 'pose', [10.4, 0, 3.6, -90, 8]],
   ['bedroom-1', 'pose', [2.6, 0, 2.6, 30, -5]],
   ['aerial', 'view', [-14, 14, -12, -135, -30]],
-  ['kitchen', 'pose', [13.0, 0, 5.5, 20, 0]],
+  ['kitchen', 'pose', [13.6, 0, 6.5, 20, 0]],
   ['terrace-south', 'pose', [14.0, 0, 8.6, 90, 0]],
   ['aerial-se', 'view', [30, 12, 20, 55, -22]],
   ['south-elev', 'view', [9.0, 3.8, 33, 0, 0]],
@@ -42,6 +42,22 @@ const POSES = [
   ['bedroom-3', 'pose', [3.9, 2.95, 5.8, 55, 12]],
   ['stairs', 'pose', [8.9, 0, 3.0, 180, 10]],
   ['lawn-close', 'pose', [8.8, -0.1, 9.9, -105, -35]],
+  // I5: furniture.
+  ['f-hall', 'pose', [8.75, 0, 3.2, 12, -12]],
+  ['f-kitchen', 'pose', [12.3, 0, 3.6, 10, -14]],
+  ['f-living', 'pose', [14.8, 0, 3.0, 125, -16]],
+  ['f-dining', 'pose', [13.2, 0, 3.4, -125, -18]],
+  ['f-play', 'pose', [12.4, 0, 3.4, 130, -20]],
+  ['f-bed1', 'pose', [2.9, 0, 3.3, 24, -16]],
+  ['f-bed2', 'pose', [3.9, 0, 4.6, 110, -18]],
+  ['f-bath', 'pose', [5.35, 0, 5.0, -115, -18]],
+  ['f-boiler', 'pose', [5.8, 0, 2.1, -20, -18]],
+  ['f-storage', 'pose', [9.9, -2.53, 6.5, -50, -12]],
+  ['f-bed3', 'pose', [1.6, 2.95, 3.0, -135, -14]],
+  ['f-study', 'pose', [5.6, 2.95, 1.9, -55, -18]],
+  ['f-upper-bath', 'pose', [5.9, 2.95, 4.2, 180, -24]],
+  ['f-upper-hall', 'pose', [5.3, 2.95, 3.2, -80, -10]],
+  ['f-terrace', 'pose', [19.3, 0, 7.4, 20, -14]],
   // The start view with the style menu open (UI check).
   ['menu', 'menu', null],
 ];
@@ -68,7 +84,13 @@ for (const style of styles) {
   });
   page.on('pageerror', (e) => problems.push(`${style}: pageerror ${e.message}`));
   await page.goto(`${base}?style=${style}${extra ? `&${extra}` : ''}`);
-  await page.waitForFunction(() => window.__houseSim?.isReady === true, null, { timeout: 120000 });
+  await page.waitForFunction(
+    () => window.__houseSim?.isReady === true && window.__houseSim.furnished,
+    null,
+    {
+      timeout: 120000,
+    },
+  );
   await page.evaluate(() => document.querySelector('.start')?.classList.add('off'));
   // Realistic look: wait for the streamed textures, sky and probes (I4).
   if (style === 'real') await page.evaluate(() => window.__houseSim.texturesReady());

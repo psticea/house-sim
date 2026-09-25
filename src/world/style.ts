@@ -262,6 +262,32 @@ export function disposeStyles(scene: THREE.Scene): void {
   scenes.delete(scene);
 }
 
+/**
+ * The geometry of `meshes` changed (e.g. furniture merged into a house mesh): their
+ * cached lines / hulls are dropped in every look and rebuilt for the active one. New
+ * meshes need no call — `setStyle` with the current look styles them.
+ */
+export function refreshStyledMeshes(scene: THREE.Scene, meshes: readonly THREE.Mesh[]): void {
+  const st = scenes.get(scene);
+  if (!st) return;
+  for (const mesh of meshes) {
+    for (const cache of st.caches.values()) {
+      for (const p of cache.parts.get(mesh) ?? []) {
+        p.removeFromParent();
+        (p as THREE.Mesh).geometry.dispose();
+      }
+      cache.parts.delete(mesh);
+    }
+    const active = st.active;
+    const original = active?.originals.get(mesh);
+    if (active && original) {
+      const id = original.name as MaterialId;
+      for (const p of meshParts(active.cache, mesh, id, original)) mesh.add(p);
+    }
+  }
+  requestShadowUpdate(st);
+}
+
 function requestShadowUpdate(st: SceneState): void {
   if (st.options.renderer) st.options.renderer.shadowMap.needsUpdate = true;
 }

@@ -46,7 +46,12 @@ export class PlayerController {
   pitch = 0;
   grounded = false;
 
-  constructor(private readonly bvh: MeshBVH) {}
+  constructor(private bvh: MeshBVH) {}
+
+  /** Swaps the collider (furniture boxes arrive after the house, plan.md I5). */
+  setCollider(bvh: MeshBVH): void {
+    this.bvh = bvh;
+  }
 
   teleport(x: number, y: number, z: number, yaw?: number, pitch?: number): void {
     this.position.set(x, y, z);

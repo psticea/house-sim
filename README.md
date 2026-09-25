@@ -7,7 +7,21 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 **Live:** https://psticea.github.io/house-sim/
 
 - What we want: [`goal.md`](goal.md) · How and roadmap: [`plan.md`](plan.md)
-- Current release: **I4 "Materials & textures"** — the **Realistic** look (`?style=real`)
+- Current release: **I5 "Basic furniture"** — every room furnished in the style of The
+  Local Project (warm minimalism: solid oak joinery, travertine, oat linen / bouclé, sand
+  wool, cane, clay, aged brass): oak hall joinery with a bench niche and a round brass
+  mirror; kitchen with travertine worktop + splashback, integrated appliances and an
+  island with three leather stools; a low linen sofa, travertine coffee table, a
+  wood-burning stove on a hearth, oak dining table with six cane chairs, paper
+  pendants, a cane lounge chair and an olive tree by the glass; a play corner with a
+  teepee, cushions, book ledge and baskets; low oak beds with layered linen, bedside
+  lamps and wardrobes (low ones along the attic knee walls), a kids' desk corner, a study
+  with desk, bookshelf and daybed; bathrooms with floating oak vanities, stone vessel
+  basins, brass tapware, a walk-in shower, WC and a freestanding stone tub under the
+  slope; boiler + washer / dryer stack; basement shelving with woven boxes; and a timber
+  dining table, benches and two lounge chairs on the terrace. All procedural (no
+  downloaded models), merged per material; built right after the house is walkable.
+- Previous: **I4 "Materials & textures"** — the **Realistic** look (`?style=real`)
   gets CC0 PBR materials (KTX2): natural oak parquet, warm sand stone-look tiles in the
   bathrooms, exterior wood boards and slats, grey standing-seam metal (RAL 7045),
   micro-textured warm-white plaster, oak board ceiling, concrete pavers, stone slabs,
@@ -15,7 +29,7 @@ model transcribed from the architectural drawings (no Blender), rendered with th
   frames; an HDRI partly-cloudy sky with image-based lighting, interior reflection probes
   and eye adaptation between inside and outside; low / medium / high quality tiers with
   dynamic resolution. SketchUp and Borderlands are unchanged.
-- Previous: **I3 "Garden & fence"** — start on the parking, walk in through the
+- Before: **I3 "Garden & fence"** — start on the parking, walk in through the
   north entrance, visit every room on all three levels (all doors open), step out onto
   the east terrace through the glass wall, and walk all around the garden: gently
   sloping lawn on the surveyed spot heights, parking pavers, stone paths and stepping
@@ -26,7 +40,7 @@ model transcribed from the architectural drawings (no Blender), rendered with th
   plan's positions, meadow strips with wildflowers along the fences, Corten edging,
   raised vegetable beds, a swing, a fire pit with a bench and log stools, olive trees in
   clay pots on the deck, the bin corner, neighbour houses and distant hills.
-- Before: **I2 "Whole building"** — upper floor, basement, walkable stairs, sloped
+- Earlier: **I2 "Whole building"** — upper floor, basement, walkable stairs, sloped
   attic ceilings, wood-board living-room ceiling, standing-seam roof with roof windows,
   hidden gutters, snow guards, chimney, entrance canopy, south sunshade, rain chains and
   the basement light well.
@@ -43,11 +57,11 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 
 Three looks of the same scene; only materials, lights and rendering settings differ.
 
-| Look                   | Id            | What it is                                                                                                                                                                                                                                                                                                                                        |
-| ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SketchUp** (default) | `sketchup`    | Hand-drawn architecture with a light cartoon touch: pastel toon fills with subtle bands, thin dark-grey edge lines (fat lines on desktop, 1 px lines on phones), one soft pale shadow, pale sky + fog, a grid on the ground, faint paper grain; trees and pots get a thin silhouette outline.                                                     |
-| **Borderlands**        | `borderlands` | Cel-shaded comic ink: thick black outlines in two weights (fat lines on every device) + inverted-hull silhouettes on curved meshes (chimney, trees, pots), hard 2-step toon, violet-tinted shadows with screen-space ink hatching, saturated warm colours, painted surfaces and grass strokes, bold sky with inked cartoon clouds, soft vignette. |
-| **Realistic**          | `real`        | PBR materials from CC0 texture sets (KTX2, streamed in after the first walkable frame — the house appears in flat colours first), HDRI sky + image-based lighting, interior reflection probes, eye adaptation, ACES tone mapping, static sun shadow map (1024 / 2048 px by tier). Baked lighting (I6) continues it.                               |
+| Look                   | Id            | What it is                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SketchUp** (default) | `sketchup`    | Hand-drawn architecture with a light cartoon touch: pastel toon fills with subtle bands, thin dark-grey edge lines (fat lines on desktop, 1 px lines on phones), one soft pale shadow, pale sky + fog, a grid on the ground, faint paper grain; trees, pots and soft furniture get a thin silhouette outline.                                                     |
+| **Borderlands**        | `borderlands` | Cel-shaded comic ink: thick black outlines in two weights (fat lines on every device) + inverted-hull silhouettes on curved meshes (chimney, trees, pots, soft furniture), hard 2-step toon, violet-tinted shadows with screen-space ink hatching, saturated warm colours, painted surfaces and grass strokes, bold sky with inked cartoon clouds, soft vignette. |
+| **Realistic**          | `real`        | PBR materials from CC0 texture sets (KTX2, streamed in after the first walkable frame — the house appears in flat colours first), HDRI sky + image-based lighting, interior reflection probes, eye adaptation, ACES tone mapping, static sun shadow map (1024 / 2048 px by tier). Baked lighting (I6) continues it.                                               |
 
 - **Style toggle:** the small pill in the top-right corner (phone and desktop) shows the
   current look; tap/click it and pick SketchUp · Borderlands · Realistic. Desktop: **K**
@@ -127,6 +141,31 @@ Three looks of the same scene; only materials, lights and rendering settings dif
 - Tone mapping: ACES filmic (AgX and Neutral were compared with the textures: AgX looked
   greyer and washed out, Neutral flatter).
 
+## Furniture (I5)
+
+- **Procedural only** — no CC0 models: the kit draws every piece from a few primitives
+  (boxes, rounded boxes, revolved profiles, tubes), which keeps one consistent style,
+  needs no downloads or new textures and merges into the house's per-material draw
+  calls. (CC0 chairs / fixtures would have needed their own atlas and still looked
+  foreign next to the rest of the drawn scene.)
+- Placement: [`src/data/furniture.ts`](src/data/furniture.ts) — one entry per piece
+  (kind, room, centre, facing, size in metres, collider yes / no, options). Real sizes:
+  bed 160 × 200 (180 × 200 upstairs), sofa 2.6 m, dining table 200 × 90 for six,
+  worktops 90 cm high / 62 cm deep.
+- Kit: `src/world/furniture/kit.ts` (local frame + primitives; rounded edges in 22.5°
+  steps and 16-sided profiles, so the stylised looks draw silhouettes instead of stray
+  lines), `pieces.ts` (one builder per kind), `index.ts` (`buildFurniture`,
+  `attachFurniture`: new materials become new merged meshes, materials the house
+  already has — glass, clay, bark, timber… — are merged into the existing mesh).
+- Nine furniture materials (`joinery`, `smokedOak`, `travertine`, `linen`, `wool`, `cane`,
+  `ceramic`, `brass`, `mirror`): §6.1 colours in `PALETTE`, realistic finishes reuse the
+  shipped texture sets (oak grain, honed stone, micro-normals — texture memory unchanged).
+- Colliders: simplified boxes for beds, sofa, tables, kitchen, island, wardrobes, tub,
+  vanities, shelving, stove; small pieces (chairs, stools, lamps, rugs) don't collide.
+- Lazy load: the furniture is built in an idle slot right after the first walkable
+  frame; the current look styles it, the static shadow map and the interior probes are
+  rendered again (`__houseSim.furnished` / `furnitureReady`).
+
 ## Develop
 
 Requires Node ≥ 22.12 (tested with Node 24).
@@ -143,7 +182,7 @@ Checks:
 ```sh
 npm run lint         # ESLint (strict, type-checked) + Prettier
 npm run typecheck    # tsc --noEmit (strict)
-npm test             # Vitest: room areas (3 levels), dimensions, openings, stair math, reachability, geometry, site & garden, privacy
+npm test             # Vitest: room areas (3 levels), dimensions, openings, stair math, reachability, geometry, site & garden, furniture placement, privacy
 npx playwright install chromium   # once
 npm run e2e          # quick pass: desktop only, small viewport, no screenshots
 npm run e2e:walk     # one spec only (also e2e:garden, e2e:style, e2e:perf, e2e:materials, e2e:mobile)
@@ -166,8 +205,10 @@ in `test-results/style-shots/`).
 - `?pose=x,y,z,yawDeg,pitchDeg` — start at a pose (metres, y = feet; yaw 0 looks plan-north).
 - `?view=x,y,z,yawDeg,pitchDeg` — free camera (physics paused), e.g. aerial views.
 - `?quality=low|medium|high|auto`, `?dynres=0` — quality tier / fixed resolution (see Quality tiers).
-- `window.__houseSim` — `ready`, `teleport()`, `getPlayer()` (position, `level`, `room`,
-  `place`…), `getStats()`, `walk(dx, dz, s)`, `walkTo(x, z)`, `view()`, `look()`,
+- `window.__houseSim` — `ready`, `furnitureReady` / `furnished` (the furniture arrives
+  just after the first frame; the e2e tests wait for it), `teleport()`, `getPlayer()`
+  (position, `level`, `room`, `place`…), `getStats()`, `walk(dx, dz, s)`, `walkTo(x, z)`,
+  `view()`, `look()`,
   `nextFrame()`, `setStyle('sketchup' | 'borderlands' | 'real')`, `getStyle()`,
   `texturesReady()` (resolves when the realistic textures, sky and probes are in; used by the
   e2e tests). `getStats()` also reports `quality`, `pixelRatio`, `textureMB` (GPU estimate:
@@ -193,11 +234,12 @@ With HTTPS, accept the certificate warning once. Remote-debug Android Chrome via
 src/data/     typed house model: schema, grid & levels, basement, ground floor, upper floor,
               roof + exterior elements, site, terrain (spot heights → triangulated grid),
               garden (fence, gates, planting, features, places), stair math (ramps),
-              topology (rooms, levels)
+              topology (rooms, levels), furniture placement
 src/world/    builders: walls (layers + holes), openings, curtain wall, slabs, roof (windows,
               seams, gutters, snow guards, board ceiling), stairs, exterior, terrain +
               draped paving, garden (fence, vegetation, features, context), lighting, sky,
-              merge-by-material mesh builder, plan section,
+              merge-by-material mesh builder, plan section, procedural furniture kit
+              (furniture/),
               style registry + SketchUp / Borderlands looks (style.ts + style/),
               realistic finishes + PBR runtime (finishes.ts, realLook.ts)
 src/player/   capsule controller (three-mesh-bvh shapecast), touch + desktop input

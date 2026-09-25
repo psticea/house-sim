@@ -61,6 +61,16 @@ export const PALETTE: Record<MaterialId, MaterialSpec> = {
   foliageLight: { color: '#9AA27A', roughness: 1, castShadow: true },
   meadow: { color: '#AAA26A', roughness: 1, castShadow: false },
   flowers: { color: '#D7AE5C', roughness: 1, castShadow: false },
+  // Furniture (I5): §6.1 The Local Project palette.
+  joinery: { color: '#C9A77C', roughness: 0.75, castShadow: true },
+  smokedOak: { color: '#6F5440', roughness: 0.7, castShadow: true },
+  travertine: { color: '#D9CBB5', roughness: 0.6, castShadow: true },
+  linen: { color: '#E3D9CA', roughness: 1, castShadow: true },
+  wool: { color: '#BFAE98', roughness: 1, castShadow: true },
+  cane: { color: '#C4A26F', roughness: 0.85, castShadow: true },
+  ceramic: { color: '#EDE8DF', roughness: 0.4, castShadow: true },
+  brass: { color: '#9C7B4E', roughness: 0.35, metalness: 0.85, castShadow: true },
+  mirror: { color: '#C9D0D0', roughness: 0.05, metalness: 1, castShadow: false },
 };
 
 export type MaterialLibrary = Record<MaterialId, THREE.Material>;

@@ -39,7 +39,7 @@ for (const tier of ['medium', 'low', 'high'] as Tier[]) {
     const st = await sim.stats(page);
     expect(st.texturesLoaded).toBe(true);
     expect(st.probes).toBe(tier === 'low' ? 0 : 3);
-    expect(st.drawCalls).toBeLessThanOrEqual(35);
+    expect(st.drawCalls).toBeLessThanOrEqual(45);
     if (tier === 'medium') {
       expect(st.textureMB).toBeLessThanOrEqual(75);
       // Leak check with textures loaded: after one warm-up visit of every look (each

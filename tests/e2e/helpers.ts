@@ -19,7 +19,12 @@ export async function openSim(page: Page, query = ''): Promise<Session> {
   });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   await page.goto(query ? `./?${query}` : './');
-  await page.waitForFunction(() => window.__houseSim?.isReady === true, null, { timeout: 120_000 });
+  // The house is walkable first; every test runs with the furniture in place (I5).
+  await page.waitForFunction(
+    () => window.__houseSim?.isReady === true && window.__houseSim.furnished,
+    null,
+    { timeout: 120_000 },
+  );
   return { errors, warnings };
 }
 

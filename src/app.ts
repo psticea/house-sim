@@ -34,7 +34,7 @@ import { buildWorld } from './world/build';
 import { createLighting } from './world/lighting';
 import { RealLook } from './world/realLook';
 import { createSky } from './world/sky';
-import { getStyle, isStyleBuilt, setStyle, STYLE_LABELS } from './world/style';
+import { getStyle, isStyleBuilt, refreshStyledMeshes, setStyle, STYLE_LABELS } from './world/style';
 import { LoadingScreen } from './ui/loading';
 import { AssetProgress } from './ui/progress';
 import { RoomToast } from './ui/toast';
@@ -77,11 +77,16 @@ export interface Stats {
   texturesLoaded: boolean;
   textureDownloadMB: number;
   probes: number;
+  /** Furniture triangles (0 until the furniture has been added after the first frame). */
+  furnitureTriangles: number;
 }
 
 export interface HouseSimHooks {
   ready: Promise<void>;
   isReady: boolean;
+  /** Furniture is built after the first walkable frame (plan.md I5 step 5.5). */
+  furnitureReady: Promise<void>;
+  furnished: boolean;
   teleport(
     x: number,
     y: number,
@@ -149,6 +154,9 @@ export async function startApp(): Promise<void> {
   const ui = document.getElementById('ui')!;
   let resolveReady!: () => void;
   const ready = new Promise<void>((r) => (resolveReady = r));
+  let resolveFurnished!: () => void;
+  const furnitureReady = new Promise<void>((r) => (resolveFurnished = r));
+  let furnitureTriangles = 0;
   const nextPaint = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
   loading.progress(0.1, 'Preparing renderer…');
@@ -433,6 +441,8 @@ export async function startApp(): Promise<void> {
   const hooks: HouseSimHooks = {
     ready,
     isReady: false,
+    furnitureReady,
+    furnished: false,
     teleport: async (x, y, z, yawD, pitchD) => {
       freeView = null;
       realLook.snap();
@@ -467,6 +477,7 @@ export async function startApp(): Promise<void> {
         texturesLoaded: realLook.loaded,
         textureDownloadMB: realLook.bytes / (1024 * 1024),
         probes: realLook.probeCount,
+        furnitureTriangles,
       };
     },
     walk: async (dx, dz, seconds, run = false) => {
@@ -539,4 +550,30 @@ export async function startApp(): Promise<void> {
   loading.hide();
   hooks.isReady = true;
   resolveReady();
+
+  // Furniture (plan.md I5 step 5.5): the house is walkable first; the furniture code is
+  // a separate chunk, loaded and built (merged per material) right after, in an idle
+  // slot. The current look styles the new meshes, and the static shadow map and interior
+  // probes are rendered again.
+  const addFurniture = async (): Promise<void> => {
+    const { attachFurniture } = await import('./world/furniture');
+    const res = attachFurniture(world);
+    player.setCollider(world.bvh);
+    refreshStyledMeshes(scene, res.merged);
+    switchStyle(getStyle(scene));
+    renderer.shadowMap.needsUpdate = true;
+    realLook.refreshProbes();
+    furnitureTriangles = res.triangles;
+    hooks.furnished = true;
+    resolveFurnished();
+  };
+  const idle = (cb: () => void): void => {
+    if ('requestIdleCallback' in window) window.requestIdleCallback(cb, { timeout: 300 });
+    else setTimeout(cb, 30);
+  };
+  void loop.nextFrame().then(() =>
+    idle(() => {
+      addFurniture().catch((e: unknown) => console.error('Furniture failed to load', e));
+    }),
+  );
 }

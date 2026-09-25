@@ -18,8 +18,11 @@ interface Counts {
 }
 const OUT = 'test-results/style-shots';
 const LIVING: Pose = [10.4, 0, 3.6, -90, 8];
-// I3 budgets (garden, fence, vegetation added: 11 materials + their lines / hulls).
-const BUDGET: Record<StyleName, number> = { sketchup: 70, borderlands: 90, real: 35 };
+// I5 budgets (furniture added: 9 materials + their lines / hulls; I3 was 70 / 90 / 35).
+const BUDGET: Record<StyleName, number> = { sketchup: 90, borderlands: 110, real: 45 };
+// Building a look for the first time (edges + hulls of the whole scene incl. furniture) takes
+// ~20–30 s in SwiftShader on the slow dev PC.
+const FIRST_BUILD = { timeout: 90_000 };
 const STYLES: StyleName[] = ['sketchup', 'borderlands', 'real'];
 
 // [name, kind, pose] — `start` is the load pose (captured at runtime).
@@ -71,7 +74,7 @@ test.describe('styles', () => {
     page,
   }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop project only');
-    test.setTimeout(300_000);
+    test.setTimeout(600_000);
     const s = await openSim(page);
     expect(await getStyle(page)).toBe('sketchup');
     await expect(page.locator('#app .paper-grain')).toHaveCount(1);
@@ -91,7 +94,7 @@ test.describe('styles', () => {
     await expect(option(page, 'sketchup')).toHaveAttribute('aria-checked', 'true');
     await option(page, 'borderlands').click();
     await expect(page.locator('.style-menu')).toBeHidden();
-    await expect.poll(() => getStyle(page)).toBe('borderlands');
+    await expect.poll(() => getStyle(page), FIRST_BUILD).toBe('borderlands');
     await expect(pill(page)).toContainText('Borderlands');
     await expect(page.locator('#app .paper-grain')).toHaveCount(0);
     await expect(page.locator('#app .style-vignette')).toHaveCount(1);
@@ -117,7 +120,7 @@ test.describe('styles', () => {
     // Realistic, then the choice survives a reload.
     await pill(page).click();
     await option(page, 'real').click();
-    await expect.poll(() => getStyle(page)).toBe('real');
+    await expect.poll(() => getStyle(page), FIRST_BUILD).toBe('real');
     await expect(pill(page)).toContainText('Realistic');
     expect(await page.evaluate(() => localStorage.getItem('houseSim.style'))).toBe('real');
     const reloaded = await openSim(page);
@@ -134,7 +137,7 @@ test.describe('styles', () => {
     await hideStartOverlay(page);
     for (const next of ['borderlands', 'real', 'sketchup'] as const) {
       await page.keyboard.press('KeyK');
-      await expect.poll(() => getStyle(page)).toBe(next);
+      await expect.poll(() => getStyle(page), FIRST_BUILD).toBe(next);
       await expect(page.locator('.style-toggle')).toHaveAttribute('data-style', next);
     }
     // Keyboard: the pill is a focusable button; Enter opens, arrows move, Enter picks.
@@ -155,7 +158,7 @@ test.describe('styles', () => {
     page,
   }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop project only');
-    test.setTimeout(300_000);
+    test.setTimeout(600_000);
     const s = await openSim(page);
     await hideStartOverlay(page);
     const start = await startPose(page);
@@ -209,7 +212,7 @@ test.describe('styles', () => {
     page,
   }, info) => {
     test.skip(info.project.name !== 'iphone-13', 'touch project only (full pass)');
-    test.setTimeout(240_000);
+    test.setTimeout(480_000);
     const s = await openSim(page);
     await page.locator('.start button').tap();
     await expect(page.locator('.start')).toHaveClass(/off/);
@@ -234,7 +237,7 @@ test.describe('styles', () => {
     if (!(await page.locator('.style-menu').isVisible())) await pill(page).tap();
     await expect(page.locator('.style-menu')).toBeVisible();
     await option(page, 'borderlands').tap();
-    await expect.poll(() => getStyle(page)).toBe('borderlands');
+    await expect.poll(() => getStyle(page), FIRST_BUILD).toBe('borderlands');
     await expect(pill(page)).toContainText('Borderlands');
     await frame(page);
     const after = await sim.player(page);

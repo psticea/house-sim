@@ -47,7 +47,17 @@ export type MaterialId =
   | 'foliage' // olive-green canopies, shrubs, vegetables
   | 'foliageLight' // silver-sage canopies (birch, olive trees)
   | 'meadow' // tall grasses along the fences
-  | 'flowers'; // wildflowers in the meadow and beds
+  | 'flowers' // wildflowers in the meadow and beds
+  // Furniture (I5, plan.md §6.1/§6.2): The Local Project materials, shared by all pieces.
+  | 'joinery' // natural oak joinery and furniture timber
+  | 'smokedOak' // darker smoked oak accents (chair frames, legs, plinths), leather
+  | 'travertine' // worktops, splashback, coffee table, basins, hearth, tub
+  | 'linen' // oat linen / bouclé: sofa, bedding, cushions, paper-linen shades
+  | 'wool' // sand / taupe wool: rugs, throws
+  | 'cane' // rattan / cane / jute: chair seats, baskets, jute rugs
+  | 'ceramic' // glazed ceramic: WC, lamp bases, appliances, paper globes
+  | 'brass' // aged brass tapware, mirror rims, lamp stems
+  | 'mirror'; // mirror glass
 
 /** A layer of a wall build-up, listed from the wall's LEFT face to its RIGHT face. */
 export interface WallLayer {

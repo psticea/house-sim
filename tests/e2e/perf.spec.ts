@@ -65,10 +65,10 @@ test('perf proxy: draw calls, triangles, fps', async ({ page }, info) => {
   fs.mkdirSync('test-results', { recursive: true });
   fs.writeFileSync(`test-results/perf-${info.project.name}.json`, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
-  // I3 budgets: SketchUp ≤ 70 (default look), Realistic ≤ 35.
-  expect(start.drawCalls).toBeLessThanOrEqual(70);
-  expect(living.drawCalls).toBeLessThanOrEqual(70);
-  expect(real.drawCalls).toBeLessThanOrEqual(35);
+  // I5 budgets (furniture: 9 new materials): SketchUp ≤ 90 (default look), Realistic ≤ 45.
+  expect(start.drawCalls).toBeLessThanOrEqual(90);
+  expect(living.drawCalls).toBeLessThanOrEqual(90);
+  expect(real.drawCalls).toBeLessThanOrEqual(45);
   expect(living.sceneTriangles).toBeLessThan(400_000);
   expect(result.style).toBe('sketchup');
   expect(real.drawCalls).toBeLessThanOrEqual(living.drawCalls);

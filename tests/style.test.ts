@@ -328,8 +328,17 @@ describe('Borderlands config and ink shading', () => {
     expect(SKETCHUP.lineWidth).toBe(1.3);
     expect(SKETCHUP.fatLines).toBe('desktop');
     expect(SKETCHUP.ink).toBeNull();
-    // Hulls only on rounded vegetation / pots, never on the architecture (S1 look).
-    expect(SKETCHUP.hulls!.only).toEqual(['foliage', 'foliageLight', 'bark', 'barkBirch', 'clay']);
+    // Hulls only on rounded vegetation / pots / soft furniture, never on the architecture.
+    expect(SKETCHUP.hulls!.only).toEqual([
+      'foliage',
+      'foliageLight',
+      'bark',
+      'barkBirch',
+      'clay',
+      'linen',
+      'ceramic',
+      'cane',
+    ]);
     expect(SKETCHUP.hulls!.maxCreaseDeg).toBeLessThanOrEqual(SKETCHUP.edgeThresholdDeg);
     expect(SKETCHUP.paperOverlay).toBeGreaterThan(0);
     expect(STYLES).toEqual({ sketchup: SKETCHUP, borderlands: BORDERLANDS });

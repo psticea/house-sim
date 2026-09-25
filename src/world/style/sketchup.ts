@@ -16,16 +16,28 @@ export const SKETCHUP: StyleConfig = {
   edgeThresholdDeg: 30,
   jitter: 0.003,
   jitterMaxM: 0.012,
-  noLines: ['glass', 'lawn', 'field', 'asphalt', 'meadow', 'flowers', 'foliage', 'foliageLight'],
+  noLines: [
+    'glass',
+    'lawn',
+    'field',
+    'asphalt',
+    'meadow',
+    'flowers',
+    'foliage',
+    'foliageLight',
+    // Soft upholstery: silhouette hull only (no creases to draw, saves the edge pass).
+    'linen',
+  ],
   linedTransparent: [],
   /**
    * Architecture keeps the S1 look (no hulls); rounded vegetation and pots get a thin
-   * silhouette outline, like SketchUp's profiles (canopies: outline only, no creases).
+   * silhouette outline, like SketchUp's profiles (canopies: outline only, no creases);
+   * so do the soft furniture pieces (linen upholstery, ceramics, cane baskets; I5).
    */
   hulls: {
     width: 1.3,
     maxCreaseDeg: 30,
-    only: ['foliage', 'foliageLight', 'bark', 'barkBirch', 'clay'],
+    only: ['foliage', 'foliageLight', 'bark', 'barkBirch', 'clay', 'linen', 'ceramic', 'cane'],
   },
   shadowOpacity: 0.35,
   shadowRadius: 3,
