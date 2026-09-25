@@ -14,6 +14,7 @@ Legend: ✅ done · 🔄 in progress · ⬜ not started · ⏸ blocked
 | **I0** | Planning: repo, plans read, `goal.md`, `plan.md`, `.gitignore` | ✅ |
 | **I1** | **First walk** — public URL: start outside, walk into every ground-floor room (first deliverable) | ✅ (real-phone check pending) |
 | I2 | Whole building — upper floor, basement, stairs, roof & facade details | ⬜ ← next |
+| S1 | Sketch style — optional hand-drawn look (`?style=sketch`); realistic stays default | ⬜ |
 | I3 | Garden & fence — lot, terrain, paving, parking, lawn, trees, Scandinavian fence | ⬜ |
 | I4 | Materials — Scandinavian PBR textures, glass, frames, quality tiers | ⬜ |
 | I5 | Basic furniture — every room furnished (procedural + CC0) | ⬜ |
@@ -558,6 +559,48 @@ performance — before investing in looks.
 **Done when:** link works on phone + desktop · every ground-floor room reachable, no
 walking through walls · all data tests green · overlay matches sheet 05 · ≥ 50 fps on
 the reference phone · no personal data in the repo or the app.
+
+### S1 — Sketch style (optional mode) ⬜
+
+**Deliverable:** an optional hand-drawn architectural look — mostly SketchUp, a light
+touch of cartoon shading — switched on with `?style=sketch`. The realistic look stays the
+default and I4/I6 continue as planned for it. Only materials, lighting and rendering
+change; data, geometry builders, player and logic are untouched. No external files:
+any texture is generated on a `<canvas>`. Can be done before or after I2 (it restyles
+whatever the scene contains, so it keeps working as the building grows).
+
+**Spec** (new `src/world/style.ts`, called from `src/app.ts` after the world is built):
+- `STYLE` config at the top: `{ bands: 3, bandBrightness: [0.75, 0.9, 1.0], lineColor:
+  0x2a2a2a, lineWidth: 1.3, fatLines: 'always'|'desktop'|'never', edgeThresholdDeg: 30,
+  jitter: 0.003, shadowOpacity: 0.35, paperOverlay: 0.05, pastel: { saturation, lightness },
+  groundPattern: 'grid'|'hatch'|'none' }`.
+- `applyStyle(scene, materials)`: traverses the scene, skips the hidden collider, swaps to
+  one **shared** `MeshToonMaterial` per material id with a 3-step `DataTexture` gradient
+  map (`NearestFilter`, subtle bands); colors from `PALETTE` keep their hue, softened to
+  light pastels; `polygonOffset` (1, 1) on fills. Idempotent (tagged via `userData`):
+  calling it twice never duplicates lines or leaks; switching styles disposes cleanly.
+- Edges: `EdgesGeometry(geometry, 30)` once per merged mesh; `LineSegments2` +
+  `LineMaterial` (~1.3 px) on desktop, `LineBasicMaterial` on phones; optional one-time
+  jitter on line vertices only; no lines on glass, ground (lawn/field/asphalt) or the
+  collider; weld vertices first if merged geometry produces stray coplanar lines.
+- Glass: keeps transparency, `depthWrite: false`, render order.
+- Lighting: existing hemisphere + sun; soft single 1024 shadow map rendered once;
+  shadow darkness from `shadowOpacity` (light balance or a small `onBeforeCompile`
+  tweak) — never black; Neutral/no tone mapping so pastels stay true.
+- Background: paler warm gradient sky + matching fog; canvas-noise paper-grain CSS
+  overlay (~5 %, no pointer events, under the HUD). Ground surfaces get a subtle
+  canvas grid/hatch map using the existing world-space UVs.
+- Performance: no SSAO/bloom/post-processing; DPR ≤ 1.5; antialias only; shared
+  materials/geometries; total draw calls ≤ 60.
+
+| # | Step | Status |
+|---|---|---|
+| S.1 | `style.ts` with `STYLE` + `applyStyle`, `?style=sketch\|real` switch | ⬜ |
+| S.2 | Toon materials + pastel colors + canvas ground pattern | ⬜ |
+| S.3 | Edge lines (fat on desktop, basic on phones), jitter, no stray lines | ⬜ |
+| S.4 | Lighting, soft shadow, sky/fog, paper overlay | ⬜ |
+| S.5 | Tests: idempotent `applyStyle`, no leaks on switch; e2e screenshots per style; draw calls ≤ 60 | ⬜ |
+| S.6 | Report which `STYLE` values push toward more SketchUp vs more cartoon; deploy | ⬜ |
 
 ### I2 — Whole building ⬜
 
