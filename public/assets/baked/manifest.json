@@ -1,0 +1,320 @@
+{
+  "version": 1,
+  "encoding": "rgbm",
+  "range": 8,
+  "sunLuminance": 3.1093800399447384,
+  "rooms": {
+    "basement-stairs": 0.0085,
+    "bathroom": 0.0144,
+    "bedroom-1": 0.1546,
+    "bedroom-2": 1.3651,
+    "bedroom-3": 0.107,
+    "boiler-laundry": 0.0059,
+    "entrance-hall": 0.0283,
+    "living-kitchen": 0.2738,
+    "stairs": 0.0507,
+    "storage": 0.0107,
+    "study": 0.0429,
+    "terrace": 0.1846,
+    "upper-bathroom": 0.2656,
+    "upper-hall": 0.0494
+  },
+  "atlases": [
+    {
+      "size": 2048,
+      "files": {
+        "low": "lm0-1k.ktx2",
+        "medium": "lm0-2k.ktx2",
+        "high": "lm0-2k.ktx2"
+      },
+      "bytes": {
+        "lm0-2k.ktx2": 1742806,
+        "lm0-1k.ktx2": 527490
+      }
+    },
+    {
+      "size": 2048,
+      "files": {
+        "low": "lm1-1k.ktx2",
+        "medium": "lm1-2k.ktx2",
+        "high": "lm1-2k.ktx2"
+      },
+      "bytes": {
+        "lm1-2k.ktx2": 1910891,
+        "lm1-1k.ktx2": 563818
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "id": "plaster",
+      "atlas": 0,
+      "vertices": 2685,
+      "offset": 0,
+      "hash": "ded2fadff258c402"
+    },
+    {
+      "id": "plasterExterior",
+      "atlas": 1,
+      "vertices": 252,
+      "offset": 5370,
+      "hash": "44449fea12da98d5"
+    },
+    {
+      "id": "frame",
+      "atlas": 1,
+      "vertices": 3444,
+      "offset": 5874,
+      "hash": "b9f99b302ac56c7e"
+    },
+    {
+      "id": "oak",
+      "atlas": 0,
+      "vertices": 645,
+      "offset": 12762,
+      "hash": "8a6f3acdbd36df9e"
+    },
+    {
+      "id": "tile",
+      "atlas": 1,
+      "vertices": 48,
+      "offset": 14052,
+      "hash": "12437cc5e035c0c6"
+    },
+    {
+      "id": "concrete",
+      "atlas": 0,
+      "vertices": 324,
+      "offset": 14148,
+      "hash": "49630b8e8977e87a"
+    },
+    {
+      "id": "metalBlack",
+      "atlas": 1,
+      "vertices": 13152,
+      "offset": 14796,
+      "hash": "09919172abf91780"
+    },
+    {
+      "id": "cladMetal",
+      "atlas": 1,
+      "vertices": 609,
+      "offset": 41100,
+      "hash": "25b77f99aca7fae1"
+    },
+    {
+      "id": "stone",
+      "atlas": 1,
+      "vertices": 5073,
+      "offset": 42318,
+      "hash": "4839f71e694dd3f0"
+    },
+    {
+      "id": "cladWood",
+      "atlas": 0,
+      "vertices": 228,
+      "offset": 52464,
+      "hash": "ba674d1293ab8771"
+    },
+    {
+      "id": "doorLeaf",
+      "atlas": 1,
+      "vertices": 1296,
+      "offset": 52920,
+      "hash": "6bcb66992d0d591a"
+    },
+    {
+      "id": "tileUtility",
+      "atlas": 0,
+      "vertices": 6,
+      "offset": 55512,
+      "hash": "3697a49e4af36667"
+    },
+    {
+      "id": "roofMetal",
+      "atlas": 0,
+      "vertices": 4728,
+      "offset": 55524,
+      "hash": "47ae26c3227d519a"
+    },
+    {
+      "id": "ceilingWood",
+      "atlas": 1,
+      "vertices": 2376,
+      "offset": 64980,
+      "hash": "1255c089a777beab"
+    },
+    {
+      "id": "woodSlat",
+      "atlas": 0,
+      "vertices": 2940,
+      "offset": 69732,
+      "hash": "49290ce2913982c5"
+    },
+    {
+      "id": "grating",
+      "atlas": 1,
+      "vertices": 168,
+      "offset": 75612,
+      "hash": "be5c493444c7039b"
+    },
+    {
+      "id": "lawn",
+      "atlas": 1,
+      "vertices": 4230,
+      "offset": 75948,
+      "hash": "80fa6e48554a8444"
+    },
+    {
+      "id": "field",
+      "atlas": 1,
+      "vertices": 7374,
+      "offset": 84408,
+      "hash": "486c9407b5c39eff"
+    },
+    {
+      "id": "pavers",
+      "atlas": 1,
+      "vertices": 1644,
+      "offset": 99156,
+      "hash": "186306b93a7e443d"
+    },
+    {
+      "id": "deck",
+      "atlas": 1,
+      "vertices": 84,
+      "offset": 102444,
+      "hash": "75f84a481be9599e"
+    },
+    {
+      "id": "asphalt",
+      "atlas": 0,
+      "vertices": 48,
+      "offset": 102612,
+      "hash": "80f0a5d3beb35011"
+    },
+    {
+      "id": "gravel",
+      "atlas": 1,
+      "vertices": 1410,
+      "offset": 102708,
+      "hash": "ce27cf679d280e61"
+    },
+    {
+      "id": "soil",
+      "atlas": 0,
+      "vertices": 774,
+      "offset": 105528,
+      "hash": "98c36e5be46ff54f"
+    },
+    {
+      "id": "corten",
+      "atlas": 0,
+      "vertices": 2778,
+      "offset": 107076,
+      "hash": "6901bcdc137a48fb"
+    },
+    {
+      "id": "timber",
+      "atlas": 1,
+      "vertices": 29394,
+      "offset": 112632,
+      "hash": "10124e7de0affc92"
+    },
+    {
+      "id": "clay",
+      "atlas": 1,
+      "vertices": 11988,
+      "offset": 171420,
+      "hash": "f8e49ca248eeb566"
+    },
+    {
+      "id": "smokedOak",
+      "atlas": 0,
+      "vertices": 6636,
+      "offset": 195396,
+      "hash": "8776c9d70ebfefec"
+    },
+    {
+      "id": "joinery",
+      "atlas": 1,
+      "vertices": 9666,
+      "offset": 208668,
+      "hash": "e6f30cb2c84bf424"
+    },
+    {
+      "id": "linen",
+      "atlas": 0,
+      "vertices": 37632,
+      "offset": 228000,
+      "hash": "6e4344a59e0d08fd"
+    },
+    {
+      "id": "brass",
+      "atlas": 0,
+      "vertices": 3978,
+      "offset": 303264,
+      "hash": "197d06d9712fe3d1"
+    },
+    {
+      "id": "cane",
+      "atlas": 1,
+      "vertices": 4746,
+      "offset": 311220,
+      "hash": "8bccf87d19d9d010"
+    },
+    {
+      "id": "travertine",
+      "atlas": 0,
+      "vertices": 2376,
+      "offset": 320712,
+      "hash": "47ac22688efd139d"
+    },
+    {
+      "id": "ceramic",
+      "atlas": 0,
+      "vertices": 11796,
+      "offset": 325464,
+      "hash": "44c5e07db8975c78"
+    },
+    {
+      "id": "wool",
+      "atlas": 0,
+      "vertices": 5880,
+      "offset": 349056,
+      "hash": "7783ae8a422041a9"
+    }
+  ],
+  "bake": {
+    "gpu": "ANGLE (Intel, Intel(R) HD Graphics 4000 (0x00000166) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "quick": false,
+    "seconds": 482.3,
+    "traceSeconds": 480.6,
+    "atlasSize": 2048,
+    "charts": 16502,
+    "fill": [
+      0.71,
+      0.71
+    ],
+    "densityScale": 1,
+    "texelInteriorM": 0.03,
+    "samples": {
+      "sun": 32,
+      "sky": [
+        8,
+        12,
+        96
+      ]
+    },
+    "sun": {
+      "azimuthDeg": 222,
+      "elevationDeg": 42
+    },
+    "totalSeconds": 621
+  },
+  "uv2": {
+    "file": "uv2.bin",
+    "bytes": 721632
+  },
+  "generated": "tools/bake.mjs"
+}

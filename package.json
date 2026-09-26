@@ -32,7 +32,8 @@
     "shots": "node tools/screenshots.mjs",
     "shots:styles": "node tools/style-shots.mjs",
     "assets:fetch": "node tools/fetch-assets.mjs",
-    "assets:optimize": "node tools/optimize-assets.mjs"
+    "assets:optimize": "node tools/optimize-assets.mjs",
+    "bake": "node tools/bake.mjs"
   },
   "dependencies": {
     "three": "0.186.1",

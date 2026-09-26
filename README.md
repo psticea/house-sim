@@ -100,11 +100,13 @@ Three looks of the same scene; only materials, lights and rendering settings dif
 
 ## Quality tiers
 
-| Tier     | Pixel ratio cap | MSAA | Realistic textures (hero / standard albedo) | Anisotropy | Shadow map | Interior probes |
-| -------- | --------------- | ---- | ------------------------------------------- | ---------- | ---------- | --------------- |
-| `low`    | 1               | off  | 1K / 512 px                                 | 2          | 1024       | off             |
-| `medium` | 1.5             | on   | 2K / 1K                                     | 4          | 1024       | 3               |
-| `high`   | 2               | on   | 2K / 1K (lawn + pavers 2K)                  | 8          | 2048       | 3               |
+| Tier     | Pixel ratio cap | MSAA | Realistic textures (hero / standard albedo) | Anisotropy | Shadow map ¹ | Lightmaps | Interior probes |
+| -------- | --------------- | ---- | ------------------------------------------- | ---------- | ------------ | --------- | --------------- |
+| `low`    | 1               | off  | 1K / 512 px                                 | 2          | 1024         | 2 × 1K    | off             |
+| `medium` | 1.5             | on   | 2K / 1K                                     | 4          | 1024         | 2 × 2K    | 3               |
+| `high`   | 2               | on   | 2K / 1K (lawn + pavers 2K)                  | 8          | 2048         | 2 × 2K    | 3               |
+
+¹ Stylised looks, and the realistic look only while no (current) bake is loaded.
 
 - **Auto detection** (`src/core/quality.ts`, no third-party data or requests): a guess
   from the unmasked GPU name (Adreno / Mali / Apple / desktop GPUs, `deviceMemory`),
@@ -166,6 +168,50 @@ Three looks of the same scene; only materials, lights and rendering settings dif
   frame; the current look styles it, the static shadow map and the interior probes are
   rendered again (`__houseSim.furnished` / `furnitureReady`).
 
+## Baked lighting (I6, Realistic look)
+
+The scene is static, so its global illumination is baked once on a desktop GPU and the
+phone only samples two lightmap atlases: soft sun shadows (sun disc ±0.6°), HDRI sky
+light, 3 bounces of everything, darker corners and contact shadows, sunlight through
+the windows (glass lets sun and sky through, slightly tinted). The SketchUp and
+Borderlands looks don't use it (they keep their single soft shadow).
+
+- **Run the bake:** `npm run bake` (≈ 10 min on an Intel HD 4000; much faster on any
+  recent GPU). `tools/bake.mjs` starts Vite, opens the dev-only `bake.html` in **headed**
+  Chromium on the real GPU (the page refuses SwiftShader), waits, then encodes KTX2 and
+  writes `public/assets/baked/` (`manifest.json`, `uv2.bin`, `lm<k>-2k.ktx2` for medium /
+  high, `lm<k>-1k.ktx2` for low — ≈ 5.2 MB tracked) plus tone-mapped atlas previews in
+  `test-results/bake/`. Options: `-- --quick` (10 % of the samples, look-dev),
+  `-- --bench --debug` (timings, per-mesh validity stats). Commit the new
+  `public/assets/baked/`.
+- **When to re-bake:** after **any** change to geometry, furniture, materials that
+  change colour a lot, or the sun (`site.sun`). Every lightmapped mesh is checked
+  against the position hash of the bake; if anything changed the runtime keeps the I4
+  lighting (dynamic sun shadow map) and logs a console **info** — and the unit test
+  "the committed bake matches the current scene" fails until you re-bake.
+- **How it works** (`src/bake/`, plan.md §4.1): `unwrap.ts` — own deterministic chart
+  builder + skyline packer instead of xatlas (flat-shaded planar architecture: charts
+  grow over welded edges inside a 30° normal cone, min-area rectangles, 2-texel padding,
+  one mesh per atlas → no extra draw calls); ~3 cm texels indoors, 7 cm facades /
+  roof, 10 cm+ garden growing with distance, up to 4 m on the far ground. Vegetation,
+  glass and mirrors keep runtime lighting. `baker.ts` — texture-space G-buffer (9
+  jittered rasters → conservative coverage, positions always on the surface),
+  three-mesh-bvh BVH re-laid out for a stackless (escape-pointer) GPU traversal, 32 sun
+  - 8 / 12 / 96 sky-and-bounce samples per texel (progressive radiosity: rays that hit a
+    lightmapped surface read the previous iteration's lightmap × albedo), texels that
+    see back faces are "inside geometry" and filled from their neighbours (no light
+    leaks at wall / floor junctions), edge-aware à-trous denoise (position + normal) of
+    the indirect part, dilation into the padding. `export.ts` — RGBM with a sqrt-encoded
+    colour and a multiplier floor (no block artefacts in dark rooms), UASTC + zstd.
+- **Runtime** (`src/world/lightmaps.ts`): loaded after the first walkable frame (only in
+  the Realistic look), applied once the furniture is in: `uv1` from `uv2.bin`, the atlas
+  as `lightMap` and a shader patch — surfaces are lit by the lightmap only (+ environment
+  reflections; the sun keeps a highlight where the bake saw it); the sun shadow map is
+  switched off and freed. Tuning: `BAKED_LIGHT` (interior gain = partial eye adaptation,
+  per-room adaptation from the baked mean floor irradiance, sun highlight) and
+  `REAL_BAKED_LIGHT` in `realLook.ts` (exposure). `?baked=0` shows the I4 lighting for
+  comparisons.
+
 ## Develop
 
 Requires Node ≥ 22.12 (tested with Node 24).
@@ -188,6 +234,7 @@ npm run e2e          # quick pass: desktop only, small viewport, no screenshots
 npm run e2e:walk     # one spec only (also e2e:garden, e2e:style, e2e:perf, e2e:materials, e2e:mobile)
 npm run e2e:full     # final pass: + HD desktop, Pixel 7, iPhone 13, all screenshots
 npm run shots:styles -- http://localhost:5173/ borderlands   # look-dev shots (dev server)
+npm run bake         # lightmap bake on the real GPU (headed Chromium) → public/assets/baked/
 ```
 
 The e2e run renders WebGL with SwiftShader (software) in headless Chromium, so it is
@@ -205,6 +252,7 @@ in `test-results/style-shots/`).
 - `?pose=x,y,z,yawDeg,pitchDeg` — start at a pose (metres, y = feet; yaw 0 looks plan-north).
 - `?view=x,y,z,yawDeg,pitchDeg` — free camera (physics paused), e.g. aerial views.
 - `?quality=low|medium|high|auto`, `?dynres=0` — quality tier / fixed resolution (see Quality tiers).
+- `?baked=0` — Realistic look without the baked lightmaps (I4 shadow-map lighting).
 - `window.__houseSim` — `ready`, `furnitureReady` / `furnished` (the furniture arrives
   just after the first frame; the e2e tests wait for it), `teleport()`, `getPlayer()`
   (position, `level`, `room`, `place`…), `getStats()`, `walk(dx, dz, s)`, `walkTo(x, z)`,
@@ -212,7 +260,10 @@ in `test-results/style-shots/`).
   `nextFrame()`, `setStyle('sketchup' | 'borderlands' | 'real')`, `getStyle()`,
   `texturesReady()` (resolves when the realistic textures, sky and probes are in; used by the
   e2e tests). `getStats()` also reports `quality`, `pixelRatio`, `textureMB` (GPU estimate:
-  compressed mips, env maps, shadow maps), `textureDownloadMB`, `probes`.
+  compressed mips, env maps, shadow maps, lightmaps), `textureDownloadMB`, `probes`,
+  `lightmaps` (baked lighting active) and `lightmapStatus`.
+- `GPU=1 npm run shots:styles -- http://localhost:5173/ real living-east,f-storage` —
+  review shots on the real GPU (headed Chromium) instead of SwiftShader.
 - `npm run shots -- http://localhost:5173/ upper-hall,bedroom-3,storage` — review shots
   of named poses (see `tools/screenshots.mjs`; garden poses: `garden-aerial`,
   `gate-street`, `north-side`, `south-garden`, `rear-garden`, `terrace-out`, `living-out`)
@@ -241,14 +292,17 @@ src/world/    builders: walls (layers + holes), openings, curtain wall, slabs, r
               merge-by-material mesh builder, plan section, procedural furniture kit
               (furniture/),
               style registry + SketchUp / Borderlands looks (style.ts + style/),
-              realistic finishes + PBR runtime (finishes.ts, realLook.ts)
+              realistic finishes + PBR runtime (finishes.ts, realLook.ts), baked lightmaps
+              at runtime (lightmaps.ts)
+src/bake/     dev-only lightmap baker (bake.html): unwrap, GPU G-buffer + ray tracing,
+              denoise / dilate, RGBM export
 src/player/   capsule controller (three-mesh-bvh shapecast), touch + desktop input
 src/core/     renderer, frame loop, debug overlay, URL params, quality tiers, asset loading
 src/ui/       loading screen, start card, room toast, styles
 tests/        Vitest unit tests; tests/e2e/ Playwright
 tools/        dev-only plan tools (render / crop / extract / overlay screenshots), asset
-              pipeline (fetch / optimize), review screenshots
-public/assets/ optimised KTX2 textures + sky (tracked); assets-src/ CC0 originals (local)
+              pipeline (fetch / optimize), lightmap bake driver (bake.mjs), review screenshots
+public/assets/ optimised KTX2 textures + sky, baked lightmaps (tracked); assets-src/ CC0 originals (local)
 ```
 
 ## Privacy rule — the plans stay local

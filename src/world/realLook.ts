@@ -20,6 +20,7 @@ import type { TierSettings } from '../core/quality';
 import { FINISHES, type AntiTiling, type Finish } from './finishes';
 import type { Lighting } from './lighting';
 import type { MaterialLibrary } from './materials';
+import { setShaderPatch } from './shaderPatches';
 
 /** Light balance of the realistic look (tuned against the review screenshots). */
 export const REAL_LIGHT = {
@@ -40,6 +41,18 @@ export const REAL_LIGHT = {
   /** Eye-adaptation time constant (s). */
   adaptSeconds: 0.7,
 };
+
+/**
+ * Overrides while the baked lightmaps light the scene (I6): no ambient cut indoors (the
+ * lightmap already holds the house's occlusion) and a stronger indoor exposure — real
+ * interiors get a few % of the outdoor irradiance.
+ */
+export const REAL_BAKED_LIGHT: Partial<typeof REAL_LIGHT> = {
+  exposure: 0.85,
+  insideAmbient: 1,
+  insideExposure: 2.5,
+};
+const BAKED_BALANCE = { ...REAL_LIGHT, ...REAL_BAKED_LIGHT };
 
 /** Interior reflection probes (CubeCamera → PMREM, 64 px faces) and the rooms they serve. */
 export const PROBES: readonly {
@@ -138,13 +151,12 @@ export function applyAntiTiling(
 ): void {
   if (mode === 'none') return;
   const uniform = { value: new THREE.Vector2(strength[0], strength[1]) };
-  material.onBeforeCompile = (shader) => {
+  setShaderPatch(material, `antitile-${mode}`, (shader) => {
     shader.uniforms.antiTile = uniform;
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${ANTI_TILE_COMMON}`)
       .replace('#include <map_fragment>', ANTI_TILE_MAP[mode]);
-  };
-  material.customProgramCacheKey = () => `antitile-${mode}`;
+  });
   material.userData.antiTile = uniform;
 }
 
@@ -179,6 +191,11 @@ export class RealLook {
   private snapNext = true;
   private framesSinceLoad = 0;
   private adapt = 0;
+  private baked = false;
+  /** Smoothed log of the per-room exposure multiplier (baked lighting only). */
+  private roomGain = 0;
+  /** Per-room exposure multiplier while baked (set by the app from the lightmaps). */
+  roomExposure: ((room: string) => number) | null = null;
   private readonly base: { exposure: number; hemi: number; hemiColor: THREE.Color };
   private readonly insideHemi = new THREE.Color(REAL_LIGHT.insideHemi);
   private skyRadianceScale = 1;
@@ -319,14 +336,22 @@ export class RealLook {
     const { renderer, scene, lighting, sky } = this.o;
     const target = isIndoors(room) ? 1 : 0;
     this.adapt += (target - this.adapt) * (1 - Math.exp(-dt / REAL_LIGHT.adaptSeconds));
-    if (this.snapNext) this.adapt = target;
+    const gain =
+      this.baked && this.roomExposure && isIndoors(room) ? Math.log(this.roomExposure(room)) : 0;
+    this.roomGain += (gain - this.roomGain) * (1 - Math.exp(-dt / REAL_LIGHT.adaptSeconds));
+    if (this.snapNext) {
+      this.adapt = target;
+      this.roomGain = gain;
+    }
     this.snapNext = false;
     if (Math.abs(this.adapt - target) < 1e-3) this.adapt = target;
     const a = this.adapt;
-    const ambient = 1 + (REAL_LIGHT.insideAmbient - 1) * a;
-    const exposure = this.env ? REAL_LIGHT.exposure : this.base.exposure;
-    renderer.toneMappingExposure = exposure * (1 + (REAL_LIGHT.insideExposure - 1) * a);
-    const hemi = this.env ? REAL_LIGHT.hemiWithEnv : this.base.hemi;
+    const L = this.balance;
+    const ambient = 1 + (L.insideAmbient - 1) * a;
+    const exposure = this.env || this.baked ? L.exposure : this.base.exposure;
+    renderer.toneMappingExposure =
+      exposure * (1 + (L.insideExposure - 1) * a) * Math.exp(this.roomGain);
+    const hemi = this.env ? L.hemiWithEnv : this.base.hemi;
     lighting.hemi.intensity = hemi * ambient;
     lighting.hemi.color.copy(this.base.hemiColor).lerp(this.insideHemi, a);
     if (!this.env) return;
@@ -357,9 +382,10 @@ export class RealLook {
     const hemi = lighting.hemi.intensity;
     const envI = scene.environmentIntensity;
     const envT = scene.environment;
-    lighting.hemi.intensity = REAL_LIGHT.hemiWithEnv * REAL_LIGHT.insideAmbient;
+    const L = this.balance;
+    lighting.hemi.intensity = L.hemiWithEnv * L.insideAmbient;
     scene.environment = this.env.texture;
-    scene.environmentIntensity = this.skyRadianceScale * REAL_LIGHT.insideAmbient;
+    scene.environmentIntensity = this.skyRadianceScale * L.insideAmbient;
     const pmrem = new THREE.PMREMGenerator(renderer);
     const cubeRT = new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType });
     const cam = new THREE.CubeCamera(0.05, 300, cubeRT);
@@ -389,6 +415,17 @@ export class RealLook {
       }
       scene.environment = envT;
     }
+  }
+
+  /** Baked lightmaps on / off (I6): other light balance, probes captured again. */
+  setBaked(on: boolean): void {
+    if (this.baked === on) return;
+    this.baked = on;
+    this.refreshProbes();
+  }
+
+  private get balance(): typeof REAL_LIGHT {
+    return this.baked ? BAKED_BALANCE : REAL_LIGHT;
   }
 
   /** Jump straight to the adapted exposure on the next frame (teleports, test hooks). */

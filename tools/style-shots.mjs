@@ -3,6 +3,7 @@
 // Output: test-results/shots/<style>-<pose>[-phone].png (git-ignored).
 // Usage: node tools/style-shots.mjs [baseUrl] [styles] [poses] [phone|desk] [extraQuery] [suffix]
 //   e.g. node tools/style-shots.mjs http://localhost:5173/ borderlands start,living-east
+//        GPU=1 node tools/style-shots.mjs http://localhost:5173/ real living-east (real GPU)
 //        node tools/style-shots.mjs http://localhost:5173/ sketchup,borderlands,real "" phone
 import fs from 'node:fs';
 import path from 'node:path';
@@ -62,9 +63,15 @@ const POSES = [
   ['menu', 'menu', null],
 ];
 
-const browser = await chromium.launch({
-  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-});
+// GPU=1: headed Chromium on the real GPU (much faster than SwiftShader for review shots).
+const gpu = process.env.GPU === '1';
+const browser = await chromium.launch(
+  gpu
+    ? { headless: false, args: ['--ignore-gpu-blocklist'] }
+    : {
+        args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+      },
+);
 const problems = [];
 for (const style of styles) {
   const context = await browser.newContext(
@@ -111,7 +118,11 @@ for (const style of styles) {
     const file = path.join(outDir, `${style}-${name}${phone ? '-phone' : ''}${suffix}.png`);
     await page.screenshot({ path: file, timeout: 180000 });
     const s = await page.evaluate(() => window.__houseSim.getStats());
-    console.log(style.padEnd(12), name.padEnd(14), `calls=${s.drawCalls} tris=${s.triangles}`);
+    console.log(
+      style.padEnd(12),
+      name.padEnd(14),
+      `calls=${s.drawCalls} tris=${s.triangles} tex=${s.textureMB.toFixed(1)}MB lightmaps=${s.lightmapStatus}`,
+    );
   }
   await context.close();
 }

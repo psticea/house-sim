@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>House Sim — lightmap baker (dev only)</title>
+    <link rel="icon" href="data:," />
+    <style>
+      body {
+        margin: 0;
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+        background: #1d1f22;
+        color: #e8e6e1;
+      }
+      main {
+        padding: 16px 20px;
+      }
+      .bar {
+        width: 480px;
+        height: 10px;
+        background: #3a3d42;
+        border-radius: 5px;
+        overflow: hidden;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: #d8b98e;
+      }
+      pre {
+        font-size: 12px;
+        color: #b9b6ae;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Lightmap baker</h1>
+      <p id="status">Starting…</p>
+      <div class="bar"><i id="bar"></i></div>
+      <pre id="log"></pre>
+    </main>
+    <script type="module" src="/src/bake/main.ts"></script>
+  </body>
+</html>

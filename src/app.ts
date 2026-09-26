@@ -32,6 +32,7 @@ import { TouchInput } from './player/input-touch';
 import { PLAYER, PlayerController, yawToward } from './player/controller';
 import { buildWorld } from './world/build';
 import { createLighting } from './world/lighting';
+import { Lightmaps } from './world/lightmaps';
 import { RealLook } from './world/realLook';
 import { createSky } from './world/sky';
 import { getStyle, isStyleBuilt, refreshStyledMeshes, setStyle, STYLE_LABELS } from './world/style';
@@ -79,6 +80,10 @@ export interface Stats {
   probes: number;
   /** Furniture triangles (0 until the furniture has been added after the first frame). */
   furnitureTriangles: number;
+  /** Baked lightmaps light the realistic look (I6; the sun shadow map is off then). */
+  lightmaps: boolean;
+  /** `idle` | `loading` | `loaded` | `applied` | `unavailable: <reason>`. */
+  lightmapStatus: string;
 }
 
 export interface HouseSimHooks {
@@ -113,8 +118,9 @@ export interface HouseSimHooks {
   /** Current look (canonical name): stored choice / `?style=` / default `sketchup`. */
   getStyle(): StyleName;
   /**
-   * Starts loading the realistic look's textures if needed and resolves once they,
-   * the sky and the interior probes are in place (probes need the look to be shown).
+   * Starts loading the realistic look's textures (and baked lightmaps) if needed and
+   * resolves once they, the sky, the furniture and the interior probes are in place
+   * (probes need the look to be shown).
    */
   texturesReady(): Promise<void>;
 }
@@ -221,6 +227,14 @@ export async function startApp(): Promise<void> {
     quality,
     onProgress: (f, done) => assetProgress.update(f, done),
   });
+  // Baked lighting (I6): realistic look only, applied once the furniture is in place.
+  const lightmaps = new Lightmaps({
+    renderer,
+    sun: lighting.sun,
+    tier: () => quality.textures,
+    onChange: (on) => realLook.setBaked(on),
+  });
+  realLook.roomExposure = (room) => lightmaps.roomExposure(room);
   // Textures of the realistic look stream in after the first walkable frame and after
   // the warm-up benchmark (which may still lower the texture tier).
   let benchmarkDone!: () => void;
@@ -236,7 +250,14 @@ export async function startApp(): Promise<void> {
         applyResize();
       },
     });
-    if (getStyle(scene) === 'real') void benchmark.then(() => realLook.load());
+    const real = getStyle(scene) === 'real';
+    lightmaps.setActive(real);
+    if (real) {
+      void benchmark.then(() => {
+        void realLook.load();
+        if (params.baked) void lightmaps.load();
+      });
+    }
   };
   // `?style=` wins for this load, then the stored choice, then the default (SketchUp).
   const initialStyle = params.styleParam ?? storedStyle() ?? DEFAULT_STYLE;
@@ -426,7 +447,10 @@ export async function startApp(): Promise<void> {
             triangles: r.render.triangles,
             geometries: r.memory.geometries,
             textures: r.memory.textures,
-            textureMB: estimateTextureMB(scene, realLook.ownedTextures()),
+            textureMB: estimateTextureMB(scene, [
+              ...realLook.ownedTextures(),
+              ...lightmaps.ownedTextures(),
+            ]),
             x: i.x,
             y: i.y,
             z: i.z,
@@ -466,7 +490,10 @@ export async function startApp(): Promise<void> {
         triangles: r.render.triangles,
         geometries: r.memory.geometries,
         textures: r.memory.textures,
-        textureMB: estimateTextureMB(scene, realLook.ownedTextures()),
+        textureMB: estimateTextureMB(scene, [
+          ...realLook.ownedTextures(),
+          ...lightmaps.ownedTextures(),
+        ]),
         fps: stats.fps,
         frameMs: stats.frameMs,
         sceneTriangles: world.triangles,
@@ -478,6 +505,10 @@ export async function startApp(): Promise<void> {
         textureDownloadMB: realLook.bytes / (1024 * 1024),
         probes: realLook.probeCount,
         furnitureTriangles,
+        lightmaps: lightmaps.isActive,
+        lightmapStatus: lightmaps.reason
+          ? `${lightmaps.status}: ${lightmaps.reason}`
+          : lightmaps.status,
       };
     },
     walk: async (dx, dz, seconds, run = false) => {
@@ -534,6 +565,10 @@ export async function startApp(): Promise<void> {
     texturesReady: async () => {
       await benchmark;
       await realLook.load();
+      if (params.baked && getStyle(scene) === 'real') {
+        await furnitureReady;
+        await lightmaps.load();
+      }
       // Probes are captured a few frames after loading, while the realistic look shows.
       for (let k = 0; k < 20 && realLook.probesPending; k++) {
         if (getStyle(scene) !== 'real') break;
@@ -563,6 +598,10 @@ export async function startApp(): Promise<void> {
     switchStyle(getStyle(scene));
     renderer.shadowMap.needsUpdate = true;
     realLook.refreshProbes();
+    // The static scene is complete: the baked lightmaps (if current) can be applied.
+    lightmaps.attach(
+      world.group.children.filter((o): o is THREE.Mesh => o instanceof THREE.Mesh && o.visible),
+    );
     furnitureTriangles = res.triangles;
     hooks.furnished = true;
     resolveFurnished();

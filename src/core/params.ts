@@ -1,7 +1,8 @@
 /**
  * URL parameters: `?debug`, `?pose=x,y,z,yawDeg,pitchDeg`, `?view=x,y,z,yawDeg,pitchDeg`,
  * `?tonemap=aces|agx|neutral`, `?style=sketchup|borderlands|real` (`sketch` = `sketchup`, the default),
- * `?quality=low|medium|high|auto` (read by core/quality.ts), `?dynres=0` (fixed resolution).
+ * `?quality=low|medium|high|auto` (read by core/quality.ts), `?dynres=0` (fixed resolution),
+ * `?baked=0` (realistic look without the baked lightmaps — the I4 shadow-map lighting).
  */
 
 /** The three looks (plan.md S2). */
@@ -25,6 +26,8 @@ export interface Params {
   styleParam: StyleName | null;
   /** `?dynres=0`: keep the pixel ratio fixed (no dynamic resolution). */
   fixedResolution: boolean;
+  /** `?baked=0`: don't load the baked lightmaps (before / after comparisons). */
+  baked: boolean;
 }
 
 /** Look used when neither the URL nor a stored choice names one. */
@@ -60,5 +63,6 @@ export function readParams(search: string = window.location.search): Params {
     style: parseStyle(q.get('style')),
     styleParam: styleNameOf(q.get('style')),
     fixedResolution: q.get('dynres') === '0',
+    baked: q.get('baked') !== '0',
   };
 }

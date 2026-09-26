@@ -2,7 +2,9 @@
  * I4 realistic materials: KTX2 PBR sets + HDRI sky stream in after the first walkable
  * frame; GPU texture memory per quality tier (medium ≤ 75 MB, plan.md §3.1), no failed
  * or third-party requests, draw calls unchanged, style switching leak-free with the
- * textures loaded. Quick pass (desktop project), one test per tier (SwiftShader is slow).
+ * textures loaded. I6: the baked lightmaps are applied once the furniture is in (the sun
+ * shadow map is off then) and survive style switching; `?baked=0` keeps the I4 lighting.
+ * Quick pass (desktop project), one test per tier (SwiftShader is slow).
  */
 import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
@@ -39,6 +41,7 @@ for (const tier of ['medium', 'low', 'high'] as Tier[]) {
     const st = await sim.stats(page);
     expect(st.texturesLoaded).toBe(true);
     expect(st.probes).toBe(tier === 'low' ? 0 : 3);
+    expect(st.lightmaps, st.lightmapStatus).toBe(true);
     expect(st.drawCalls).toBeLessThanOrEqual(45);
     if (tier === 'medium') {
       expect(st.textureMB).toBeLessThanOrEqual(75);
@@ -54,6 +57,7 @@ for (const tier of ['medium', 'low', 'high'] as Tier[]) {
         const key = { geometries: c.geometries, textures: c.textures, drawCalls: c.drawCalls };
         if (seen.has(style)) expect(key, style).toEqual(seen.get(style));
         else seen.set(style, key);
+        expect(c.lightmaps, style).toBe(style === 'real');
       }
     }
     expect(s.errors).toEqual([]);
@@ -66,6 +70,7 @@ for (const tier of ['medium', 'low', 'high'] as Tier[]) {
       drawCallsLiving: st.drawCalls,
       trianglesLiving: st.triangles,
       probes: st.probes,
+      lightmaps: st.lightmapStatus,
       pixelRatio: st.pixelRatio,
     };
     fs.mkdirSync('test-results', { recursive: true });
@@ -77,3 +82,19 @@ for (const tier of ['medium', 'low', 'high'] as Tier[]) {
     console.log(JSON.stringify({ [tier]: row }));
   });
 }
+
+test('realistic look without the bake (?baked=0): I4 shadow-map lighting', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'desktop project only');
+  test.setTimeout(300_000);
+  const s = await openSim(page, 'style=real&baked=0');
+  await hideStartOverlay(page);
+  await page.evaluate(() => window.__houseSim!.texturesReady());
+  const st = await sim.stats(page);
+  expect(st.lightmaps).toBe(false);
+  expect(st.lightmapStatus).toBe('idle');
+  expect(st.drawCalls).toBeLessThanOrEqual(45);
+  expect(s.errors).toEqual([]);
+  expect(s.warnings).toEqual([]);
+});
