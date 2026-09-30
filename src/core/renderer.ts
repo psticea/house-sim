@@ -3,7 +3,8 @@ import * as THREE from 'three';
 
 export const isTouchDevice = (): boolean =>
   typeof window !== 'undefined' &&
-  (window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+  // Primary pointer only: touch-screen laptops report touch points but use a mouse.
+  window.matchMedia('(pointer: coarse)').matches;
 
 let capOverride: number | null = null;
 let tierCap: number | null = null;
