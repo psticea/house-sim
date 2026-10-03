@@ -23,10 +23,22 @@ export type TextureSetId =
   | 'asphalt'
   | 'corten'
   | 'bark'
+  | 'travertine'
+  | 'linen'
+  | 'wool'
+  | 'cane'
   | 'metal'
   | 'metal-flat'
   | 'detail-plaster'
-  | 'detail-fine';
+  | 'detail-fine'
+  | 'detail-brushed';
+
+/**
+ * The derived `extwood` board texture (tools/assets.config.mjs): `boards` rows of boards
+ * per `tileM` tile, grain along u. The modelled west-gable boards shift their UVs onto
+ * single texture boards (cladding.ts), so `cladWood` must use this tile size.
+ */
+export const BOARD_TEXTURE = { tileM: 2.08, boards: 8 } as const;
 
 /**
  * - `blend`: second, rotated sample blended in by a noise mask + macro brightness
@@ -56,7 +68,7 @@ export interface Finish {
 }
 
 export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
-  // Interior
+  // Interior (plans: white finish, oak parquet, gresie in the wet rooms)
   plaster: {
     color: '#F1ECE3',
     roughness: 0.9,
@@ -75,32 +87,48 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
     antiTiling: 'macro',
     antiTilingStrength: [0, 0.14],
   },
+  // Honed travertine-look porcelain, 60 × 120 cm (derived `tile` set: 4 × 2 per 2.4 m).
   tile: {
-    color: '#CDBFA7',
-    roughness: 0.75,
+    color: '#CCBEA6',
+    roughness: 0.85,
     metalness: 0,
     set: 'tile',
     scaleM: 2.4,
     aoIntensity: 0.8,
     antiTiling: 'macro',
-    antiTilingStrength: [0, 0.08],
+    antiTilingStrength: [0, 0.06],
   },
   tileUtility: {
-    color: '#D3D0C9',
-    roughness: 0.8,
+    color: '#D2CEC6',
+    roughness: 0.85,
     metalness: 0,
     set: 'tile',
     scaleM: 2.4,
     aoIntensity: 0.8,
+    antiTiling: 'macro',
+    antiTilingStrength: [0, 0.05],
   },
-  ceilingWood: {
-    color: '#DCC4A0',
-    roughness: 1,
+  // Wet-room walls: the same tiles, standing (60 wide × 120 high), a shade lighter.
+  tileWall: {
+    color: '#DDD3C3',
+    roughness: 0.75,
     metalness: 0,
-    set: 'woodgrain',
-    rotate: true,
-    scaleM: 1.1,
+    set: 'tile',
+    scaleM: 2.4,
+    aoIntensity: 0.7,
+    antiTiling: 'macro',
+    antiTilingStrength: [0, 0.05],
+  },
+  // Living-room board ceiling (plans): pale oiled boards, 15 cm.
+  ceilingWood: {
+    color: '#D5BB98',
+    roughness: 0.9,
+    metalness: 0,
+    set: 'extwood',
+    scaleM: 1.2,
     aoIntensity: 0.6,
+    antiTiling: 'macro',
+    antiTilingStrength: [0, 0.06],
   },
   doorLeaf: {
     color: '#EEEAE3',
@@ -110,56 +138,60 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
     scaleM: 0.5,
     normalScale: 0.25,
   },
-  // Facade (owner update 2026-10): anthracite RAL 7016 standing seam, roof sheet and
-  // frames (were grey RAL 7045 / RAL 1011), natural wood
+  // Facade (owner update 2026-10): RAL 7016 standing seam, roof sheet and frames as a
+  // warm-neutral anthracite powder coat (the sky's reflection adds the blue), natural wood.
   cladMetal: {
-    color: '#383E42',
-    roughness: 0.55,
-    metalness: 0.1,
+    color: '#45433F',
+    roughness: 0.56,
+    metalness: 0,
     set: 'metal',
     scaleM: 1,
     normalScale: 1,
   },
   roofMetal: {
-    color: '#383E42',
-    roughness: 0.5,
-    metalness: 0.1,
+    color: '#45433F',
+    roughness: 0.54,
+    metalness: 0,
     set: 'metal-flat',
     scaleM: 1,
     normalScale: 1,
   },
+  // Oiled timber boards, 26 cm (the west gable's modelled boards pick single texture
+  // boards, see BOARD_TEXTURE); loggia, canopy soffits, fins.
   cladWood: {
-    color: '#A9825A',
-    roughness: 1,
+    color: '#B48A5C',
+    roughness: 0.9,
     metalness: 0,
     set: 'extwood',
+    scaleM: BOARD_TEXTURE.tileM,
     aoIntensity: 0.9,
     antiTiling: 'macro',
-    antiTilingStrength: [0, 0.12],
+    antiTilingStrength: [0, 0.06],
   },
   woodSlat: {
-    color: '#A9825A',
-    roughness: 1,
+    color: '#A97E52',
+    roughness: 0.9,
     metalness: 0,
     set: 'woodgrain',
     scaleM: 0.8,
   },
   frame: {
-    color: '#383E42',
-    roughness: 0.42,
-    metalness: 0.15,
+    color: '#45433F',
+    roughness: 0.48,
+    metalness: 0,
     set: 'detail-fine',
     scaleM: 0.5,
     normalScale: 0.25,
   },
   glass: { color: '#1E2A2C', roughness: 0.04, metalness: 0 },
+  // Blackened steel: rails, balustrade, stove, chimney, sunshade.
   metalBlack: {
     color: '#2E2C2A',
-    roughness: 0.45,
-    metalness: 0.7,
-    set: 'detail-fine',
-    scaleM: 0.5,
-    normalScale: 0.3,
+    roughness: 0.5,
+    metalness: 0.6,
+    set: 'detail-brushed',
+    scaleM: 0.25,
+    normalScale: 0.6,
   },
   grating: { color: '#4A4C4C', roughness: 0.55, metalness: 0.7 },
   plasterExterior: {
@@ -171,15 +203,16 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
     normalScale: 1.2,
   },
   // Outside (plans: WPC deck, natural stone slabs, concrete pavers)
+  // WPC deck boards, 15 cm, warm grey-brown.
   deck: {
-    color: '#8C7B6A',
-    roughness: 1,
+    color: '#8F7B66',
+    roughness: 0.95,
     metalness: 0,
     set: 'extwood',
-    scaleM: 1.3,
+    scaleM: 1.2,
     aoIntensity: 0.9,
     antiTiling: 'macro',
-    antiTilingStrength: [0, 0.1],
+    antiTilingStrength: [0, 0.08],
   },
   stone: {
     color: '#C4BEB2',
@@ -285,10 +318,10 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
   },
   meadow: { color: '#AAA26A', roughness: 1, metalness: 0 },
   flowers: { color: '#D7AE5C', roughness: 1, metalness: 0 },
-  // Furniture (I5): reuses the shipped sets — no new textures (texture memory unchanged).
+  // Furniture (I5; I4 redo: own stone, textile and cane sets, brushed metal detail).
   joinery: {
     color: '#C9A77C',
-    roughness: 0.9,
+    roughness: 0.85,
     metalness: 0,
     set: 'woodgrain',
     scaleM: 0.9,
@@ -296,7 +329,7 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
   },
   smokedOak: {
     color: '#6F5440',
-    roughness: 0.8,
+    roughness: 0.75,
     metalness: 0,
     set: 'woodgrain',
     scaleM: 0.9,
@@ -306,35 +339,36 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
     color: '#D9CBB5',
     roughness: 0.8,
     metalness: 0,
-    set: 'stone',
+    set: 'travertine',
     scaleM: 1.2,
-    aoIntensity: 0.6,
-    antiTiling: 'blend',
-    antiTilingStrength: [1, 0.08],
+    normalScale: 0.6,
+    aoIntensity: 0.5,
+    antiTiling: 'macro',
+    antiTilingStrength: [0, 0.05],
   },
   linen: {
     color: '#E3D9CA',
     roughness: 1,
     metalness: 0,
-    set: 'detail-fine',
-    scaleM: 0.12,
-    normalScale: 0.6,
+    set: 'linen',
+    scaleM: 0.9,
+    normalScale: 1,
   },
   wool: {
     color: '#BFAE98',
     roughness: 1,
     metalness: 0,
-    set: 'detail-fine',
-    scaleM: 0.15,
+    set: 'wool',
+    scaleM: 0.8,
     normalScale: 1,
   },
   cane: {
     color: '#C4A26F',
     roughness: 0.85,
     metalness: 0,
-    set: 'detail-fine',
-    scaleM: 0.1,
-    normalScale: 1.2,
+    set: 'cane',
+    scaleM: 0.35,
+    normalScale: 1,
   },
   ceramic: {
     color: '#EDE8DF',
@@ -344,13 +378,14 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
     scaleM: 0.5,
     normalScale: 0.08,
   },
+  // Aged brushed brass / bronze: tapware, mirror rims, lamp stems, hooks.
   brass: {
     color: '#9C7B4E',
-    roughness: 0.35,
+    roughness: 0.38,
     metalness: 0.9,
-    set: 'detail-fine',
-    scaleM: 0.3,
-    normalScale: 0.15,
+    set: 'detail-brushed',
+    scaleM: 0.25,
+    normalScale: 0.6,
   },
   mirror: { color: '#D5DADA', roughness: 0.03, metalness: 1 },
 };

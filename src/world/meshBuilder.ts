@@ -2,11 +2,34 @@
  * Triangle accumulator: geometry is emitted directly into per-material buckets (flat
  * normals, world-space box UVs with 1 UV unit = 1 m), then turned into one
  * BufferGeometry per material → one draw call per material for the whole house.
+ *
+ * Two optional per-triangle extras for the realistic look only (the stylised looks never
+ * read them): a UV offset per piece (`uv2` = uv + offset, e.g. each board / door front
+ * its own piece of the grain) and a cavity shade (`color`, e.g. carcass faces seen
+ * through the reveals between doors). Which materials carry them is fixed per material
+ * (`GEOMETRY_EXTRAS`), so every mesh of such a material has the attributes.
  */
 import * as THREE from 'three';
 import type { MaterialId } from '../data/schema';
 
 export type V3 = readonly [number, number, number];
+
+/** Materials whose geometry carries the per-piece `uv2` and / or the `color` shade. */
+export const GEOMETRY_EXTRAS: Readonly<Partial<Record<MaterialId, { uv2?: true; color?: true }>>> =
+  {
+    cladWood: { uv2: true },
+    joinery: { uv2: true, color: true },
+  };
+
+/**
+ * Cavity shade for triangles facing `facing` (dot > 0.99), or with `sides` for the
+ * triangles perpendicular to it (the edges of a panel facing `facing`).
+ */
+export interface Shade {
+  value: number;
+  facing: V3;
+  sides?: boolean;
+}
 
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
@@ -19,6 +42,14 @@ export class TriangleBucket {
   readonly swapped: number[] = [];
   /** While set, new triangles are recorded in `swapped`. */
   swapUv = false;
+  /** Per-triangle UV offsets (m): triples (triangle index, du, dv). */
+  readonly shifted: number[] = [];
+  /** While set, new triangles get this UV offset (after any swap). */
+  uvShift: readonly [number, number] | null = null;
+  /** Per-triangle cavity shades: pairs (triangle index, value). */
+  readonly shaded: number[] = [];
+  /** While set, new triangles facing `shade.facing` get `shade.value`. */
+  shade: Shade | null = null;
 
   get triangleCount(): number {
     return this.positions.length / 9;
@@ -30,6 +61,16 @@ export class TriangleBucket {
    */
   tri(a: V3, b: V3, c: V3, facing?: V3): void {
     if (this.swapUv) this.swapped.push(this.positions.length / 9);
+    if (this.uvShift) {
+      this.shifted.push(this.positions.length / 9, this.uvShift[0], this.uvShift[1]);
+    }
+    const s = this.shade;
+    if (s && facing) {
+      const d = facing[0] * s.facing[0] + facing[1] * s.facing[1] + facing[2] * s.facing[2];
+      if (s.sides ? Math.abs(d) < 0.01 : d > 0.99) {
+        this.shaded.push(this.positions.length / 9, s.value);
+      }
+    }
     if (facing) {
       _a.set(...a);
       _b.set(...b).sub(_a);
@@ -57,6 +98,13 @@ export class MeshBuilder {
    * vertical boards of a facade, so a board texture's grain runs along them.
    */
   swapUv = false;
+  /**
+   * While set, emitted triangles get this offset added to their world-space UVs (m):
+   * e.g. a board or door front shows another part of the texture than its neighbour.
+   */
+  uvShift: readonly [number, number] | null = null;
+  /** While set, emitted triangles facing `shade.facing` get a cavity shade. */
+  shade: Shade | null = null;
 
   bucket(id: MaterialId): TriangleBucket {
     let b = this.buckets.get(id);
@@ -65,6 +113,8 @@ export class MeshBuilder {
       this.buckets.set(id, b);
     }
     b.swapUv = this.swapUv;
+    b.uvShift = this.uvShift;
+    b.shade = this.shade;
     return b;
   }
 
@@ -233,7 +283,14 @@ export class MeshBuilder {
     const out = new Map<MaterialId, THREE.BufferGeometry>();
     for (const [id, bucket] of this.buckets) {
       if (bucket.triangleCount === 0) continue;
-      out.set(id, trianglesToGeometry(bucket.positions, bucket.swapped));
+      const extras = GEOMETRY_EXTRAS[id];
+      out.set(
+        id,
+        trianglesToGeometry(bucket.positions, bucket.swapped, {
+          shifted: extras?.uv2 ? bucket.shifted : undefined,
+          shaded: extras?.color ? bucket.shaded : undefined,
+        }),
+      );
     }
     return out;
   }
@@ -251,15 +308,30 @@ export function ringSignedArea(ring: readonly (readonly [number, number])[]): nu
 
 /**
  * Flat normals + world-space box-projected UVs (1 unit = 1 m) for I4 tiling textures;
- * the triangles listed in `swapped` get u ↔ v.
+ * the triangles listed in `swapped` get u ↔ v. With `extras.shifted` (triples: triangle,
+ * du, dv) a second set `uv2` = uv + offset is added, with `extras.shaded` (pairs:
+ * triangle, value) a `color` attribute (1 where not shaded).
  */
 export function trianglesToGeometry(
   positions: readonly number[],
   swapped: readonly number[] = [],
+  extras: { shifted?: readonly number[]; shaded?: readonly number[] } = {},
 ): THREE.BufferGeometry {
   const n = positions.length / 3;
   const swap = new Uint8Array(n / 3);
   for (const t of swapped) swap[t] = 1;
+  const uv2 = extras.shifted ? new Float32Array(n * 2) : null;
+  const shift = new Float32Array(uv2 ? (n / 3) * 2 : 0);
+  const shifted = extras.shifted ?? [];
+  for (let i = 0; i + 2 < shifted.length; i += 3) {
+    shift[shifted[i]! * 2] = shifted[i + 1]!;
+    shift[shifted[i]! * 2 + 1] = shifted[i + 2]!;
+  }
+  const color = extras.shaded ? new Float32Array(n * 3).fill(1) : null;
+  const shaded = extras.shaded ?? [];
+  for (let i = 0; color && i + 1 < shaded.length; i += 2) {
+    color.fill(shaded[i + 1]!, shaded[i]! * 9, shaded[i]! * 9 + 9);
+  }
   const pos = new Float32Array(positions);
   const nor = new Float32Array(n * 3);
   const uv = new Float32Array(n * 2);
@@ -295,12 +367,18 @@ export function trianglesToGeometry(
         uv[v * 2] = uv[v * 2 + 1]!;
         uv[v * 2 + 1] = u0;
       }
+      if (uv2) {
+        uv2[v * 2] = uv[v * 2]! + shift[(t / 3) * 2]!;
+        uv2[v * 2 + 1] = uv[v * 2 + 1]! + shift[(t / 3) * 2 + 1]!;
+      }
     }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  if (uv2) g.setAttribute('uv2', new THREE.BufferAttribute(uv2, 2));
+  if (color) g.setAttribute('color', new THREE.BufferAttribute(color, 3));
   g.computeBoundingBox();
   g.computeBoundingSphere();
   return g;

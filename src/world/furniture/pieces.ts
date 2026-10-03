@@ -84,6 +84,44 @@ function tableLamp(f: Frame, x: number, y: number, z: number, base: MaterialId, 
   );
 }
 
+/**
+ * A door / drawer front in oak: its own piece of the grain (UVs shifted per front, so
+ * neighbouring fronts don't read as one veneer sheet); its thin edges are shaded like
+ * the reveal they face (front faces along local ±z).
+ */
+function front(f: Frame, min: V3, max: V3): void {
+  const c = f.p((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
+  const h = Math.sin(c[0] * 12.9898 + c[1] * 78.233 + c[2] * 37.719) * 43758.5453;
+  const r = h - Math.floor(h);
+  f.mesh.uvShift = [r * 0.9, ((r * 7.31) % 1) * 0.9];
+  f.mesh.shade = { value: FRONT_EDGE_SHADE, facing: f.v(0, 0, 1), sides: true };
+  f.box('joinery', min, max);
+  f.mesh.shade = null;
+  f.mesh.uvShift = null;
+}
+
+/** Shade of carcass faces seen through the 6 mm reveals between fronts (a deep gap). */
+const REVEAL_SHADE = 0.3;
+/** Shade of the fronts' edges inside the reveals. */
+const FRONT_EDGE_SHADE = 0.55;
+
+/**
+ * Oak carcass box whose front face (local +z, `face` −1: −z) is shaded as a cavity in the
+ * realistic look: it only shows through the reveals between the fronts, so the doors
+ * read as separate panels (the stylised looks ignore the shade).
+ */
+function carcass(
+  f: Frame,
+  min: V3,
+  max: V3,
+  opts: { skipTop?: boolean } = {},
+  face: 1 | -1 = 1,
+): void {
+  f.mesh.shade = { value: REVEAL_SHADE, facing: f.v(0, 0, face) };
+  f.box('joinery', min, max, opts);
+  f.mesh.shade = null;
+}
+
 /** Recessed dark plinth + carcass + doors with 6 mm reveals (wardrobes, kitchen). */
 function doorFronts(
   f: Frame,
@@ -99,7 +137,7 @@ function doorFronts(
   for (let i = 0; i < n; i++) {
     const a = x0 + i * dw + 0.003;
     const b = x0 + (i + 1) * dw - 0.003;
-    f.box('joinery', [a, y0 + 0.003, z], [b, y1 - 0.003, z + 0.02]);
+    front(f, [a, y0 + 0.003, z], [b, y1 - 0.003, z + 0.02]);
     if (pulls === 'v') {
       // Slim smoked-oak pulls at the meeting edges of door pairs.
       const px = i % 2 === 0 ? b - 0.035 : a + 0.015;
@@ -176,7 +214,7 @@ const wardrobe: Builder = (f, it) => {
   f.box('smokedOak', [-w / 2 + 0.03, 0, -d / 2 + 0.02], [w / 2 - 0.03, 0.08, d / 2 - 0.06], {
     bottom: false,
   });
-  f.box('joinery', [-w / 2, 0.08, -d / 2], [w / 2, h, d / 2 - 0.02]);
+  carcass(f, [-w / 2, 0.08, -d / 2], [w / 2, h, d / 2 - 0.02]);
   const n = Math.max(1, Math.round((x1 - x0) / (low ? 0.6 : 0.5)));
   doorFronts(f, x0, x1, 0.08, h, d / 2 - 0.02, n, low ? 'h' : 'v');
 };
@@ -193,7 +231,7 @@ const hallJoinery: Builder = (f, it) => {
     [-w / 2, -b / 2],
     [b / 2, w / 2],
   ] as const) {
-    f.box('joinery', [x0, 0.08, -d / 2], [x1, h, zf]);
+    carcass(f, [x0, 0.08, -d / 2], [x1, h, zf]);
     doorFronts(f, x0, x1, 0.08, h, zf, Math.max(1, Math.round((x1 - x0) / 0.5)));
   }
   // Niche: back lining, drawer + bench seat, upper cupboard, brass hooks, linen cushion.
@@ -202,7 +240,7 @@ const hallJoinery: Builder = (f, it) => {
   f.box('joinery', [-b / 2 + 0.005, 0.1, zf - 0.01], [b / 2 - 0.005, 0.395, zf + 0.008]);
   f.box('joinery', [-b / 2, 0.4, -d / 2 + 0.02], [b / 2, 0.44, zf + 0.01]);
   f.rbox('linen', [0, 0.47, 0], [b / 2 - 0.03, 0.03, d / 2 - 0.05], 0.025);
-  f.box('joinery', [-b / 2, 1.95, -d / 2 + 0.02], [b / 2, h, zf]);
+  carcass(f, [-b / 2, 1.95, -d / 2 + 0.02], [b / 2, h, zf]);
   doorFronts(f, -b / 2, b / 2, 1.95, h, zf, 2, 'none');
   for (const x of [-0.28, 0, 0.28]) {
     f.tube('brass', [x, 1.62, -d / 2 + 0.02], [x, 1.64, -d / 2 + 0.1], 0.011, 0.011, 8);
@@ -214,22 +252,22 @@ const kitchenTall: Builder = (f, it) => {
   const [w, d, h] = it.size;
   const zf = d / 2 - 0.02;
   f.box('smokedOak', [-w / 2, 0, -d / 2], [w / 2, 0.1, zf - 0.06], { bottom: false });
-  f.box('joinery', [-w / 2, 0.1, -d / 2], [w / 2, h, zf]);
+  carcass(f, [-w / 2, 0.1, -d / 2], [w / 2, h, zf]);
   // Integrated fridge column: tall fridge door, freezer door below, top cupboard.
   const fx1 = w > 0.9 ? -0.003 : w / 2 - 0.003;
-  f.box('joinery', [-w / 2 + 0.003, 0.103, zf], [fx1, 0.797, zf + 0.02]);
-  f.box('joinery', [-w / 2 + 0.003, 0.803, zf], [fx1, 1.997, zf + 0.02]);
-  f.box('joinery', [-w / 2 + 0.003, 2.003, zf], [fx1, h - 0.003, zf + 0.02]);
+  front(f, [-w / 2 + 0.003, 0.103, zf], [fx1, 0.797, zf + 0.02]);
+  front(f, [-w / 2 + 0.003, 0.803, zf], [fx1, 1.997, zf + 0.02]);
+  front(f, [-w / 2 + 0.003, 2.003, zf], [fx1, h - 0.003, zf + 0.02]);
   const px = w > 0.9 ? -0.04 : w / 2 - 0.06;
   f.box('smokedOak', [px, 1.0, zf + 0.02], [px + 0.02, 1.6, zf + 0.032]);
   f.box('smokedOak', [px, 0.5, zf + 0.02], [px + 0.02, 0.75, zf + 0.032]);
   if (w <= 0.9) return;
   // Oven column: drawers, flush black oven, door above.
-  f.box('joinery', [0.003, 0.103, zf], [w / 2 - 0.003, 0.497, zf + 0.02]);
-  f.box('joinery', [0.003, 0.503, zf], [w / 2 - 0.003, 0.897, zf + 0.02]);
+  front(f, [0.003, 0.103, zf], [w / 2 - 0.003, 0.497, zf + 0.02]);
+  front(f, [0.003, 0.503, zf], [w / 2 - 0.003, 0.897, zf + 0.02]);
   f.box('metalBlack', [0.003, 0.903, zf], [w / 2 - 0.003, 1.497, zf + 0.02]);
   f.box('brass', [0.08, 1.42, zf + 0.02], [w / 2 - 0.08, 1.435, zf + 0.04]);
-  f.box('joinery', [0.003, 1.503, zf], [w / 2 - 0.003, h - 0.003, zf + 0.02]);
+  front(f, [0.003, 1.503, zf], [w / 2 - 0.003, h - 0.003, zf + 0.02]);
   for (const x0 of [0.13, 0.33])
     f.box('smokedOak', [x0, 0.44, zf + 0.02], [x0 + 0.14, 0.455, zf + 0.032]);
 };
@@ -363,14 +401,14 @@ function wallCupboards(
   }
   for (const s of segs) {
     const yb = s.hood ? y0 + 0.06 : y0;
-    f.box('joinery', [s.a, yb, zb], [s.b, y1, zc]);
+    carcass(f, [s.a, yb, zb], [s.b, y1, zc]);
     const n = Math.max(1, Math.round((s.b - s.a) / 0.6));
     const dw = (s.b - s.a) / n;
     for (let i = 0; i < n; i++) {
       const a = s.a + i * dw + 0.003;
       const b = s.a + (i + 1) * dw - 0.003;
       const m = (a + b) / 2;
-      f.box('joinery', [a, yb + 0.003, zc], [b, y1 - 0.003, zc + 0.02]);
+      front(f, [a, yb + 0.003, zc], [b, y1 - 0.003, zc + 0.02]);
       f.box('smokedOak', [m - 0.09, yb + 0.003, zc + 0.02], [m + 0.09, yb + 0.016, zc + 0.03]);
     }
     if (s.hood) f.box('metalBlack', [s.a + 0.003, y0, zb], [s.b - 0.003, y0 + 0.057, zc + 0.02]);
@@ -447,7 +485,7 @@ const kitchenRun: Builder = (f, it) => {
   const zf = d / 2 - 0.02;
   const top = 0.9;
   f.box('smokedOak', [-w / 2, 0, -d / 2], [w / 2, 0.1, zf - 0.06], { bottom: false });
-  f.box('joinery', [-w / 2, 0.1, -d / 2], [w / 2, top - 0.04, zf], { skipTop: true });
+  carcass(f, [-w / 2, 0.1, -d / 2], [w / 2, top - 0.04, zf], { skipTop: true });
   const hob = typeof o.hob === 'number' ? o.hob : null;
   const sink = typeof o.sink === 'number' ? o.sink : null;
   const n = Math.max(1, Math.round(w / 0.6));
@@ -458,7 +496,7 @@ const kitchenRun: Builder = (f, it) => {
     const mid = (a + b) / 2;
     if (hob !== null && o.oven && Math.abs(mid - hob) < dw / 2) {
       // Drawer below a flush black oven with a slim brass bar.
-      f.box('joinery', [a, 0.103, zf], [b, 0.247, zf + 0.02]);
+      front(f, [a, 0.103, zf], [b, 0.247, zf + 0.02]);
       f.box('metalBlack', [a, 0.253, zf], [b, top - 0.063, zf + 0.02]);
       f.box('brass', [a + 0.08, top - 0.14, zf + 0.02], [b - 0.08, top - 0.125, zf + 0.04]);
       continue;
@@ -468,7 +506,7 @@ const kitchenRun: Builder = (f, it) => {
     for (let k = 0; k + 1 < split.length; k++) {
       const y0 = split[k]!;
       const y1 = split[k + 1]!;
-      f.box('joinery', [a, y0 + (k ? 0.003 : 0), zf], [b, y1 - 0.003, zf + 0.02]);
+      front(f, [a, y0 + (k ? 0.003 : 0), zf], [b, y1 - 0.003, zf + 0.02]);
       f.box('smokedOak', [mid - 0.1, y1 - 0.05, zf + 0.02], [mid + 0.1, y1 - 0.035, zf + 0.032]);
     }
   }
@@ -605,14 +643,14 @@ const island: Builder = (f, it) => {
   f.box('smokedOak', [-w / 2 + t, 0, -d / 2 + 0.06], [w / 2 - t, 0.1, zc - 0.02], {
     bottom: false,
   });
-  f.box('joinery', [-w / 2 + t, 0.1, -d / 2 + 0.02], [w / 2 - t, h - 0.05, zc]);
+  carcass(f, [-w / 2 + t, 0.1, -d / 2 + 0.02], [w / 2 - t, h - 0.05, zc], {}, -1);
   const n = Math.round((w - 2 * t) / 0.58);
   const dw = (w - 2 * t) / n;
   for (let i = 0; i < n; i++) {
     const a = -w / 2 + t + i * dw + 0.003;
     const b = a + dw - 0.006;
-    f.box('joinery', [a, 0.103, -d / 2], [b, 0.44, -d / 2 + 0.02]);
-    f.box('joinery', [a, 0.446, -d / 2], [b, h - 0.08, -d / 2 + 0.02]);
+    front(f, [a, 0.103, -d / 2], [b, 0.44, -d / 2 + 0.02]);
+    front(f, [a, 0.446, -d / 2], [b, h - 0.08, -d / 2 + 0.02]);
     f.box(
       'smokedOak',
       [(a + b) / 2 - 0.08, h - 0.12, -d / 2 - 0.012],
@@ -1087,8 +1125,8 @@ const wc: Builder = (f, it) => {
 const vanity: Builder = (f, it) => {
   const [w, d, h] = it.size;
   const zb = -d / 2;
-  f.box('joinery', [-w / 2, 0.5, zb], [w / 2, h - 0.04, d / 2 - 0.015]);
-  f.box('joinery', [-w / 2 + 0.005, 0.505, d / 2 - 0.015], [w / 2 - 0.005, h - 0.045, d / 2]);
+  carcass(f, [-w / 2, 0.5, zb], [w / 2, h - 0.04, d / 2 - 0.015]);
+  front(f, [-w / 2 + 0.005, 0.505, d / 2 - 0.015], [w / 2 - 0.005, h - 0.045, d / 2]);
   f.box('smokedOak', [-0.12, h - 0.09, d / 2], [0.12, h - 0.075, d / 2 + 0.012]);
   f.box('travertine', [-w / 2, h - 0.04, zb], [w / 2, h, d / 2 + 0.01]);
   f.lathe(

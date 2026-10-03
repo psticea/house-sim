@@ -20,6 +20,7 @@ import type { TierSettings } from '../core/quality';
 import { FINISHES, type AntiTiling, type Finish } from './finishes';
 import type { Lighting } from './lighting';
 import type { MaterialLibrary } from './materials';
+import { GEOMETRY_EXTRAS } from './meshBuilder';
 import { setShaderPatch } from './shaderPatches';
 
 /** Light balance of the realistic look (tuned against the review screenshots). */
@@ -287,6 +288,8 @@ export class RealLook {
         const t = b.clone();
         t.repeat.set(1 / scale, 1 / scale);
         if (f.rotate) t.rotation = Math.PI / 2;
+        // Per-piece UVs (boards, door fronts) live in `uv2` (meshBuilder GEOMETRY_EXTRAS).
+        if (GEOMETRY_EXTRAS[id]?.uv2) t.channel = 2;
         this.clones.push(t);
         return t;
       };

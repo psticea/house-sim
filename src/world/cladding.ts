@@ -14,6 +14,7 @@ import type {
   WoodCladding,
 } from '../data/schema';
 import { pointInPolygon, roofTopY, wallFrame, wallPoint } from '../data/geometry2d';
+import { BOARD_TEXTURE } from './finishes';
 import type { MeshBuilder, V3 } from './meshBuilder';
 import { ringSignedArea } from './meshBuilder';
 import { wallPrism, type WallSpace } from './wallSpace';
@@ -55,6 +56,14 @@ export function insetConvex(poly: readonly Vec2[], d: number): Pt[] {
 }
 
 const area = (p: readonly Pt[]): number => Math.abs(ringSignedArea(p));
+
+/** Deterministic 0…1 hash of a board (zone, piece, channel). */
+export function boardHash(zone: number, piece: number, channel: number): number {
+  let s = Math.imul(zone + 1, 73856093) ^ Math.imul(piece + 1, 19349663) ^ (channel * 83492791);
+  s = Math.imul(s ^ (s >>> 15), 2246822507);
+  s = Math.imul(s ^ (s >>> 13), 3266489909);
+  return ((s ^ (s >>> 16)) >>> 0) / 4294967296;
+}
 
 /** Convex piece minus an axis-aligned rectangle → up to 4 convex pieces. */
 function subtractRect(piece: Pt[], r: { u0: number; u1: number; v0: number; v1: number }): Pt[][] {
@@ -166,14 +175,30 @@ export function buildCladdingFace(
   }));
   const [w0, w1] = out > 0 ? [wFace, wFace + clad.depth] : [wFace - clad.depth, wFace];
   const faces = out > 0 ? 'left' : 'right';
-  for (const zone of clad.zones) {
+  // Each board shows one board of the realistic look's board texture (rows of
+  // `BOARD_TEXTURE.boards` per tile, grain along u): its UVs are shifted so the board's
+  // centre line falls on a texture board's centre, picked per board, at a random point
+  // along the grain — no joints of the texture inside a board, no two boards alike.
+  const axis = Math.abs(ws.ax[0]) > Math.abs(ws.ax[2]) ? 0 : 2;
+  const { tileM, boards } = BOARD_TEXTURE;
+  clad.zones.forEach((zone, zi) => {
     // Vertical boards: grain along the boards (texture UVs turned 90°).
     mesh.swapUv = zone.direction === 'vertical';
-    for (const piece of zoneBoards(zone, clad.joint, rects)) {
+    zoneBoards(zone, clad.joint, rects).forEach((piece, pi) => {
+      const us = piece.map((p) => p[0]);
+      const vs = piece.map((p) => p[1]);
+      const uc = (Math.min(...us) + Math.max(...us)) / 2;
+      const vc = (Math.min(...vs) + Math.max(...vs)) / 2;
+      const across = zone.direction === 'vertical' ? ws.p(uc, vc, 0)[axis] : ws.floorY + vc;
+      const k = Math.floor(boardHash(zi, pi, 1) * boards);
+      const target = ((k + 0.5) / boards) * tileM;
+      const dv = (((target - across) % tileM) + tileM) % tileM;
+      mesh.uvShift = [boardHash(zi, pi, 2) * tileM, dv];
       wallPrism(mesh, clad.material, ws, piece, w0, w1, { faces });
-    }
+    });
+    mesh.uvShift = null;
     mesh.swapUv = false;
-  }
+  });
   // Seams on the metal rake band, from the wood field up to the roof sheet.
   const seams = clad.rakeSeams;
   const dirZ = wallFrame(wall).dir[1];

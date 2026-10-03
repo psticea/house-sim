@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialId } from '../data/schema';
 import { DEFAULT_STYLE, styleNameOf, type StyleName } from '../core/params';
 import { isTouchDevice } from '../core/renderer';
@@ -142,6 +143,53 @@ const edgeCache = new WeakMap<
   THREE.BufferGeometry,
   Map<string, { thin: Float32Array; thick: Float32Array }>
 >();
+
+/**
+ * Materials that exist for the realistic look only and are drawn exactly like their host
+ * in the stylised looks (same palette colour, same lines): `tileWall` (wet-room wall
+ * faces, I4 redo) is plaster. Lines come from host + guests joined (see `edgeGeometry`).
+ */
+export const EDGE_HOSTS: Readonly<Partial<Record<MaterialId, MaterialId>>> = {
+  tileWall: 'plaster',
+};
+
+/** Host geometry joined with its guests' (positions only), per host geometry. */
+const joinedEdges = new WeakMap<
+  THREE.BufferGeometry,
+  { parts: THREE.BufferGeometry[]; joined: THREE.BufferGeometry }
+>();
+
+/**
+ * Geometry whose feature edges `mesh` draws: its own, or for a host material its own
+ * joined with the guest meshes next to it (same parent), so splitting a material for the
+ * realistic look adds no line at the split and drops none across it.
+ */
+function edgeGeometry(mesh: THREE.Mesh, id: MaterialId): THREE.BufferGeometry {
+  const guests = new Set(
+    (Object.entries(EDGE_HOSTS) as [MaterialId, MaterialId][])
+      .filter(([, host]) => host === id)
+      .map(([g]) => g as string),
+  );
+  if (guests.size === 0 || !mesh.parent) return mesh.geometry;
+  const others = mesh.parent.children
+    .filter((o): o is THREE.Mesh => o instanceof THREE.Mesh && o !== mesh && guests.has(o.name))
+    .map((o) => o.geometry);
+  if (others.length === 0) return mesh.geometry;
+  const parts = [mesh.geometry, ...others];
+  const hit = joinedEdges.get(mesh.geometry);
+  if (hit && hit.parts.length === parts.length && hit.parts.every((g, i) => g === parts[i])) {
+    return hit.joined;
+  }
+  const positions = parts.map((g) => {
+    const p = new THREE.BufferGeometry();
+    p.setAttribute('position', g.getAttribute('position'));
+    return g.index ? p.setIndex(g.index).toNonIndexed() : p;
+  });
+  const joined = mergeGeometries(positions) as THREE.BufferGeometry | null;
+  if (!joined) return mesh.geometry;
+  joinedEdges.set(mesh.geometry, { parts, joined });
+  return joined;
+}
 
 export function wantsFatLines(cfg: StyleConfig = SKETCHUP, touch = isTouchDevice()): boolean {
   return cfg.fatLines === 'always' || (cfg.fatLines === 'desktop' && !touch);
@@ -428,18 +476,22 @@ function meshParts(
   parts = [];
   const cfg = cache.cfg;
   const see = original.transparent;
-  const lined = !cfg.noLines.includes(id) && (!see || cfg.linedTransparent.includes(id));
+  // A material split off another one for the realistic look only (wet-room wall tiles):
+  // its edges are drawn with the host's, from the joined geometry → identical lines.
+  const guest = EDGE_HOSTS[id] !== undefined;
+  const lined = !guest && !cfg.noLines.includes(id) && (!see || cfg.linedTransparent.includes(id));
   if (lined) {
+    const geometry = edgeGeometry(mesh, id);
     if (cache.thick && !see) {
-      const { thin, thick } = weightedEdgeSegments(mesh.geometry, cfg);
+      const { thin, thick } = weightedEdgeSegments(geometry, cfg);
       if (thick.length > 0) parts.push(lineObject(thick, cache.thick, `${id}-edges-sharp`));
       if (thin.length > 0) parts.push(lineObject(thin, cache.thin, `${id}-edges`));
     } else {
-      const all = edgeSegments(mesh.geometry, cfg);
+      const all = edgeSegments(geometry, cfg);
       if (all.length > 0) parts.push(lineObject(all, cache.thin, `${id}-edges`));
     }
   }
-  if (cache.hull && cfg.hulls && !see) {
+  if (cache.hull && cfg.hulls && !see && !guest) {
     // `only` lists the hull materials explicitly (they may have no feature lines);
     // otherwise every lined mesh with curved facets gets one.
     const wanted = cfg.hulls.only ? cfg.hulls.only.includes(id) : !cfg.noLines.includes(id);

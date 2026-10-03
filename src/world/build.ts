@@ -17,7 +17,7 @@ import { buildOpening } from './openings';
 import { buildChimney, buildRoof } from './roof';
 import { buildSlab } from './slabs';
 import { buildStairs } from './stairs';
-import { buildWall } from './walls';
+import { buildWall, WET_ROOMS, type WallBuildContext } from './walls';
 
 export interface BuiltWorld {
   group: THREE.Group;
@@ -38,9 +38,10 @@ export function buildGeometry(
 ): { mesh: MeshBuilder; collider: MeshBuilder } {
   const mesh = new MeshBuilder();
   const collider = new MeshBuilder();
-  const ctx = { mesh, collider, roof: model.roof };
+  const ctx: WallBuildContext = { mesh, collider, roof: model.roof };
 
   for (const level of model.levels) {
+    ctx.wetRooms = level.rooms.filter((r) => WET_ROOMS.has(r.id)).map((r) => r.polygon);
     const byWall = new Map<string, Opening[]>();
     for (const o of level.openings) {
       const list = byWall.get(o.wall) ?? [];

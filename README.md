@@ -131,22 +131,37 @@ Three looks of the same scene; only materials, lights and rendering settings dif
 - CC0 sources only (Poly Haven, ambientCG) — the list with URLs and authors is in
   [`assets-src/LICENSES.md`](assets-src/LICENSES.md). The downloaded originals live in
   `assets-src/` (git-ignored); only the optimised files in `public/assets/` are tracked
-  (≈ 16.6 MB for all three tiers).
+  (textures ≈ 19.3 MB for all three tiers, + sky and bake).
 - `npm run assets:fetch` downloads the originals (`tools/fetch-assets.mjs`, config in
   `tools/assets.config.mjs`); `npm run assets:optimize` (`tools/optimize-assets.mjs`,
   Node only, `ktx2-encoder` WASM) resizes per tier, normalises each albedo to its target
-  tint and encodes **KTX2**: Basis ETC1S for albedo and ORM (occlusion / roughness /
-  metalness), UASTC + zstd for normal maps; it also generates the standing-seam metal
-  normals, a fine micro-normal, and the sky (`public/assets/sky/`: UASTC 2K background +
-  1K JPEG for the PMREM environment). Output: `public/assets/textures/<set>/<map>-<px>.ktx2`
-  and `manifest.json`. `REUSE=1` skips files that already exist.
+  tint (`sat` / `contrast` tone down hue / luminance variation) and encodes **KTX2**:
+  Basis ETC1S for albedo and ORM (occlusion / roughness / metalness), UASTC + zstd for
+  normal maps; it also generates the standing-seam metal normals, fine and brushed-metal
+  micro-normals, and the sky (`public/assets/sky/`: UASTC 2K background + 1K JPEG for the
+  PMREM environment). Sets with `derive` are patterned from their scan: `tiles` (60 × 120
+  travertine-look tiles with grout) and `boards` (26 cm timber boards with joints);
+  `fabric` sets (linen, wool, cane) ship albedo + normal only, `sizes` overrides a map's
+  size per tier. Output: `public/assets/textures/<set>/<map>-<px>.ktx2` and
+  `manifest.json`. `node tools/optimize-assets.mjs tile,linen` re-encodes only those
+  sets; `REUSE=1` skips files that already exist; `PREVIEW=1` writes full-size PNGs of
+  the maps to `test-results/tex-preview/` instead of encoding (look-dev).
+- Texture memory per tier is computed offline from the manifest and the finishes
+  (`src/world/textureBudget.ts`, checked by `tests/materials.test.ts`: phones low ≤ 40,
+  medium ≤ 70, high ≤ 120 MB; desktop BC7 medium ≤ 75 MB).
 - Runtime: `src/core/assets.ts` (three's `KTX2Loader`; the Basis transcoder is bundled
   from three by Vite — no CDN), `src/world/finishes.ts` (**one finish per material id**:
   colour, roughness, texture set, real-world tile size, anti-tiling, normal strength —
   the place to tune the look), `src/world/realLook.ts` (texture streaming, anti-tiling
   shader patch, HDRI environment, reflection probes, eye adaptation, light constants
   `REAL_LIGHT`). UVs are world-space metres, so every set is scaled to its real size
-  (parquet boards ≈ 18 cm, tiles 60 × 60 cm).
+  (parquet boards ≈ 18 cm, tiles 60 × 120 cm, facade boards 26 cm, deck boards 15 cm).
+  Wet rooms (both bathrooms, boiler / laundry) get tiled walls: their plaster wall
+  faces are split at the room boundary into the `tileWall` material (`walls.ts`), drawn
+  exactly like plaster in the stylised looks (`EDGE_HOSTS` in `style.ts`). Joinery
+  fronts and the west-gable boards get a per-piece `uv2` offset (own piece of the
+  grain), carcass faces behind door reveals a darker vertex colour (`GEOMETRY_EXTRAS`
+  in `meshBuilder.ts`) — both read by the realistic look only.
 - Tone mapping: ACES filmic (AgX and Neutral were compared with the textures: AgX looked
   greyer and washed out, Neutral flatter).
 

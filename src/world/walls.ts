@@ -3,15 +3,129 @@
  * gable, with notches for openings that start at the wall base and rectangular holes
  * for the others) extruded across the layer depth. Hole edges become reveals.
  */
-import type { MaterialId, Opening, Roof, Vec2, Wall } from '../data/schema';
-import { isPassable, wallTopAt, wallTopProfile } from '../data/geometry2d';
+import * as THREE from 'three';
+import type { MaterialId, Opening, Polygon, Roof, Vec2, Wall } from '../data/schema';
+import { isPassable, pointInPolygon, wallTopAt, wallTopProfile } from '../data/geometry2d';
 import type { MeshBuilder, V3 } from './meshBuilder';
-import { buildCladdingFace } from './cladding';
+import { buildCladdingFace, clipHalfPlane } from './cladding';
 import { wallSpace, type WallSpace } from './wallSpace';
 
 const EPS = 1e-6;
 
 type Pt = [number, number];
+
+/** Wet rooms (plans: gresie in the bathrooms and the boiler room): tiled wall faces. */
+export const WET_ROOMS: ReadonlySet<string> = new Set([
+  'bathroom',
+  'upper-bathroom',
+  'boiler-laundry',
+]);
+
+/**
+ * Stretches (u ranges) of a wall face at depth `w` (outward normal `n` = ±1 along the
+ * wall's left axis) that bound one of the `rooms`: a point 2 cm in front of the face
+ * lies inside the room polygon.
+ */
+export function faceRoomIntervals(
+  ws: WallSpace,
+  w: number,
+  n: 1 | -1,
+  rooms: readonly Polygon[],
+): [number, number][] {
+  if (rooms.length === 0) return [];
+  const at = (u: number): Vec2 => {
+    const p = ws.p(u, 0, w + n * 0.02);
+    return [p[0], p[2]];
+  };
+  const a = at(0);
+  const b = at(ws.length);
+  const cuts = new Set<number>([0, ws.length]);
+  for (const poly of rooms) {
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i]!;
+      const q = poly[(i + 1) % poly.length]!;
+      // Segment a→b (parameter t) against edge p→q (parameter s).
+      const rx = b[0] - a[0];
+      const rz = b[1] - a[1];
+      const sx = q[0] - p[0];
+      const sz = q[1] - p[1];
+      const den = rx * sz - rz * sx;
+      if (Math.abs(den) < 1e-12) continue;
+      const t = ((p[0] - a[0]) * sz - (p[1] - a[1]) * sx) / den;
+      const s = ((p[0] - a[0]) * rz - (p[1] - a[1]) * rx) / den;
+      if (t > 0 && t < 1 && s >= -1e-9 && s <= 1 + 1e-9) cuts.add(t * ws.length);
+    }
+  }
+  const sorted = [...cuts].sort((x, y) => x - y);
+  const out: [number, number][] = [];
+  for (let i = 0; i + 1 < sorted.length; i++) {
+    const u0 = sorted[i]!;
+    const u1 = sorted[i + 1]!;
+    if (u1 - u0 < 1e-4) continue;
+    const [mx, mz] = at((u0 + u1) / 2);
+    if (!rooms.some((poly) => pointInPolygon(mx, mz, poly))) continue;
+    const last = out[out.length - 1];
+    if (last && Math.abs(last[1] - u0) < 1e-6) last[1] = u1;
+    else out.push([u0, u1]);
+  }
+  return out;
+}
+
+/**
+ * One flat face of a wall layer. Plaster faces of wet rooms are split along the wall at
+ * the room boundaries (triangles clipped at those u values) and the parts inside get
+ * `tileWall`.
+ */
+function wallFace(
+  mesh: MeshBuilder,
+  material: MaterialId,
+  ws: WallSpace,
+  outline: Pt[],
+  holes: Pt[][],
+  w: number,
+  n: 1 | -1,
+  wetRooms: readonly Polygon[],
+): void {
+  const normal: V3 = [ws.aw[0] * n, 0, ws.aw[2] * n];
+  const toWorld = (u: number, v: number): V3 => ws.p(u, v, w);
+  const wet = material === 'plaster' ? faceRoomIntervals(ws, w, n, wetRooms) : [];
+  if (wet.length === 0) {
+    mesh.polygon(material, outline, holes, toWorld, normal);
+    return;
+  }
+  const contour = outline.map(([u, v]) => new THREE.Vector2(u, v));
+  const holeVecs = holes.map((h) => h.map(([u, v]) => new THREE.Vector2(u, v)));
+  const all = [...contour, ...holeVecs.flat()];
+  const cuts = wet.flat();
+  const inWet = (u: number): boolean => wet.some(([u0, u1]) => u > u0 && u < u1);
+  for (const face of THREE.ShapeUtils.triangulateShape(contour, holeVecs)) {
+    const tri: Pt[] = face.map((i) => [all[i]!.x, all[i]!.y]);
+    const us = tri.map((p) => p[0]);
+    const lo = Math.min(...us);
+    const hi = Math.max(...us);
+    const inside = [lo, ...cuts.filter((c) => c > lo + EPS && c < hi - EPS), hi];
+    for (let k = 0; k + 1 < inside.length; k++) {
+      let piece = clipHalfPlane(tri, [1, 0], inside[k]!);
+      piece = clipHalfPlane(piece, [-1, 0], -inside[k + 1]!);
+      if (piece.length < 3) continue;
+      let area2 = 0;
+      for (let j = 0; j < piece.length; j++) {
+        const p = piece[j]!;
+        const q = piece[(j + 1) % piece.length]!;
+        area2 += p[0] * q[1] - q[0] * p[1];
+      }
+      if (Math.abs(area2) < 1e-9) continue;
+      const mat: MaterialId = inWet((inside[k]! + inside[k + 1]!) / 2) ? 'tileWall' : material;
+      const bucket = mesh.bucket(mat);
+      for (let j = 1; j + 1 < piece.length; j++) {
+        const p0 = piece[0]!;
+        const p1 = piece[j]!;
+        const p2 = piece[j + 1]!;
+        bucket.tri(toWorld(p0[0], p0[1]), toWorld(p1[0], p1[1]), toWorld(p2[0], p2[1]), normal);
+      }
+    }
+  }
+}
 
 /** Remove duplicate and collinear points (including back-tracking spikes). */
 export function cleanRing(ring: Pt[]): Pt[] {
@@ -82,6 +196,8 @@ export interface WallBuildContext {
   mesh: MeshBuilder;
   collider: MeshBuilder;
   roof: Roof;
+  /** Wet rooms of the wall's level (their plaster wall faces get `tileWall`). */
+  wetRooms?: readonly Polygon[];
 }
 
 function sillMaterial(o: Opening, fallback: MaterialId, interior: boolean): MaterialId {
@@ -109,8 +225,7 @@ export function buildWall(
       const ub = ws.length - (layer.trimEnd ?? 0);
       const { outline, holes } = wallOutline(wall, openings, profile, ua, ub);
       const holeRings = holes.map((h) => h.ring);
-      const leftN: V3 = ws.aw;
-      const rightN: V3 = [-ws.aw[0], 0, -ws.aw[2]];
+      const wet = ctx.wetRooms ?? [];
       const clad = wall.cladding;
       if (li === 0) {
         if (clad && ws.outside === 'left') {
@@ -127,7 +242,7 @@ export function buildWall(
             1,
           );
         } else {
-          ctx.mesh.polygon(layer.material, outline, holeRings, (u, v) => ws.p(u, v, wLeft), leftN);
+          wallFace(ctx.mesh, layer.material, ws, outline, holeRings, wLeft, 1, wet);
         }
       }
       if (li === wall.layers.length - 1) {
@@ -145,13 +260,7 @@ export function buildWall(
             -1,
           );
         } else {
-          ctx.mesh.polygon(
-            layer.material,
-            outline,
-            holeRings,
-            (u, v) => ws.p(u, v, wRight),
-            rightN,
-          );
+          wallFace(ctx.mesh, layer.material, ws, outline, holeRings, wRight, -1, wet);
         }
       }
       const edges = (ring: Pt[], isHole: boolean, opening?: Opening): void => {

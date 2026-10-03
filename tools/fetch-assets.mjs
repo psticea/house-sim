@@ -41,7 +41,7 @@ async function polyHaven(set) {
       : [
           ['Diffuse', 'jpg', 'albedo.jpg'],
           ['nor_gl', 'png', 'normal.png'],
-          ['arm', 'jpg', 'arm.jpg'],
+          ...(set.kind === 'fabric' ? [] : [['arm', 'jpg', 'arm.jpg']]),
         ];
   for (const [map, fmt, name] of want) {
     const url = pick(map, fmt);
@@ -115,9 +115,15 @@ this file with \`node tools/fetch-assets.mjs\`.
 |---|---|---|---|---|---|
 ${rows.join('\n')}
 
+Derived in code by \`tools/optimize-assets.mjs\` from the CC0 sources above (the
+derived maps are CC0 as well): \`tile\` (60 × 120 cm stack-bond tiles with grout lines cut
+from the travertine scan) and \`extwood\` (rows of 26 cm boards cut from the teak veneer
+scan, per-board tone, dark joints). Albedos are re-toned to the plan.md §6.1 palette.
+
 Generated in code by \`tools/optimize-assets.mjs\` (no source asset, CC0 as part of
-this repository): \`metal\` / \`metal-flat\` (standing-seam sheet normal maps) and
-\`detail-fine\` (fine paint / clay / leaf micro-normal).
+this repository): \`metal\` / \`metal-flat\` (standing-seam sheet normal maps),
+\`detail-fine\` (fine paint / clay / leaf micro-normal) and \`detail-brushed\` (brushed
+metal streaks for brass / steel).
 
 Runtime: the Basis Universal transcoder is the one shipped with three.js
 (\`examples/jsm/libs/basis/\`, Apache-2.0, © Binomial LLC), bundled by Vite into our build.

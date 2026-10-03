@@ -95,6 +95,44 @@ const POSES = [
   ['fu-study-side', 'pose', [7.6, 2.95, 1.95, -49, -14]],
   ['fu-kitchen-front', 'pose', [13.0, 0, 3.4, 0, 4]],
   ['fu-kitchen-angle', 'pose', [15.9, 0, 3.3, 57, 2]],
+  // I4 redo (textures): every room + exterior / garden close-ups. Saved as
+  // tx-<pose>[-<style> unless real]<suffix>.png (suffix e.g. -before / -after).
+  ['tx-start', 'start', null],
+  ['tx-hall', 'pose', [9.1, 0, 2.3, 58, -8]],
+  ['tx-hall-corridor', 'pose', [4.0, 0, 3.0, -85, -6]],
+  ['tx-living', 'pose', [13.9, 0, 6.85, 15, -8]],
+  ['tx-living-b', 'pose', [14.9, 0, 3.3, 128, -12]],
+  ['tx-living-ceiling', 'pose', [12.6, 0, 6.6, 0, 38]],
+  ['tx-kitchen', 'pose', [13.0, 0, 3.4, 0, 4]],
+  ['tx-kitchen-close', 'pose', [14.6, 0, 2.2, 0, -22]],
+  ['tx-dining', 'pose', [16.15, 0, 3.4, 62, -14]],
+  ['tx-play', 'pose', [12.4, 0, 3.4, 130, -18]],
+  ['tx-bed1', 'pose', [1.9, 0, 2.3, -60, -14]],
+  ['tx-bed2', 'pose', [4.2, 0, 4.5, 105, -12]],
+  ['tx-bath', 'pose', [5.55, 0, 4.4, -168, -18]],
+  ['tx-bath-north', 'pose', [5.6, 0, 6.0, -12, -12]],
+  ['tx-boiler', 'pose', [5.6, 0, 2.15, -25, -14]],
+  ['tx-stairs', 'pose', [8.9, 0, 3.0, 180, 10]],
+  ['tx-bed3', 'pose', [4.0, 2.95, 3.2, 103, -10]],
+  ['tx-study', 'pose', [7.6, 2.95, 1.95, -49, -14]],
+  ['tx-upper-bath', 'pose', [5.75, 2.95, 4.25, 160, -20]],
+  ['tx-upper-shower', 'pose', [5.45, 2.95, 5.9, -35, -10]],
+  ['tx-upper-hall', 'pose', [5.3, 2.95, 3.0, -90, -6]],
+  ['tx-storage', 'pose', [9.9, -2.53, 6.5, -50, -12]],
+  ['tx-west', 'pose', [-5.6, -0.1, 3.6, -90, 16]],
+  ['tx-west-close', 'pose', [-1.6, -0.1, 1.6, -125, 8]],
+  ['tx-north', 'pose', [7.5, -0.05, -6.5, 160, 12]],
+  ['tx-north-close', 'pose', [11.9, -0.05, -0.63, -90, -4]],
+  ['tx-south', 'pose', [9.0, -0.1, 14.2, 0, 14]],
+  ['tx-south-close', 'pose', [8.8, -0.1, 9.9, -105, -6]],
+  ['tx-east', 'pose', [24.5, -0.1, 3.6, 90, 8]],
+  ['tx-aerial', 'view', [-14, 14, -12, -135, -30]],
+  ['tx-aerial-se', 'view', [30, 12, 20, 55, -22]],
+  ['tx-terrace', 'pose', [19.3, 0, 7.4, 20, -14]],
+  ['tx-deck', 'pose', [18.9, 0, 4.8, -90, -34]],
+  ['tx-paving', 'pose', [-7.8, -0.2, 19.5, 5, -24]],
+  ['tx-lawn', 'pose', [8.8, -0.1, 9.9, -105, -35]],
+  ['tx-fence', 'pose', [20.3, -0.1, 9.5, -25, -4]],
   // The start view with the style menu open (UI check).
   ['menu', 'menu', null],
 ];
@@ -140,7 +178,8 @@ for (const style of styles) {
   if (style === 'real') await page.evaluate(() => window.__houseSim.texturesReady());
   const start = await page.evaluate(() => window.__houseSim.getPlayer());
   for (const [name, kind, pose] of POSES) {
-    if (only.length && !only.includes(name)) continue;
+    if (only.length && !only.includes(name) && !(only.includes('tx') && name.startsWith('tx-')))
+      continue;
     await page.evaluate(
       async ([k, p, s]) => {
         const h = window.__houseSim;
@@ -152,7 +191,13 @@ for (const style of styles) {
       [kind, pose, start],
     );
     if (kind === 'menu') await page.locator('.style-pill').click();
-    const base = /^fu(rn)?-/.test(name) ? `${name}-${style}` : `${style}-${name}`;
+    const base = /^tx-/.test(name)
+      ? style === 'real'
+        ? name
+        : `${name}-${style}`
+      : /^fu(rn)?-/.test(name)
+        ? `${name}-${style}`
+        : `${style}-${name}`;
     const file = path.join(outDir, `${base}${phone ? '-phone' : ''}${suffix}.png`);
     await page.screenshot({ path: file, timeout: 180000 });
     const s = await page.evaluate(() => window.__houseSim.getStats());

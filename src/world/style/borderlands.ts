@@ -77,6 +77,7 @@ export const BORDERLANDS: StyleConfig = {
     lawn: 'grass',
     field: 'grass',
     plaster: 'paint',
+    tileWall: 'paint',
     plasterExterior: 'paint',
     cladWood: 'paint',
     cladMetal: 'paint',

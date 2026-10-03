@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import type { MaterialId } from '../data/schema';
 import { FINISHES } from './finishes';
+import { GEOMETRY_EXTRAS } from './meshBuilder';
 
 interface MaterialSpec {
   color: string;
@@ -31,6 +32,8 @@ export const PALETTE: Record<MaterialId, MaterialSpec> = {
   oak: { color: '#D8B98E', roughness: 0.8, castShadow: true },
   tile: { color: '#CBC5BC', roughness: 0.45, castShadow: true },
   tileUtility: { color: '#D6D5D1', roughness: 0.5, castShadow: true },
+  // Wet-room wall tiles (I4 redo): the stylised looks draw them exactly like plaster.
+  tileWall: { color: '#F4F1EA', roughness: 0.92, castShadow: true },
   frame: { color: '#383E42', roughness: 0.55, castShadow: true },
   doorLeaf: { color: '#F2F0EB', roughness: 0.6, castShadow: true },
   glass: {
@@ -96,6 +99,8 @@ export function createMaterials(): MaterialLibrary {
       opacity: spec.opacity ?? 1,
       side: spec.side ?? THREE.FrontSide,
       depthWrite: !(spec.transparent ?? false),
+      // Cavity shade of the reveals between doors (meshBuilder GEOMETRY_EXTRAS).
+      vertexColors: GEOMETRY_EXTRAS[id]?.color ?? false,
     });
     if (id === 'glass') {
       // Reflections are added at full strength (premultiplied "over"): the dark,

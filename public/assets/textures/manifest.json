@@ -32,7 +32,7 @@
     },
     "tile": {
       "kind": "hero",
-      "sizeM": 2.2,
+      "sizeM": 2.4,
       "maps": {
         "albedo": {
           "low": "tile/albedo-1024.ktx2",
@@ -51,18 +51,18 @@
         }
       },
       "bytes": {
-        "tile/albedo-1024.ktx2": 219845,
-        "tile/albedo-2048.ktx2": 803687,
-        "tile/normal-512.ktx2": 154432,
-        "tile/normal-1024.ktx2": 524908,
-        "tile/orm-512.ktx2": 38684,
-        "tile/orm-1024.ktx2": 130346
+        "tile/albedo-1024.ktx2": 192251,
+        "tile/albedo-2048.ktx2": 699681,
+        "tile/normal-512.ktx2": 77774,
+        "tile/normal-1024.ktx2": 357828,
+        "tile/orm-512.ktx2": 26944,
+        "tile/orm-1024.ktx2": 87606
       },
-      "tint": "#CDBFA7"
+      "tint": "#D2C4AC"
     },
     "extwood": {
       "kind": "hero",
-      "sizeM": 1.5,
+      "sizeM": 2.08,
       "maps": {
         "albedo": {
           "low": "extwood/albedo-1024.ktx2",
@@ -81,14 +81,14 @@
         }
       },
       "bytes": {
-        "extwood/albedo-1024.ktx2": 230216,
-        "extwood/albedo-2048.ktx2": 825077,
-        "extwood/normal-512.ktx2": 120783,
-        "extwood/normal-1024.ktx2": 506643,
-        "extwood/orm-512.ktx2": 21816,
-        "extwood/orm-1024.ktx2": 81159
+        "extwood/albedo-1024.ktx2": 199948,
+        "extwood/albedo-2048.ktx2": 737531,
+        "extwood/normal-512.ktx2": 80418,
+        "extwood/normal-1024.ktx2": 285489,
+        "extwood/orm-512.ktx2": 30288,
+        "extwood/orm-1024.ktx2": 131671
       },
-      "tint": "#A9825A"
+      "tint": "#B48A5C"
     },
     "woodgrain": {
       "kind": "standard",
@@ -131,7 +131,7 @@
         },
         "normal": {
           "low": "pavers/normal-512.ktx2",
-          "medium": "pavers/normal-1024.ktx2",
+          "medium": "pavers/normal-512.ktx2",
           "high": "pavers/normal-1024.ktx2"
         },
         "orm": {
@@ -191,7 +191,7 @@
         },
         "normal": {
           "low": "stone/normal-512.ktx2",
-          "medium": "stone/normal-1024.ktx2",
+          "medium": "stone/normal-512.ktx2",
           "high": "stone/normal-1024.ktx2"
         },
         "orm": {
@@ -376,7 +376,7 @@
       "maps": {
         "normal": {
           "low": "metal/normal-512.ktx2",
-          "medium": "metal/normal-1024.ktx2",
+          "medium": "metal/normal-512.ktx2",
           "high": "metal/normal-1024.ktx2"
         }
       },
@@ -391,13 +391,12 @@
       "maps": {
         "normal": {
           "low": "metal-flat/normal-512.ktx2",
-          "medium": "metal-flat/normal-1024.ktx2",
-          "high": "metal-flat/normal-1024.ktx2"
+          "medium": "metal-flat/normal-512.ktx2",
+          "high": "metal-flat/normal-512.ktx2"
         }
       },
       "bytes": {
-        "metal-flat/normal-512.ktx2": 15966,
-        "metal-flat/normal-1024.ktx2": 28901
+        "metal-flat/normal-512.ktx2": 15966
       }
     },
     "detail-fine": {
@@ -412,6 +411,117 @@
       },
       "bytes": {
         "detail-fine/normal-512.ktx2": 142101
+      }
+    },
+    "travertine": {
+      "kind": "standard",
+      "sizeM": 1.2,
+      "maps": {
+        "albedo": {
+          "low": "travertine/albedo-512.ktx2",
+          "medium": "travertine/albedo-1024.ktx2",
+          "high": "travertine/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "travertine/normal-512.ktx2",
+          "medium": "travertine/normal-512.ktx2",
+          "high": "travertine/normal-1024.ktx2"
+        },
+        "orm": {
+          "low": "travertine/orm-512.ktx2",
+          "medium": "travertine/orm-512.ktx2",
+          "high": "travertine/orm-512.ktx2"
+        }
+      },
+      "bytes": {
+        "travertine/albedo-512.ktx2": 79342,
+        "travertine/albedo-1024.ktx2": 208905,
+        "travertine/normal-512.ktx2": 104157,
+        "travertine/normal-1024.ktx2": 399891,
+        "travertine/orm-512.ktx2": 29013
+      },
+      "tint": "#D9CBB5"
+    },
+    "linen": {
+      "kind": "fabric",
+      "sizeM": 2.7,
+      "maps": {
+        "albedo": {
+          "low": "linen/albedo-512.ktx2",
+          "medium": "linen/albedo-512.ktx2",
+          "high": "linen/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "linen/normal-512.ktx2",
+          "medium": "linen/normal-512.ktx2",
+          "high": "linen/normal-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "linen/albedo-512.ktx2": 81099,
+        "linen/albedo-1024.ktx2": 212382,
+        "linen/normal-512.ktx2": 96612,
+        "linen/normal-1024.ktx2": 537208
+      },
+      "tint": "#E3D9CA"
+    },
+    "wool": {
+      "kind": "fabric",
+      "sizeM": 1,
+      "maps": {
+        "albedo": {
+          "low": "wool/albedo-512.ktx2",
+          "medium": "wool/albedo-512.ktx2",
+          "high": "wool/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "wool/normal-512.ktx2",
+          "medium": "wool/normal-512.ktx2",
+          "high": "wool/normal-512.ktx2"
+        }
+      },
+      "bytes": {
+        "wool/albedo-512.ktx2": 82974,
+        "wool/albedo-1024.ktx2": 233307,
+        "wool/normal-512.ktx2": 316083
+      },
+      "tint": "#BFAE98"
+    },
+    "cane": {
+      "kind": "fabric",
+      "sizeM": 1,
+      "maps": {
+        "albedo": {
+          "low": "cane/albedo-512.ktx2",
+          "medium": "cane/albedo-512.ktx2",
+          "high": "cane/albedo-1024.ktx2"
+        },
+        "normal": {
+          "low": "cane/normal-512.ktx2",
+          "medium": "cane/normal-512.ktx2",
+          "high": "cane/normal-1024.ktx2"
+        }
+      },
+      "bytes": {
+        "cane/albedo-512.ktx2": 62913,
+        "cane/albedo-1024.ktx2": 212442,
+        "cane/normal-512.ktx2": 175480,
+        "cane/normal-1024.ktx2": 713961
+      },
+      "tint": "#C4A26F"
+    },
+    "detail-brushed": {
+      "kind": "detail",
+      "sizeM": 0.25,
+      "maps": {
+        "normal": {
+          "low": "detail-brushed/normal-512.ktx2",
+          "medium": "detail-brushed/normal-512.ktx2",
+          "high": "detail-brushed/normal-512.ktx2"
+        }
+      },
+      "bytes": {
+        "detail-brushed/normal-512.ktx2": 22822
       }
     }
   },

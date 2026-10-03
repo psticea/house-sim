@@ -23,6 +23,7 @@ export type MaterialId =
   | 'oak' // parquet
   | 'tile' // bathroom porcelain tiles
   | 'tileUtility' // boiler / laundry tiles
+  | 'tileWall' // tiled interior wall faces of the wet rooms (bathrooms, boiler / laundry)
   | 'frame' // exterior window & door frames, curtain-wall profiles, RAL 7016
   | 'doorLeaf' // interior door leaves
   | 'glass'

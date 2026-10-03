@@ -76,8 +76,9 @@ function resize(im, size) {
   return { width: size, height: size, data: d.data };
 }
 
-/** Mean colour → `tint` (linear light), hue variation scaled by `sat`. */
-function tintAlbedo(im, hex, sat = 1) {
+/** Mean colour → `tint` (linear light), hue variation scaled by `sat`, luminance
+ *  variation around the mean scaled by `contrast`. */
+function tintAlbedo(im, hex, sat = 1, contrast = 1) {
   const t = [1, 3, 5].map((i) => toLin(parseInt(hex.slice(i, i + 2), 16) / 255));
   const d = im.data;
   const mean = [0, 0, 0];
@@ -95,10 +96,11 @@ function tintAlbedo(im, hex, sat = 1) {
     const r = LUT[d[i]];
     const g = LUT[d[i + 1]];
     const b = LUT[d[i + 2]];
-    const l = lum(r, g, b) / ml;
+    const l0 = lum(r, g, b) / ml;
+    const l = 1 + (l0 - 1) * contrast;
     const px = [r / mean[0], g / mean[1], b / mean[2]];
     for (let k = 0; k < 3; k++) {
-      const v = t[k] * (l + (px[k] - l) * sat);
+      const v = t[k] * (l + (px[k] - l0) * sat);
       out[i + k] = Math.round(toSrgb(Math.min(1, Math.max(0, v))) * 255);
     }
     out[i + 3] = 255;
@@ -247,10 +249,20 @@ const manifest = fs.existsSync(path.join(TEX, 'manifest.json'))
   : { sets: {} };
 
 async function writeMaps(id, kind, sizeM, sources, set = {}) {
+  if (process.env.PREVIEW) {
+    // PREVIEW=1: full-resolution PNGs of the maps for a look, no encoding.
+    const dir = path.join(ROOT, 'test-results', 'tex-preview');
+    fs.mkdirSync(dir, { recursive: true });
+    for (const [map, im] of Object.entries(sources))
+      fs.writeFileSync(path.join(dir, `${id}-${map}.png`), toCanvas(im).toBuffer('image/png'));
+    return;
+  }
   const sizes = structuredClone(TIER_SIZES[kind]);
   if (set.albedoHigh && sizes.albedo) sizes.albedo.high = set.albedoHigh;
   if (set.normalMax && sizes.normal)
     for (const t of TIERS) sizes.normal[t] = Math.min(sizes.normal[t], set.normalMax);
+  for (const [map, tiers] of Object.entries(set.sizes ?? {}))
+    if (sizes[map]) Object.assign(sizes[map], tiers);
   const entry = { kind, sizeM, maps: {}, bytes: {} };
   for (const [map, tiers] of Object.entries(sizes)) {
     const src = sources[map];
@@ -288,27 +300,246 @@ async function sourceSet(set) {
         normal: `${set.acg}_2K-JPG_NormalGL.jpg`,
         ao: `${set.acg}_2K-JPG_AmbientOcclusion.jpg`,
         rough: `${set.acg}_2K-JPG_Roughness.jpg`,
+        opacity: `${set.acg}_2K-JPG_Opacity.jpg`,
       };
   const sources = {};
   sources.normal = await readImage(path.join(dir, f.normal));
   if (set.kind !== 'detail') {
-    sources.albedo = tintAlbedo(await readImage(path.join(dir, f.albedo)), set.tint, set.sat);
-    if (f.orm) {
+    let albedo = await readImage(path.join(dir, f.albedo));
+    // Woven sets with holes (wicker): what shows through the gaps is shadow, not the
+    // scan's background colour.
+    if (f.opacity && fs.existsSync(path.join(dir, f.opacity))) {
+      const op = await readImage(path.join(dir, f.opacity));
+      const d = albedo.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const a = op.data[i] / 255;
+        d[i] = d[i] * a + 46 * (1 - a);
+        d[i + 1] = d[i + 1] * a + 34 * (1 - a);
+        d[i + 2] = d[i + 2] * a + 24 * (1 - a);
+      }
+    }
+    sources.albedo = tintAlbedo(albedo, set.tint, set.sat, set.contrast);
+    if (set.kind === 'fabric') {
+      // no ORM: matte textiles take their roughness from the finish
+    } else if (f.orm) {
       sources.orm = await readImage(path.join(dir, f.orm));
     } else {
-      const ao = await readImage(path.join(dir, f.ao));
       const ro = await readImage(path.join(dir, f.rough));
-      const d = new Uint8ClampedArray(ao.data.length);
+      const ao = fs.existsSync(path.join(dir, f.ao)) ? await readImage(path.join(dir, f.ao)) : null;
+      const d = new Uint8ClampedArray(ro.data.length);
       for (let i = 0; i < d.length; i += 4) {
-        d[i] = ao.data[i];
+        d[i] = ao ? ao.data[i] : 255;
         d[i + 1] = ro.data[i];
         d[i + 2] = 0;
         d[i + 3] = 255;
       }
-      sources.orm = { width: ao.width, height: ao.height, data: d };
+      sources.orm = { width: ro.width, height: ro.height, data: d };
     }
   }
+  if (set.derive?.type === 'tiles')
+    Object.assign(sources, deriveTiles(sources, set.derive, set.sizeM));
+  if (set.derive?.type === 'boards')
+    Object.assign(sources, deriveBoards(sources, set.derive, set.sizeM));
   await writeMaps(set.id, set.kind, set.sizeM, sources, set);
+}
+
+// ---------------------------------------------------------------- derived sets
+/** Deterministic 0…1 hash of (i, seed). */
+function hash01(i, seed) {
+  let s = (Math.imul(i + 1, 2654435761) ^ Math.imul(seed + 7, 1597334677)) >>> 0;
+  s = Math.imul(s ^ (s >>> 15), 2246822507) >>> 0;
+  s = Math.imul(s ^ (s >>> 13), 3266489909) >>> 0;
+  return ((s ^ (s >>> 16)) >>> 0) / 4294967296;
+}
+
+const hexLin = (hex) => [1, 3, 5].map((i) => toLin(parseInt(hex.slice(i, i + 2), 16) / 255));
+const linByte = (v) => Math.round(toSrgb(Math.min(1, Math.max(0, v))) * 255);
+
+/** Unit normal (x, y, z in −1…1) of an 8-bit normal map pixel. */
+function readN(d, i) {
+  return [d[i] / 127.5 - 1, d[i + 1] / 127.5 - 1, d[i + 2] / 127.5 - 1];
+}
+
+/** Writes `n` (detail) layered on `base` (whiteout blend) into d[i…]. */
+function writeN(d, i, base, n) {
+  const x = base[0] + n[0];
+  const y = base[1] + n[1];
+  const z = base[2] * n[2];
+  const l = Math.hypot(x, y, z) || 1;
+  d[i] = Math.round((x / l + 1) * 127.5);
+  d[i + 1] = Math.round((y / l + 1) * 127.5);
+  d[i + 2] = Math.round((z / l + 1) * 127.5);
+  d[i + 3] = 255;
+}
+
+/** Normal of a height field h (px units) at (x, y): +y up the image. */
+function heightNormal(h, w, hgt, x, y, strength) {
+  const at = (xx, yy) => h[((yy + hgt) % hgt) * w + ((xx + w) % w)];
+  const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
+  const dy = (at(x, y - 1) - at(x, y + 1)) * strength;
+  const l = Math.hypot(dx, dy, 1);
+  return [-dx / l, -dy / l, 1 / l];
+}
+
+/**
+ * Stack-bond tiles (`columns` × `rows` per texture tile, e.g. 4 × 2 → 60 × 120 cm on a
+ * 2.4 m tile) cut from a stone scan at half its resolution (the scan covers half the
+ * tile's size), each from another spot, some turned 180°, ±4 % tone; grout lines with a
+ * slight arris on the tiles (normal) and AO / roughness in the joints.
+ */
+function deriveTiles(src, d, sizeM) {
+  const N = src.albedo.width;
+  const tw = N / d.columns;
+  const th = N / d.rows;
+  const pxM = sizeM / N;
+  const gHalf = d.groutM / pxM / 2;
+  const bevel = 1.6;
+  const grout = hexLin(d.grout);
+  const albedo = new Uint8ClampedArray(N * N * 4);
+  const normal = new Uint8ClampedArray(N * N * 4);
+  const orm = new Uint8ClampedArray(N * N * 4);
+  const height = new Float32Array(N * N);
+  const cover = new Float32Array(N * N);
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const lx = x % tw;
+      const ly = y % th;
+      const edge = Math.min(lx + 0.5, tw - lx - 0.5, ly + 0.5, th - ly - 0.5);
+      cover[y * N + x] = Math.min(1, Math.max(0, edge - gHalf + 0.5));
+      height[y * N + x] = Math.min(1, Math.max(0, (edge - gHalf) / bevel));
+    }
+  const S = src.albedo.width;
+  for (let r = 0; r < d.rows; r++)
+    for (let c = 0; c < d.columns; c++) {
+      const k = r * d.columns + c;
+      const ox = Math.floor(hash01(k, 1) * S);
+      const oy = Math.floor(hash01(k, 2) * S);
+      const flip = hash01(k, 3) < 0.5;
+      const tone = 1 + (hash01(k, 4) - 0.5) * 0.08;
+      for (let y = r * th; y < (r + 1) * th; y++)
+        for (let x = c * tw; x < (c + 1) * tw; x++) {
+          let lx = x - c * tw;
+          let ly = y - r * th;
+          if (flip) {
+            lx = tw - 1 - lx;
+            ly = th - 1 - ly;
+          }
+          // 2 × 2 box sample of the scan (half resolution).
+          const acc = [0, 0, 0];
+          const nacc = [0, 0, 0];
+          const oacc = [0, 0];
+          for (const [ix, iy] of [
+            [0, 0],
+            [1, 0],
+            [0, 1],
+            [1, 1],
+          ]) {
+            const sx = (ox + lx * 2 + ix) % S;
+            const sy = (oy + ly * 2 + iy) % S;
+            const si = (sy * S + sx) * 4;
+            for (let q = 0; q < 3; q++) acc[q] += LUT[src.albedo.data[si + q]] / 4;
+            const n = readN(src.normal.data, si);
+            for (let q = 0; q < 3; q++) nacc[q] += n[q] / 4;
+            oacc[0] += src.orm.data[si] / 4;
+            oacc[1] += src.orm.data[si + 1] / 4;
+          }
+          if (flip) {
+            nacc[0] = -nacc[0];
+            nacc[1] = -nacc[1];
+          }
+          const o = (y * N + x) * 4;
+          const cov = cover[y * N + x];
+          for (let q = 0; q < 3; q++)
+            albedo[o + q] = linByte(acc[q] * tone * cov + grout[q] * (1 - cov));
+          albedo[o + 3] = 255;
+          const arris = heightNormal(height, N, N, x, y, 0.6);
+          const base = cov > 0 ? nacc : [0, 0, 1];
+          writeN(normal, o, base, arris);
+          // Honed: a little rougher than the scan's polish; grout matte and occluded.
+          orm[o] = Math.round(oacc[0] * cov + 150 * (1 - cov));
+          orm[o + 1] = Math.round(Math.min(255, oacc[1] * 1.1 + 25) * cov + 250 * (1 - cov));
+          orm[o + 2] = 0;
+          orm[o + 3] = 255;
+        }
+    }
+  return {
+    albedo: { width: N, height: N, data: albedo },
+    normal: { width: N, height: N, data: normal },
+    orm: { width: N, height: N, data: orm },
+  };
+}
+
+/**
+ * Rows of boards (grain along u): `boards` per tile, each cut from another spot of the
+ * grain scan (at its real size `srcM`), ±9 % tone and a slight warm / cool shift per
+ * board, a rounded arris and a dark `jointM` gap between rows (the set's tile is `sizeM`).
+ */
+function deriveBoards(src, d, sizeM) {
+  const N = src.albedo.width;
+  const bh = N / d.boards;
+  const pxM = sizeM / N;
+  const jHalf = d.jointM / pxM / 2;
+  const bevel = 2.2;
+  const gap = [0.018, 0.013, 0.009];
+  const albedo = new Uint8ClampedArray(N * N * 4);
+  const normal = new Uint8ClampedArray(N * N * 4);
+  const orm = new Uint8ClampedArray(N * N * 4);
+  const height = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) {
+    const ly = y % bh;
+    const edge = Math.min(ly + 0.5, bh - ly - 0.5);
+    const hv = Math.min(1, Math.max(0, (edge - jHalf) / bevel));
+    for (let x = 0; x < N; x++) height[y * N + x] = Math.sqrt(hv);
+  }
+  const S = src.albedo.width;
+  const scale = (sizeM / N) * (S / (d.srcM ?? sizeM));
+  const box = Math.max(1, Math.round(scale));
+  for (let k = 0; k < d.boards; k++) {
+    const ox = Math.floor(hash01(k, 11) * S);
+    const oy = Math.floor(hash01(k, 12) * S);
+    const tone = 1 + (hash01(k, 13) - 0.5) * 0.18;
+    const warm = (hash01(k, 14) - 0.5) * 0.08;
+    const mul = [tone * (1 + warm), tone, tone * (1 - warm)];
+    for (let y = k * bh; y < (k + 1) * bh; y++) {
+      const ly = y - k * bh;
+      const edge = Math.min(ly + 0.5, bh - ly - 0.5);
+      const cov = Math.min(1, Math.max(0, edge - jHalf + 0.5));
+      for (let x = 0; x < N; x++) {
+        // Box-filtered sample of the scan at its real-world scale (`srcM` per scan tile).
+        const acc = [0, 0, 0];
+        const nacc = [0, 0, 0];
+        const oacc = [0, 0];
+        const bx = Math.floor(ox + x * scale);
+        const by = Math.floor(oy + ly * scale);
+        for (let iy = 0; iy < box; iy++)
+          for (let ix = 0; ix < box; ix++) {
+            const si = (((by + iy) % S) * S + ((bx + ix) % S)) * 4;
+            for (let q = 0; q < 3; q++) acc[q] += LUT[src.albedo.data[si + q]] / (box * box);
+            const nn = readN(src.normal.data, si);
+            for (let q = 0; q < 3; q++) nacc[q] += nn[q] / (box * box);
+            oacc[0] += src.orm.data[si] / (box * box);
+            oacc[1] += src.orm.data[si + 1] / (box * box);
+          }
+        const o = (y * N + x) * 4;
+        for (let q = 0; q < 3; q++) {
+          const v = acc[q] * mul[q];
+          albedo[o + q] = linByte(v * cov + gap[q] * (1 - cov));
+        }
+        albedo[o + 3] = 255;
+        const arris = heightNormal(height, N, N, x, y, 0.5);
+        writeN(normal, o, cov > 0 ? nacc : [0, 0, 1], arris);
+        orm[o] = Math.round(oacc[0] * cov + 60 * (1 - cov));
+        orm[o + 1] = Math.round(oacc[1] * cov + 255 * (1 - cov));
+        orm[o + 2] = 0;
+        orm[o + 3] = 255;
+      }
+    }
+  }
+  return {
+    albedo: { width: N, height: N, data: albedo },
+    normal: { width: N, height: N, data: normal },
+    orm: { width: N, height: N, data: orm },
+  };
 }
 
 /** Standing-seam sheet: 1 m tile, seams every 50 cm (along +v) + gentle oil-canning. */
@@ -336,6 +567,23 @@ function fineDetail() {
   const n = fbm(size, 4, 32, 5);
   for (let i = 0; i < n.length; i++) n[i] *= 0.00018;
   return normalFromHeight(n, size, 1 / 0.001 / 2);
+}
+
+/** Brushed metal: fine streaks along u (rows of random depth), slowly varying along them. */
+function brushedDetail() {
+  const size = 512;
+  const along = fbm(size, 2, 4, 21);
+  const h = new Float32Array(size * size);
+  const rows = Array.from({ length: 3 }, (_, o) =>
+    Float32Array.from({ length: size }, (_, y) => hash01(y, 31 + o)),
+  );
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const streak =
+        rows[0][y] * 0.6 + rows[1][(y + 1) % size] * 0.25 + rows[2][(y >> 1) * 2] * 0.15;
+      h[y * size + x] = streak * (0.75 + 0.5 * along[y * size + x]) * 0.00025;
+    }
+  return normalFromHeight(h, size, 1 / 0.0005 / 2);
 }
 
 // ---------------------------------------------------------------- sky (HDRI)
@@ -470,13 +718,19 @@ for (const set of SETS) {
 for (const g of GENERATED) {
   if (!want(g.id)) continue;
   console.log(g.id);
-  const normal = g.id === 'detail-fine' ? fineDetail() : metalNormal(g.id === 'metal');
-  await writeMaps(g.id, g.kind, g.sizeM, { normal });
+  const normal =
+    g.id === 'detail-fine'
+      ? fineDetail()
+      : g.id === 'detail-brushed'
+        ? brushedDetail()
+        : metalNormal(g.id === 'metal');
+  await writeMaps(g.id, g.kind, g.sizeM, { normal }, g);
 }
 if (want('sky')) {
   console.log('sky');
   await sky();
 }
+if (process.env.PREVIEW) process.exit(0);
 // Drop files no longer referenced by the manifest.
 const used = new Set(Object.values(manifest.sets).flatMap((s) => Object.keys(s.bytes)));
 for (const dir of fs.readdirSync(TEX, { withFileTypes: true })) {
