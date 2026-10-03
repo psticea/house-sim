@@ -7,6 +7,7 @@
  * (0.5 B), BC7 on desktops with `EXT_texture_compression_bptc` (1 B); UASTC (normals,
  * sky) → ASTC 4×4 / ETC2 RGBA / BC7 (1 B). Mip chains add ⅓.
  */
+import { ATLAS } from '../bake/config';
 import type { MapKind, TextureManifest } from '../core/assets';
 import { TIER_SETTINGS, type Tier } from '../core/quality';
 import { FINISHES } from './finishes';
@@ -51,14 +52,14 @@ export interface TierBudget {
   sky: number;
   /** Static sun shadow map (colour + depth target; off while lightmaps are applied). */
   shadow: number;
-  /** Baked lightmap atlases (2 per tier, RGBM UASTC, no mips) when the bake is in use. */
+  /** Baked lightmap atlases (`ATLAS.count` per tier, RGBM UASTC, no mips) when the bake is in use. */
   lightmaps: number;
   total: number;
 }
 
 /**
  * Estimated GPU texture memory (MB) of the realistic look at `tier`. `baked` = the I6
- * lightmaps replace the shadow-map fallback (currently the bake is stale → fallback).
+ * lightmaps replace the shadow-map fallback (the default while the bake is current).
  */
 export function tierTextureMB(
   manifest: TextureManifest,
@@ -79,7 +80,7 @@ export function tierTextureMB(
   const sky = skyW * (skyW / 2) * formats.uastc;
   const shadow = baked ? 0 : settings.shadowMapSize ** 2 * 8;
   const lm = tier === 'low' ? 1024 : 2048;
-  const lightmaps = baked ? 2 * lm * lm * formats.uastc : 0;
+  const lightmaps = baked ? ATLAS.count * lm * lm * formats.uastc : 0;
   const parts = {
     materials: materials / MB,
     environment: (pmrem + probes) / MB,

@@ -23,6 +23,29 @@ export interface BakeMesh {
   material: number;
   /** Atlas of a lightmapped mesh (its geometry has the quantised `uv1`), else -1. */
   atlas: number;
+  /**
+   * Per triangle: texel index in the per-triangle atlas (index = `atlases`): meshes without
+   * lightmap UVs (vegetation) baked one value per facet.
+   */
+  texel?: Int32Array;
+  /** Per vertex: emitter index + 1 on the glowing diffusers of lights that are on, else 0. */
+  emit?: Float32Array;
+}
+
+/**
+ * Area light (a fitting that is on): shape 1 = glowing sphere; 2 = drum — disc of
+ * `radius` at `center` facing `normal` + a side band `height` behind it (opal flush light).
+ */
+export interface BakeEmitter {
+  center: THREE.Vector3;
+  normal: THREE.Vector3;
+  radius: number;
+  shape: 1 | 2;
+  height: number;
+  /** Linear radiance. */
+  radiance: THREE.Color;
+  /** Lightmap value written on the emitter's own texels (glow: π · L / albedo). */
+  glow: THREE.Color;
 }
 
 export interface BakeSettings {
@@ -48,6 +71,12 @@ export interface BakeSettings {
   ground: THREE.Color;
   /** Irradiance assumed on surfaces without a lightmap (vegetation) for bounces. */
   unbakedIrradiance: THREE.Color;
+  /** Ceiling lights that are on (direct light sampled with the sky rays, so denoised). */
+  emitters: BakeEmitter[];
+  /** Emitters further away than this don't light a texel (m). */
+  emitterRange: number;
+  /** Rows used in the extra per-triangle atlas (0 = none). */
+  triangleRows: number;
   sunSamples: number;
   /** Sky / bounce samples per radiosity iteration (length = number of iterations). */
   skySamples: number[];
@@ -80,12 +109,15 @@ const GBUF_VERT = /* glsl */ `${HEADER}
 in vec3 position;
 in vec3 normal;
 in vec2 uv1;
+in float bakeEmit;
 uniform vec2 jitter;
 uniform float atlasSize;
 out vec3 vPos;
 out vec3 vNrm;
+flat out float vEmit;
 void main() {
   vPos = position;
+  vEmit = bakeEmit;
   vNrm = normal;
   vec2 p = uv1 + jitter / atlasSize;
   gl_Position = vec4( p * 2.0 - 1.0, 0.0, 1.0 );
@@ -95,10 +127,11 @@ void main() {
 const GBUF_FRAG = /* glsl */ `${HEADER}
 in vec3 vPos;
 in vec3 vNrm;
+flat in float vEmit;
 layout( location = 0 ) out vec4 oPos;
 layout( location = 1 ) out vec4 oNrm;
 void main() {
-  oPos = vec4( vPos, 1.0 );
+  oPos = vec4( vPos, 1.0 + vEmit );
   oNrm = vec4( normalize( vNrm ), 1.0 );
 }
 `;
@@ -115,6 +148,8 @@ uniform sampler2D gPos;
 uniform sampler2D gNrm;
 uniform sampler2D prev0;
 uniform sampler2D prev1;
+uniform sampler2D prev2;
+uniform sampler2D prev3;
 uniform vec4 mats[ MAT_COUNT ];
 uniform sampler2D sky;
 uniform float skyRot;
@@ -127,6 +162,11 @@ uniform float sunCos;
 uniform vec3 glassTint;
 uniform vec3 unbakedIrr;
 uniform float maxDist;
+uniform vec4 emitPos[ EMIT_MAX ];
+uniform vec4 emitNrm[ EMIT_MAX ];
+uniform vec4 emitCol[ EMIT_MAX ];
+uniform int emitCount;
+uniform float emitRange;
 uniform sampler2D validMask;
 uniform float useMask;
 uniform int mode;
@@ -274,6 +314,68 @@ int traceRay( vec3 o, vec3 d, inout vec3 tp, out vec4 attr ) {
   }
   return 1;
 }
+// Direct light of the ceiling lights: one stratified point per emitter per sample, soft
+// shadows by a shadow ray. Sphere (shape 1): the globe seen as the disc facing the texel.
+// Drum (shape 2): opal flush light — bottom disc facing its normal + the side band behind
+// it, the point picked by area (pdf = 1 / area); sampled a hair outside the facets.
+vec3 emitterLight( vec3 o, vec3 n, float r1, float r2 ) {
+  vec3 E = vec3( 0.0 );
+  for ( int k = 0; k < EMIT_MAX; k ++ ) {
+    if ( k >= emitCount ) break;
+    vec4 ep = emitPos[ k ];
+    vec3 toC = ep.xyz - o;
+    float dc = length( toC );
+    bool sphere = emitNrm[ k ].w < 1.5;
+    // Out of reach, behind the texel, or on another floor (the slabs would block it; a
+    // pendant also lights the sloped ceiling above it).
+    float above = sphere ? 2.5 : 0.3;
+    if ( dc > emitRange || dot( n, toC ) < - 2.0 * ep.w || o.y > ep.y + above || o.y < ep.y - 3.4 ) continue;
+    vec3 axis = sphere ? - toC / max( dc, 1e-4 ) : emitNrm[ k ].xyz;
+    vec3 et; vec3 eb;
+    basis( axis, et, eb );
+    float a = 6.2831853 * fract( r1 + float( k ) * 0.618034 );
+    float u = fract( r2 + float( k ) * 0.414214 );
+    vec3 radial = et * cos( a ) + eb * sin( a );
+    float R = ep.w;
+    float h = emitCol[ k ].w;
+    float area = PI * R * R;
+    vec3 q;
+    vec3 qn = axis;
+    if ( sphere ) {
+      q = ep.xyz + radial * R * sqrt( u );
+    } else {
+      float side = 2.0 * PI * R * h;
+      float pick = u * ( area + side );
+      if ( pick < area ) {
+        q = ep.xyz + axis * 3e-3 + radial * R * sqrt( pick / area );
+      } else {
+        q = ep.xyz - axis * ( h * ( pick - area ) / side ) + radial * ( R + 3e-3 );
+        qn = radial;
+      }
+      area += side;
+    }
+    vec3 d = q - o;
+    float dist = length( d );
+    d /= dist;
+    float cr = dot( n, d );
+    float ce = dot( qn, - d );
+    if ( cr <= 0.0 || ce <= 0.0 ) continue;
+    float reach = dist - 1e-3;
+    if ( sphere ) {
+      // Stop at the analytic globe (its facets lie inside it).
+      vec3 oc = o - ep.xyz;
+      float b = dot( oc, d );
+      float disc = b * b - ( dot( oc, oc ) - R * R );
+      if ( disc > 0.0 ) reach = min( reach, - b - sqrt( disc ) - 1e-3 );
+    }
+    if ( reach <= 0.0 ) continue;
+    vec3 tp = vec3( 1.0 );
+    uvec3 f; vec3 bc; float sd; float hitT;
+    if ( traverse( o, d, true, reach, tp, f, bc, sd, hitT ) ) continue;
+    E += emitCol[ k ].rgb * tp * ( cr * ce * area / ( dist * dist ) );
+  }
+  return E;
+}
 vec3 footprint( ivec2 px, ivec2 dir, vec3 p, vec3 n ) {
   for ( int k = 0; k < 2; k ++ ) {
     ivec2 q = k == 0 ? px + dir : px - dir;
@@ -328,17 +430,19 @@ void main() {
     L = skyRadiance( d ) * tp;
   } else if ( h == 2 ) {
     back = 1.0;
-  } else {
+  } else if ( attr.z < 3.5 ) {
+    // (attr.z >= 4: a lamp's diffuser — its light is sampled directly, see emitterLight)
     vec4 m = mats[ int( attr.w + 0.5 ) ];
     vec3 E = unbakedIrr;
     if ( ( int( m.w + 0.5 ) & 1 ) != 0 ) {
       ivec2 q = clamp( ivec2( attr.xy * float( atlasSize ) ), ivec2( 0 ), ivec2( atlasSize - 1 ) );
-      E = attr.z < 0.5 ? texelFetch( prev0, q, 0 ).rgb : texelFetch( prev1, q, 0 ).rgb;
+      E = attr.z < 0.5 ? texelFetch( prev0, q, 0 ).rgb : attr.z < 1.5 ? texelFetch( prev1, q, 0 ).rgb :
+          attr.z < 2.5 ? texelFetch( prev2, q, 0 ).rgb : texelFetch( prev3, q, 0 ).rgb;
     }
     L = m.rgb * E * ( 1.0 / PI ) * tp;
   }
-  // Cosine-weighted estimator: irradiance = PI · mean radiance.
-  outColor = vec4( PI * L, back );
+  // Cosine-weighted estimator: irradiance = PI · mean radiance; + the lamps' direct light.
+  outColor = vec4( PI * L + emitterLight( o, n, r1, r2 ), back );
 }
 `;
 
@@ -456,11 +560,20 @@ uniform sampler2D a;
 uniform sampler2D b;
 uniform sampler2D mask;
 uniform float useB;
+uniform sampler2D gPos;
+uniform float useGlow;
+uniform vec3 glow[ EMIT_MAX ];
 out vec4 outColor;
 void main() {
   ivec2 px = ivec2( gl_FragCoord.xy );
   float valid = texelFetch( mask, px, 0 ).a;
   vec3 v = texelFetch( a, px, 0 ).rgb + ( useB > 0.5 ? texelFetch( b, px, 0 ).rgb : vec3( 0.0 ) );
+  // Diffusers of the lamps that are on glow (G-buffer w = 2 + emitter index).
+  float em = texelFetch( gPos, px, 0 ).w;
+  if ( useGlow > 0.5 && em > 1.5 ) {
+    int k = int( em - 1.5 );
+    for ( int i = 0; i < EMIT_MAX; i ++ ) if ( i == k ) v = glow[ i ];
+  }
   outColor = valid > 0.5 ? vec4( v, 1.0 ) : vec4( 0.0 );
 }
 `;
@@ -557,7 +670,7 @@ export async function bakeLightmaps(
   let o = 0;
   for (const m of meshes) {
     const p = m.geometry.getAttribute('position');
-    const uv = m.atlas >= 0 ? m.geometry.getAttribute('uv1') : null;
+    const uv = m.atlas >= 0 && !m.texel ? m.geometry.getAttribute('uv1') : null;
     for (let i = 0; i < p.count; i++) {
       if (i % 3 === 0 && big(p, i / 3)) {
         i += 2;
@@ -566,9 +679,11 @@ export async function bakeLightmaps(
       pos[o * 3] = p.getX(i);
       pos[o * 3 + 1] = p.getY(i);
       pos[o * 3 + 2] = p.getZ(i);
-      attr[o * 4] = uv ? uv.getX(i) : 0;
-      attr[o * 4 + 1] = uv ? uv.getY(i) : 0;
-      attr[o * 4 + 2] = Math.max(0, m.atlas);
+      const ti = m.texel ? m.texel[Math.floor(i / 3)]! : -1;
+      attr[o * 4] = uv ? uv.getX(i) : ti >= 0 ? ((ti % S) + 0.5) / S : 0;
+      attr[o * 4 + 1] = uv ? uv.getY(i) : ti >= 0 ? (Math.floor(ti / S) + 0.5) / S : 0;
+      // atlas (+ 4 on a lamp diffuser: bounce rays get no light there, it's sampled directly)
+      attr[o * 4 + 2] = Math.max(0, m.atlas) + (m.emit && m.emit[i]! > 0 ? 4 : 0);
       attr[o * 4 + 3] = m.material;
       o++;
     }
@@ -645,10 +760,12 @@ export async function bakeLightmaps(
   const acc = floatTarget(S);
   const tmpA = floatTarget(S, THREE.HalfFloatType);
   const tmpB = floatTarget(S, THREE.HalfFloatType);
-  const sunE = Array.from({ length: s.atlases }, () => floatTarget(S, THREE.HalfFloatType));
+  // Lightmap atlases + the per-triangle atlas (vegetation), if any.
+  const A = s.atlases + (s.triangleRows > 0 ? 1 : 0);
+  const sunE = Array.from({ length: A }, () => floatTarget(S, THREE.HalfFloatType));
   // Texels found inside geometry by the first sky iteration (skipped afterwards).
   const masks = Array.from(
-    { length: s.atlases },
+    { length: A },
     () =>
       new THREE.WebGLRenderTarget(S, S, {
         format: THREE.RedFormat,
@@ -659,8 +776,8 @@ export async function bakeLightmaps(
         generateMipmaps: false,
       }),
   );
-  let prev = Array.from({ length: s.atlases }, () => floatTarget(S, THREE.HalfFloatType));
-  let next = Array.from({ length: s.atlases }, () => floatTarget(S, THREE.HalfFloatType));
+  let prev = Array.from({ length: A }, () => floatTarget(S, THREE.HalfFloatType));
+  let next = Array.from({ length: A }, () => floatTarget(S, THREE.HalfFloatType));
   const empty = new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType);
   empty.needsUpdate = true;
 
@@ -722,10 +839,69 @@ export async function bakeLightmaps(
   });
   const gbufScene = new THREE.Scene();
   const cam = new THREE.Camera();
+  /** Per-triangle atlas: one texel-sized quad per triangle carrying its centroid + normal. */
+  const texelQuads = new Map<BakeMesh, THREE.BufferGeometry>();
+  const quadsOf = (m: BakeMesh): THREE.BufferGeometry => {
+    let g = texelQuads.get(m);
+    if (g) return g;
+    const p = m.geometry.getAttribute('position');
+    const vn = m.geometry.hasAttribute('normal') ? m.geometry.getAttribute('normal') : null;
+    const tris = p.count / 3;
+    const pos = new Float32Array(tris * 18);
+    const nrm = new Float32Array(tris * 18);
+    const uv = new Float32Array(tris * 12);
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    for (let t = 0; t < tris; t++) {
+      a.fromBufferAttribute(p, t * 3);
+      b.fromBufferAttribute(p, t * 3 + 1);
+      c.fromBufferAttribute(p, t * 3 + 2);
+      if (vn) n.fromBufferAttribute(vn, t * 3);
+      else n.subVectors(c, b).cross(a.clone().sub(b));
+      if (n.lengthSq() < 1e-20) n.set(0, 1, 0);
+      n.normalize();
+      const ti = m.texel![t]!;
+      const x0 = (ti % S) / S;
+      const y0 = Math.floor(ti / S) / S;
+      const x1 = x0 + 1 / S;
+      const y1 = y0 + 1 / S;
+      const corners = [x0, y0, x1, y0, x1, y1, x0, y0, x1, y1, x0, y1];
+      for (let v = 0; v < 6; v++) {
+        pos.set(
+          [(a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3, (a.z + b.z + c.z) / 3],
+          (t * 6 + v) * 3,
+        );
+        nrm.set([n.x, n.y, n.z], (t * 6 + v) * 3);
+        uv.set([corners[v * 2]!, corners[v * 2 + 1]!], (t * 6 + v) * 2);
+      }
+    }
+    g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+    g.setAttribute('uv1', new THREE.BufferAttribute(uv, 2));
+    g.setAttribute('bakeEmit', new THREE.BufferAttribute(new Float32Array(tris * 6), 1));
+    texelQuads.set(m, g);
+    return g;
+  };
   const renderGBuffer = (atlas: number): void => {
     gbufScene.clear();
     for (const m of meshes) {
       if (m.atlas !== atlas) continue;
+      if (m.texel) {
+        const mesh = new THREE.Mesh(quadsOf(m), gbufMat);
+        mesh.frustumCulled = false;
+        gbufScene.add(mesh);
+        continue;
+      }
+      if (!m.geometry.hasAttribute('bakeEmit')) {
+        const count = m.geometry.getAttribute('position').count;
+        m.geometry.setAttribute(
+          'bakeEmit',
+          new THREE.BufferAttribute(m.emit ?? new Float32Array(count), 1),
+        );
+      }
       const mesh = new THREE.Mesh(m.geometry, gbufMat);
       mesh.frustumCulled = false;
       gbufScene.add(mesh);
@@ -751,6 +927,31 @@ export async function bakeLightmaps(
     }
   };
 
+  // Lamps (uniform arrays sized to at least 1).
+  const emitMax = Math.max(1, s.emitters.length);
+  const pad = <T>(list: T[], fill: () => T): T[] => [
+    ...list,
+    ...Array.from({ length: emitMax - list.length }, fill),
+  ];
+  const emitPos = pad(
+    s.emitters.map((e) => new THREE.Vector4(e.center.x, e.center.y, e.center.z, e.radius)),
+    () => new THREE.Vector4(),
+  );
+  const emitNrm = pad(
+    s.emitters.map((e) => {
+      const n = e.normal.clone().normalize();
+      return new THREE.Vector4(n.x, n.y, n.z, e.shape);
+    }),
+    () => new THREE.Vector4(0, -1, 0, 0),
+  );
+  const emitCol = pad(
+    s.emitters.map((e) => new THREE.Vector4(e.radiance.r, e.radiance.g, e.radiance.b, e.height)),
+    () => new THREE.Vector4(),
+  );
+  const glow = pad(
+    s.emitters.map((e) => e.glow.clone()),
+    () => new THREE.Color(0, 0, 0),
+  );
   const traceMat = raw(
     TRACE_FRAG,
     {
@@ -763,6 +964,8 @@ export async function bakeLightmaps(
       gNrm: { value: gbuf.textures[1] },
       prev0: { value: empty },
       prev1: { value: empty },
+      prev2: { value: empty },
+      prev3: { value: empty },
       mats: { value: matTable },
       sky: { value: s.sky },
       skyRot: { value: s.skyRotation },
@@ -775,6 +978,11 @@ export async function bakeLightmaps(
       glassTint: { value: s.glass },
       unbakedIrr: { value: s.unbakedIrradiance },
       maxDist: { value: s.maxDistance },
+      emitPos: { value: emitPos },
+      emitNrm: { value: emitNrm },
+      emitCol: { value: emitCol },
+      emitCount: { value: s.emitters.length },
+      emitRange: { value: s.emitterRange },
       validMask: { value: empty },
       useMask: { value: 0 },
       mode: { value: 0 },
@@ -783,7 +991,12 @@ export async function bakeLightmaps(
       sampleCount: { value: 1 },
       atlasSize: { value: S },
     },
-    { MAT_COUNT: materials.length, STACK: s.stackDepth, ...(s.stackless ? { STACKLESS: 1 } : {}) },
+    {
+      MAT_COUNT: materials.length,
+      STACK: s.stackDepth,
+      EMIT_MAX: emitMax,
+      ...(s.stackless ? { STACKLESS: 1 } : {}),
+    },
   );
   traceMat.blending = THREE.CustomBlending;
   traceMat.blendEquation = THREE.AddEquation;
@@ -813,12 +1026,19 @@ export async function bakeLightmaps(
     gNrm: { value: gbuf.textures[1] },
     stepPx: { value: 1 },
   });
-  const addMat = raw(ADD_FRAG, {
-    a: { value: null },
-    b: { value: null },
-    mask: { value: null },
-    useB: { value: 1 },
-  });
+  const addMat = raw(
+    ADD_FRAG,
+    {
+      a: { value: null },
+      b: { value: null },
+      mask: { value: null },
+      useB: { value: 1 },
+      gPos: { value: gbuf.textures[0] },
+      useGlow: { value: 0 },
+      glow: { value: glow },
+    },
+    { EMIT_MAX: emitMax },
+  );
 
   /** Dilates `src` in place `n` times (ping-pong through tmpB). */
   const dilate = (src: THREE.WebGLRenderTarget, n: number): void => {
@@ -846,7 +1066,8 @@ export async function bakeLightmaps(
       const tSample = performance.now();
       traceMat.uniforms.sampleIndex!.value = i;
       traceMat.uniforms.seed!.value = (i * 7919 + mode * 104729 + atlas * 15485863) >>> 0;
-      for (let y = 0; y < S; y += T) {
+      const rows = atlas < s.atlases ? S : s.triangleRows;
+      for (let y = 0; y < rows; y += T) {
         for (let x = 0; x < S; x += T) {
           acc.scissor.set(x, y, T, T);
           acc.scissorTest = true;
@@ -872,13 +1093,13 @@ export async function bakeLightmaps(
   };
 
   const iterations = s.skySamples.length;
-  const totalWork = s.atlases * (s.sunSamples + s.skySamples.reduce((a, b) => a + b, 0));
+  const totalWork = A * (s.sunSamples + s.skySamples.reduce((a, b) => a + b, 0));
   let done = 0;
   const span = (n: number): number => n / totalWork;
 
   // --- Direct sun per atlas → sunE (dilated, used as the first bounce source).
   const coverage: number[] = [];
-  for (let k = 0; k < s.atlases; k++) {
+  for (let k = 0; k < A; k++) {
     renderGBuffer(k);
     coverage.push(stat(gbuf, 0)[0]);
     traceMat.uniforms.gPos!.value = gbuf.textures[0];
@@ -901,7 +1122,9 @@ export async function bakeLightmaps(
     const n = s.skySamples[it]!;
     traceMat.uniforms.prev0!.value = prev[0]!.texture;
     traceMat.uniforms.prev1!.value = (prev[1] ?? prev[0])!.texture;
-    for (let k = 0; k < s.atlases; k++) {
+    traceMat.uniforms.prev2!.value = (prev[2] ?? prev[0])!.texture;
+    traceMat.uniforms.prev3!.value = (prev[3] ?? prev[0])!.texture;
+    for (let k = 0; k < A; k++) {
       renderGBuffer(k);
       traceMat.uniforms.useMask!.value = it > 0 ? 1 : 0;
       traceMat.uniforms.validMask!.value = it > 0 ? masks[k]!.texture : empty;
@@ -958,11 +1181,13 @@ export async function bakeLightmaps(
         run(addMat, ind);
       }
       const out = floatTarget(S);
+      addMat.uniforms.useGlow!.value = 1;
       addMat.uniforms.a!.value = ind.texture;
       addMat.uniforms.b!.value = sunE[k]!.texture;
       addMat.uniforms.useB!.value = 1;
       addMat.uniforms.mask!.value = mask.texture;
       run(addMat, out);
+      addMat.uniforms.useGlow!.value = 0;
       ind.dispose();
       dilate(out, 8);
       await report(`final ${k}`, out);
@@ -994,6 +1219,7 @@ export async function bakeLightmaps(
     m.dispose();
   }
   quad.dispose();
+  for (const g of texelQuads.values()) g.dispose();
   for (const t of Object.values(bvhTex)) t.dispose();
   attrTex.dispose();
   empty.dispose();

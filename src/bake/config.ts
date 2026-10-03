@@ -7,7 +7,7 @@ import type { MaterialId } from '../data/schema';
 import { SHELL } from '../data/grid';
 
 export const ATLAS = {
-  count: 2,
+  count: 3,
   size: 2048,
   /** Empty texels per chart side (bilinear filtering + 2× downsample for the low tier). */
   padding: 2,
@@ -23,6 +23,19 @@ export const ATLAS = {
 export const UNBAKED: ReadonlySet<MaterialId> = new Set<MaterialId>([
   'glass',
   'mirror',
+  'foliage',
+  'foliageLight',
+  'bark',
+  'barkBirch',
+  'meadow',
+  'flowers',
+]);
+
+/**
+ * Vegetation: no lightmap UVs, but one baked value per facet (sun shadows of the house,
+ * fence and trees, sky occlusion, bounce) — a per-vertex attribute at runtime.
+ */
+export const TRIANGLE_BAKED: ReadonlySet<MaterialId> = new Set<MaterialId>([
   'foliage',
   'foliageLight',
   'bark',
@@ -62,8 +75,8 @@ const GROUND: ReadonlySet<MaterialId> = new Set<MaterialId>([
 
 /** Texel sizes (m). */
 export const TEXEL = {
-  /** Inside the house (~3 cm, plan.md §3.1). */
-  interior: 0.03,
+  /** Inside the house (2 cm: crisp contact shadows under furniture; plan.md §3.1 had 3). */
+  interior: 0.02,
   /** Facades, roof, deck. */
   exterior: 0.07,
   /** Garden next to the house; grows with the distance beyond `nearM`. */
@@ -106,11 +119,11 @@ export function texelSize(id: string, c: readonly [number, number, number], exte
 /** Sampling of the GPU tracer. */
 export const SAMPLES = {
   /** Jittered shadow rays toward the sun disc. */
-  sun: 32,
+  sun: 48,
   /** Cosine-weighted sky / bounce rays per radiosity iteration (each adds one bounce). */
-  skyPerIteration: [8, 12, 96] as readonly number[],
+  skyPerIteration: [8, 12, 112] as readonly number[],
   /** Angular radius of the sun disc (deg; the real sun is 0.27°, a bit softer reads better). */
-  sunRadiusDeg: 0.6,
+  sunRadiusDeg: 0.75,
   /** Glass transmittance for sun and sky rays (linear RGB). */
   glass: [0.8, 0.84, 0.84] as [number, number, number],
   /** Irradiance assumed on surfaces without a lightmap (vegetation) when light bounces off them. */
@@ -119,6 +132,8 @@ export const SAMPLES = {
   maxEdgeM: 40,
   /** Sky / bounce rays see the sky beyond this distance (m; prunes the BVH walk). */
   maxDistanceM: 30,
+  /** Ceiling lights don't reach texels further away (m). */
+  emitterRangeM: 7,
   /** Tile (texels) per draw call — keeps every GPU submission short (no driver timeout). */
   tile: 512,
 };

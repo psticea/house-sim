@@ -133,6 +133,44 @@ const POSES = [
   ['tx-paving', 'pose', [-7.8, -0.2, 19.5, 5, -24]],
   ['tx-lawn', 'pose', [8.8, -0.1, 9.9, -105, -35]],
   ['tx-fence', 'pose', [20.3, -0.1, 9.5, -25, -4]],
+  // I6 redo (lighting): every room + the outside. Saved like the tx- poses:
+  // lt-<pose>[-<style> unless real]<suffix>.png (suffix e.g. -before / -after).
+  ['lt-start', 'start', null],
+  ['lt-hall', 'pose', [9.1, 0, 2.3, 58, -8]],
+  ['lt-hall-corridor', 'pose', [4.0, 0, 3.0, -85, -6]],
+  ['lt-living', 'pose', [13.9, 0, 6.85, 15, -8]],
+  ['lt-living-b', 'pose', [14.9, 0, 3.3, 128, -12]],
+  ['lt-living-east', 'pose', [10.4, 0, 3.6, -90, 8]],
+  ['lt-living-ceiling', 'pose', [12.6, 0, 6.6, 0, 38]],
+  ['lt-kitchen', 'pose', [13.0, 0, 3.4, 0, 4]],
+  ['lt-dining', 'pose', [16.15, 0, 3.4, 62, -14]],
+  ['lt-play', 'pose', [12.4, 0, 3.4, 130, -18]],
+  ['lt-bed1', 'pose', [1.9, 0, 2.3, -60, -14]],
+  ['lt-bed2', 'pose', [4.2, 0, 4.5, 105, -12]],
+  ['lt-bath', 'pose', [5.55, 0, 4.4, -168, -18]],
+  ['lt-bath-north', 'pose', [5.6, 0, 6.0, -12, -12]],
+  ['lt-boiler', 'pose', [5.6, 0, 2.15, -25, -14]],
+  ['lt-stairs', 'pose', [8.9, 0, 3.0, 180, 10]],
+  ['lt-bed3', 'pose', [4.0, 2.95, 3.2, 103, -10]],
+  ['lt-bed3-b', 'pose', [1.3, 2.95, 2.0, -145, -12]],
+  ['lt-study', 'pose', [7.6, 2.95, 1.95, -49, -14]],
+  ['lt-upper-bath', 'pose', [5.75, 2.95, 4.25, 160, -20]],
+  ['lt-upper-hall', 'pose', [5.3, 2.95, 3.0, -90, -6]],
+  ['lt-basement-stair', 'pose', [11.2, -2.53, 6.6, 95, 14]],
+  ['lt-storage', 'pose', [9.9, -2.53, 6.5, -50, -12]],
+  ['lt-west', 'pose', [-5.6, -0.1, 3.6, -90, 16]],
+  ['lt-north', 'pose', [7.5, -0.05, -6.5, 160, 12]],
+  ['lt-south', 'pose', [9.0, -0.1, 14.2, 0, 14]],
+  ['lt-east', 'pose', [24.5, -0.1, 3.6, 90, 8]],
+  ['lt-east-glass', 'pose', [21.2, 0, 4.6, 80, 12]],
+  ['lt-aerial', 'view', [-14, 14, -12, -135, -30]],
+  ['lt-aerial-se', 'view', [30, 12, 20, 55, -22]],
+  ['lt-garden', 'pose', [8.8, -0.1, 9.9, -105, -6]],
+  ['lt-garden-rear', 'pose', [20.3, -0.1, 9.5, -25, -4]],
+  ['lt-garden-top', 'view', [8.6, 34, 6.0, 0, -89.9]],
+  ['lt-paving', 'pose', [-7.8, -0.2, 19.5, 5, -24]],
+  ['lt-deck', 'pose', [18.9, 0, 4.8, -90, -34]],
+  ['lt-terrace', 'pose', [19.3, 0, 7.4, 20, -14]],
   // The start view with the style menu open (UI check).
   ['menu', 'menu', null],
 ];
@@ -178,7 +216,12 @@ for (const style of styles) {
   if (style === 'real') await page.evaluate(() => window.__houseSim.texturesReady());
   const start = await page.evaluate(() => window.__houseSim.getPlayer());
   for (const [name, kind, pose] of POSES) {
-    if (only.length && !only.includes(name) && !(only.includes('tx') && name.startsWith('tx-')))
+    const group = name.slice(0, 3);
+    if (
+      only.length &&
+      !only.includes(name) &&
+      !((group === 'tx-' || group === 'lt-') && only.includes(group.slice(0, 2)))
+    )
       continue;
     await page.evaluate(
       async ([k, p, s]) => {
@@ -191,7 +234,7 @@ for (const style of styles) {
       [kind, pose, start],
     );
     if (kind === 'menu') await page.locator('.style-pill').click();
-    const base = /^tx-/.test(name)
+    const base = /^(tx|lt)-/.test(name)
       ? style === 'real'
         ? name
         : `${name}-${style}`

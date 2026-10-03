@@ -35,6 +35,15 @@ export interface LightmapMesh {
   hash: string;
 }
 
+/** Vegetation baked per facet: a slice of `triangles.file` (4 RGBM bytes per triangle). */
+export interface TriangleMesh {
+  id: string;
+  triangles: number;
+  /** Offset into the file, in triangles. */
+  offset: number;
+  hash: string;
+}
+
 export interface LightmapManifest {
   version: number;
   encoding: 'rgbm';
@@ -45,7 +54,9 @@ export interface LightmapManifest {
   atlases: LightmapAtlas[];
   uv2: { file: string; bytes: number };
   meshes: LightmapMesh[];
-  /** Mean baked floor irradiance per room (eye adaptation). */
+  /** Per-facet light of the meshes without lightmap UVs (vegetation). */
+  triangles?: { file: string; bytes: number; meshes: TriangleMesh[] };
+  /** Median baked floor irradiance per room (eye adaptation). */
   rooms?: Record<string, number>;
   bake?: Record<string, unknown>;
   /**
@@ -103,6 +114,15 @@ export function parseLightmapManifest(json: unknown): LightmapManifest | null {
   if (stale !== undefined) {
     if (!stale || typeof stale.since !== 'string' || typeof stale.reason !== 'string') return null;
   }
+  const tri = m.triangles as
+    { file?: unknown; meshes?: (Loose<TriangleMesh> | null)[] } | null | undefined;
+  if (tri !== undefined) {
+    if (!tri || typeof tri.file !== 'string' || !Array.isArray(tri.meshes)) return null;
+    for (const e of tri.meshes) {
+      if (!e || typeof e.id !== 'string' || typeof e.hash !== 'string') return null;
+      if (!Number.isInteger(e.triangles) || !Number.isInteger(e.offset)) return null;
+    }
+  }
   if (!Array.isArray(m.meshes)) return null;
   const count = m.atlases.length;
   for (const e of m.meshes as (Loose<LightmapMesh> | null)[]) {
@@ -120,7 +140,12 @@ export interface MeshLike {
 }
 
 export type MatchResult<M extends MeshLike> =
-  { ok: true; pairs: { mesh: M; entry: LightmapMesh }[] } | { ok: false; reason: string };
+  | {
+      ok: true;
+      pairs: { mesh: M; entry: LightmapMesh }[];
+      triangles: { mesh: M; entry: TriangleMesh }[];
+    }
+  | { ok: false; reason: string };
 
 /**
  * Pairs the baked entries with the scene meshes; the bake is only used if every entry
@@ -130,6 +155,7 @@ export function matchMeshes<M extends MeshLike>(
   manifest: LightmapManifest,
   meshes: readonly M[],
   uvValues: number,
+  triangleValues = Infinity,
 ): MatchResult<M> {
   const byName = new Map(meshes.map((m) => [m.name, m]));
   const pairs: { mesh: M; entry: LightmapMesh }[] = [];
@@ -149,7 +175,24 @@ export function matchMeshes<M extends MeshLike>(
     }
     pairs.push({ mesh, entry: e });
   }
-  return { ok: true, pairs };
+  const triangles: { mesh: M; entry: TriangleMesh }[] = [];
+  for (const e of manifest.triangles?.meshes ?? []) {
+    const mesh = byName.get(e.id);
+    if (!mesh) return { ok: false, reason: `mesh "${e.id}" is missing` };
+    const pos = mesh.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+    if (!pos || pos.count !== e.triangles * 3) {
+      return {
+        ok: false,
+        reason: `mesh "${e.id}" has ${(pos?.count ?? 0) / 3} triangles, baked ${e.triangles}`,
+      };
+    }
+    if (e.offset + e.triangles > triangleValues) return { ok: false, reason: 'tri file too short' };
+    if (geometryHash(pos.array) !== e.hash) {
+      return { ok: false, reason: `mesh "${e.id}" geometry changed since the bake` };
+    }
+    triangles.push({ mesh, entry: e });
+  }
+  return { ok: true, pairs, triangles };
 }
 
 /** Lighting balance with the lightmaps (tuned against the review shots). */
@@ -162,14 +205,22 @@ export const BAKED_LIGHT = {
    * adaptation keeps the view out of the windows from burning out completely.
    */
   interiorGain: 2,
+  /** White balance indoors (linear RGB multiplier): warm, like the eye in a plaster + oak room. */
+  interiorTint: [1.04, 1.0, 0.93] as [number, number, number],
   /** Sun highlight kept on sunlit baked surfaces (0 = off, 1 = full). */
   sunSpecular: 1,
   /**
-   * Per-room eye adaptation: exposure × (reference room / this room)^power of the baked
-   * mean floor irradiance, clamped to [1, max] (dim rooms get brighter, never darker).
+   * Normal-map relief on baked surfaces: irradiance × (1 + k·N·L) / (1 + k·N₀·L) with N the
+   * mapped and N₀ the flat normal, L the sun (where sunlit) or up (0 = flat).
    */
-  adaptReference: 'living-kitchen',
-  adaptPower: 0.5,
+  normalDetail: 0.45,
+  /**
+   * Per-room eye adaptation: exposure × (target / this room)^power of the baked median floor
+   * irradiance (sun patches don't count), clamped to [1, max]: dim rooms get brighter,
+   * bright ones never darker.
+   */
+  adaptTarget: 0.14,
+  adaptPower: 0.8,
   adaptMax: 3.5,
 };
 
@@ -206,8 +257,21 @@ export const EXTERIOR_MATERIALS: ReadonlySet<string> = new Set([
   'corten',
 ]);
 
-/** (reference / room)^power, clamped to [1, adaptMax]; 1 without data. */
-export function roomExposure(room: number | null, reference: number | null): number {
+/** Per-triangle RGBA bytes → the same 4 bytes on each of the triangle's 3 vertices. */
+export function expandPerVertex(perTriangle: Uint8Array): Uint8Array {
+  const n = perTriangle.length / 4;
+  const out = new Uint8Array(n * 12);
+  for (let t = 0; t < n; t++) {
+    for (let v = 0; v < 3; v++) out.set(perTriangle.subarray(t * 4, t * 4 + 4), (t * 3 + v) * 4);
+  }
+  return out;
+}
+
+/** (target / room)^power, clamped to [1, adaptMax]; 1 without data. */
+export function roomExposure(
+  room: number | null,
+  reference: number | null = BAKED_LIGHT.adaptTarget,
+): number {
   if (!room || !reference || room <= 0) return 1;
   const g = (reference / room) ** BAKED_LIGHT.adaptPower;
   return Math.min(BAKED_LIGHT.adaptMax, Math.max(1, g));
@@ -220,6 +284,8 @@ uniform float bakedRange;
 uniform float bakedSunLum;
 uniform float bakedSunSpec;
 uniform float bakedGain;
+uniform float bakedDetail;
+uniform vec3 bakedTint;
 uniform vec3 bakedBoxMin;
 uniform vec3 bakedBoxMax;
 uniform vec4 bakedRoof;
@@ -229,24 +295,40 @@ varying vec3 vBakedWorld;
 /** Replaces three's lightmap / IBL-irradiance chunk (checked against r186 in the tests). */
 export const BAKED_FRAGMENT = /* glsl */ `
 #if defined( RE_IndirectDiffuse )
-  vec4 bakedTexel = texture2D( lightMap, vLightMapUv );
+  #ifdef BAKED_PER_VERTEX
+    // Vegetation: one baked value per facet (vertex attribute).
+    vec4 bakedTexel = vBakedRGBM;
+    float bakedScale = 1.0;
+  #else
+    vec4 bakedTexel = texture2D( lightMap, vLightMapUv );
+    float bakedScale = lightMapIntensity;
+  #endif
   // RGBM with sqrt-encoded colour (more precision in the dark): rgb² · a · range.
   vec3 bakedIrradiance = bakedTexel.rgb * bakedTexel.rgb * ( bakedTexel.a * bakedRange );
   vec3 bakedIn = smoothstep( bakedBoxMin, bakedBoxMin + 0.2, vBakedWorld ) *
                  ( 1.0 - smoothstep( bakedBoxMax - 0.2, bakedBoxMax, vBakedWorld ) );
   float bakedRoofY = bakedRoof.x - bakedRoof.z * abs( vBakedWorld.z - bakedRoof.y ) - bakedRoof.w;
   float bakedUnder = 1.0 - smoothstep( bakedRoofY - 0.1, bakedRoofY, vBakedWorld.y );
-  float bakedGainHere = mix( 1.0, bakedGain, bakedIn.x * bakedIn.y * bakedIn.z * bakedUnder );
-  // Sun, sky and bounces are all in the lightmap: no hemisphere / ambient / IBL diffuse.
-  irradiance = bakedIrradiance * ( lightMapIntensity * bakedGainHere );
-  iblIrradiance = irradiance;
-  reflectedLight.directDiffuse = vec3( 0.0 );
+  float bakedInside = bakedIn.x * bakedIn.y * bakedIn.z * bakedUnder;
+  // Interior: partial eye adaptation (gain) + a warm white balance (plaster, oak bounce).
+  vec3 bakedGainHere = mix( vec3( 1.0 ), bakedGain * bakedTint, bakedInside );
+  // Dominant light: the sun where the bake saw it, else the sky / ceiling light from above.
+  vec3 bakedL = normalize( ( viewMatrix * vec4( 0.0, 1.0, 0.0, 0.0 ) ).xyz );
   #if NUM_DIR_LIGHTS > 0
     // Sun highlight only where the bake saw the sun (no shadow map any more).
-    float bakedNL = saturate( dot( geometryNormal, directionalLights[ 0 ].direction ) );
+    float bakedNL = saturate( dot( nonPerturbedNormal, directionalLights[ 0 ].direction ) );
     float bakedSun = smoothstep( 0.75, 1.0, dot( bakedIrradiance, ${LUMA} ) / ( bakedSunLum * bakedNL + 1e-3 ) );
     reflectedLight.directSpecular *= bakedSun * bakedSunSpec;
+    bakedL = normalize( mix( bakedL, directionalLights[ 0 ].direction, bakedSun ) );
   #endif
+  // Normal-map relief under the baked light (the lightmap only knows the flat surface):
+  // brighter where the mapped normal turns toward the dominant light, darker away.
+  float bakedRelief = ( 1.0 + bakedDetail * dot( geometryNormal, bakedL ) ) /
+                      ( 1.0 + bakedDetail * dot( nonPerturbedNormal, bakedL ) );
+  // Sun, sky and bounces are all in the lightmap: no hemisphere / ambient / IBL diffuse.
+  irradiance = bakedIrradiance * ( bakedScale * bakedGainHere * clamp( bakedRelief, 0.6, 1.5 ) );
+  iblIrradiance = irradiance;
+  reflectedLight.directDiffuse = vec3( 0.0 );
 #endif
 #if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )
   radiance += getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );
@@ -258,6 +340,8 @@ export interface BakedUniforms {
   bakedSunLum: { value: number };
   bakedSunSpec: { value: number };
   bakedGain: { value: number };
+  bakedDetail: { value: number };
+  bakedTint: { value: THREE.Color };
   bakedBoxMin: { value: THREE.Vector3 };
   bakedBoxMax: { value: THREE.Vector3 };
   bakedRoof: { value: THREE.Vector4 };
@@ -275,24 +359,44 @@ export function createBakedUniforms(
     bakedSunLum: { value: sunLum },
     bakedSunSpec: { value: BAKED_LIGHT.sunSpecular },
     bakedGain: { value: gain },
+    bakedDetail: { value: BAKED_LIGHT.normalDetail },
+    bakedTint: {
+      value:
+        gain === 1
+          ? new THREE.Color(1, 1, 1)
+          : new THREE.Color().setRGB(...BAKED_LIGHT.interiorTint),
+    },
     bakedBoxMin: { value: new THREE.Vector3(...b.min) },
     bakedBoxMax: { value: new THREE.Vector3(...b.max) },
     bakedRoof: { value: new THREE.Vector4(LEVELS.ridge, b.ridgeZ, b.slope, b.roofInset) },
   };
 }
 
-/** Installs the baked-lighting patch on a material (shared program per combination). */
-export function applyBakedPatch(material: THREE.Material, uniforms: BakedUniforms): void {
-  setShaderPatch(material, 'baked', (shader) => {
+/**
+ * Installs the baked-lighting patch on a material (shared program per combination).
+ * `perVertex`: the light comes from the `bakedRGBM` vertex attribute (vegetation baked per
+ * facet) instead of the `lightMap`.
+ */
+export function applyBakedPatch(
+  material: THREE.Material,
+  uniforms: BakedUniforms,
+  perVertex = false,
+): void {
+  setShaderPatch(material, perVertex ? 'baked-vertex' : 'baked', (shader) => {
     Object.assign(shader.uniforms, uniforms);
+    const vDecl = perVertex
+      ? 'varying vec3 vBakedWorld;\nattribute vec4 bakedRGBM;\nvarying vec4 vBakedRGBM;'
+      : 'varying vec3 vBakedWorld;';
+    const vSet = perVertex ? '\nvBakedRGBM = bakedRGBM;' : '';
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vBakedWorld;')
+      .replace('#include <common>', `#include <common>\n${vDecl}`)
       .replace(
         '#include <project_vertex>',
-        '#include <project_vertex>\nvBakedWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;',
+        `#include <project_vertex>\nvBakedWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;${vSet}`,
       );
+    const fDecl = perVertex ? '#define BAKED_PER_VERTEX\nvarying vec4 vBakedRGBM;\n' : '';
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${BAKED_PARS}`)
+      .replace('#include <common>', `#include <common>\n${fDecl}${BAKED_PARS}`)
       .replace('#include <lights_fragment_maps>', BAKED_FRAGMENT);
   });
 }
@@ -314,6 +418,7 @@ export class Lightmaps {
   bytes = 0;
   private manifest: LightmapManifest | null = null;
   private uv: Uint16Array | null = null;
+  private tri: Uint8Array | null = null;
   private readonly textures: THREE.Texture[] = [];
   private loading: Promise<void> | null = null;
   private meshes: THREE.Mesh[] | null = null;
@@ -350,15 +455,20 @@ export class Lightmaps {
       return;
     }
     const tier = this.o.tier();
-    const [uvBuf, ...textures] = await Promise.all([
-      fetch(`${base}${manifest.uv2.file}`).then((res) => {
-        if (!res.ok) throw new Error(`uv2 HTTP ${res.status}`);
+    const bin = (file: string): Promise<ArrayBuffer> =>
+      fetch(`${base}${file}`).then((res) => {
+        if (!res.ok) throw new Error(`${file} HTTP ${res.status}`);
         return res.arrayBuffer();
-      }),
+      });
+    const [uvBuf, triBuf, ...textures] = await Promise.all([
+      bin(manifest.uv2.file),
+      manifest.triangles ? bin(manifest.triangles.file) : Promise.resolve(new ArrayBuffer(0)),
       ...manifest.atlases.map((a) => loadKTX2(this.o.renderer, `baked/${a.files[tier]}`)),
     ]);
     this.bytes =
-      uvBuf.byteLength + manifest.atlases.reduce((s, a) => s + (a.bytes[a.files[tier]] ?? 0), 0);
+      uvBuf.byteLength +
+      triBuf.byteLength +
+      manifest.atlases.reduce((s, a) => s + (a.bytes[a.files[tier]] ?? 0), 0);
     for (const t of textures) {
       t.colorSpace = THREE.NoColorSpace;
       t.channel = 1;
@@ -373,6 +483,7 @@ export class Lightmaps {
     }
     this.manifest = manifest;
     this.uv = new Uint16Array(uvBuf);
+    this.tri = new Uint8Array(triBuf);
     this.status = 'loaded';
     this.tryApply();
   }
@@ -400,7 +511,7 @@ export class Lightmaps {
 
   /** Extra exposure for `room` from its baked brightness (1 = none). */
   roomExposure(room: string): number {
-    return roomExposure(this.roomIrradiance(room), this.roomIrradiance(BAKED_LIGHT.adaptReference));
+    return roomExposure(this.roomIrradiance(room));
   }
 
   /** GPU textures owned (memory estimate while not assigned). */
@@ -414,13 +525,15 @@ export class Lightmaps {
     for (const t of this.textures) t.dispose();
     this.textures.length = 0;
     this.uv = null;
+    this.tri = null;
     console.info(`Baked lighting off: ${reason} — using the dynamic sun shadow instead.`);
   }
 
   private tryApply(): void {
     if (this.status !== 'loaded' || !this.meshes || !this.manifest || !this.uv) return;
     const manifest = this.manifest;
-    const res = matchMeshes(manifest, this.meshes, this.uv.length);
+    const tri = this.tri ?? new Uint8Array(0);
+    const res = matchMeshes(manifest, this.meshes, this.uv.length, tri.length / 4);
     if (!res.ok) {
       this.unavailable(`${res.reason} (re-run \`npm run bake\`)`);
       return;
@@ -435,6 +548,15 @@ export class Lightmaps {
       m.lightMap = this.textures[entry.atlas]!;
       m.lightMapIntensity = BAKED_LIGHT.intensity;
       applyBakedPatch(m, uniforms);
+    }
+    // Vegetation: the facet's RGBM on its three vertices.
+    for (const { mesh, entry } of res.triangles) {
+      const src = tri.subarray(entry.offset * 4, (entry.offset + entry.triangles) * 4);
+      mesh.geometry.setAttribute(
+        'bakedRGBM',
+        new THREE.BufferAttribute(expandPerVertex(src), 4, true),
+      );
+      applyBakedPatch(mesh.material as THREE.Material, inside, true);
     }
     this.status = 'applied';
     this.sync();

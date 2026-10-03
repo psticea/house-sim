@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { ATLAS, texelSize, TEXEL, UNBAKED } from '../src/bake/config';
+import { ATLAS, texelSize, TEXEL, TRIANGLE_BAKED, UNBAKED } from '../src/bake/config';
 import { decodeRGBM, downsample2x, encodeRGBM } from '../src/bake/export';
 import { buildBakeScene } from '../src/bake/scene';
 import { packSkyline, quantizeUv, unwrap, type UnwrapResult } from '../src/bake/unwrap';
@@ -11,6 +11,7 @@ import {
   BAKED_FRAGMENT,
   bakeStaleReason,
   createBakedUniforms,
+  expandPerVertex,
   geometryHash,
   Lightmaps,
   matchMeshes,
@@ -183,13 +184,24 @@ describe('scene unwrap (the baked atlases)', { timeout: 120_000 }, () => {
     },
   );
 
-  it('bakes every opaque, non-vegetation mesh', () => {
+  it('bakes every opaque, non-vegetation mesh; vegetation per facet', () => {
     for (const m of scene.meshes)
       expect(scene.baked.includes(m)).toBe(!UNBAKED.has(m.name as never));
     expect(scene.baked.length).toBeGreaterThan(30);
+    // Only see-through / mirror surfaces keep purely runtime light.
+    const runtime = [...UNBAKED].filter((id) => !TRIANGLE_BAKED.has(id)).sort();
+    expect(runtime).toEqual(['glass', 'mirror']);
+    const veg = scene.meshes.filter((m) => TRIANGLE_BAKED.has(m.name as never));
+    expect(veg.length).toBeGreaterThanOrEqual(4);
+    const tris = veg.reduce((s, m) => s + m.geometry.getAttribute('position').count / 3, 0);
+    // One texel per facet in an extra atlas: a few rows of 2048.
+    expect(tris).toBeGreaterThan(1000);
+    expect(Math.ceil(tris / ATLAS.size)).toBeLessThanOrEqual(64);
   });
 
-  it('fits 2 × 2K at the full density (~3 cm indoors)', () => {
+  it('fits 3 × 2K at the full density (2 cm indoors)', () => {
+    expect(ATLAS.count).toBe(3);
+    expect(TEXEL.interior).toBe(0.02);
     expect(r.scale).toBe(1);
     expect(r.fill.every((f) => f < 0.9)).toBe(true);
     expect(texelSize('oak', [5, 0, 3])).toBe(TEXEL.interior);
@@ -204,7 +216,7 @@ describe('scene unwrap (the baked atlases)', { timeout: 120_000 }, () => {
     const S = ATLAS.size;
     let doubles = 0;
     let covered = 0;
-    for (const atlas of [0, 1]) {
+    for (let atlas = 0; atlas < ATLAS.count; atlas++) {
       const owner = new Int32Array(S * S).fill(-1);
       for (const c of r.charts) {
         if (c.atlas !== atlas) continue;
@@ -296,6 +308,35 @@ describe('lightmap manifest, hash and fallback', () => {
     expect(parseLightmapManifest(n)).toBeNull();
   });
 
+  it('vegetation per facet: parsed, matched by triangle count + hash, expanded per vertex', () => {
+    const m = {
+      ...manifest(),
+      triangles: {
+        file: 'tri.bin',
+        bytes: 48,
+        meshes: [{ id: 'foliage', triangles: 12, offset: 0, hash: geometryHash(pos) }],
+      },
+    };
+    expect(parseLightmapManifest(m)).not.toBeNull();
+    expect(
+      parseLightmapManifest({ ...m, triangles: { file: 'tri.bin', meshes: [{ id: 1 }] } }),
+    ).toBeNull();
+    const ok = matchMeshes(m, [mesh('oak'), mesh('foliage')], 72, 12);
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.triangles.map((t) => t.entry.id)).toEqual(['foliage']);
+    expect(matchMeshes(m, [mesh('oak')], 72, 12)).toMatchObject({ ok: false });
+    expect(matchMeshes(m, [mesh('oak'), mesh('foliage')], 72, 11)).toMatchObject({ ok: false });
+    const moved = pos.slice();
+    moved[2]! += 0.02;
+    expect(matchMeshes(m, [mesh('oak'), mesh('foliage', moved)], 72, 12)).toMatchObject({
+      ok: false,
+    });
+    const per = expandPerVertex(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+    expect([...per]).toEqual([
+      1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 5, 6, 7, 8, 5, 6, 7, 8, 5, 6, 7, 8,
+    ]);
+  });
+
   it('uses the bake only if every mesh still matches (all or nothing)', () => {
     const ok = matchMeshes(manifest(), [mesh('oak'), mesh('glass')], 72);
     expect(ok.ok).toBe(true);
@@ -376,7 +417,12 @@ describe('lightmap manifest, hash and fallback', () => {
           expect(fs.existsSync(path.resolve('public/assets/baked', f))).toBe(true);
         }
       }
-      const res = matchMeshes(m!, buildBakeScene().meshes, uvBytes / 2);
+      const tri = m!.triangles
+        ? fs.statSync(path.resolve('public/assets/baked', m!.triangles.file)).size
+        : 0;
+      expect(m!.triangles, 'vegetation baked per facet').toBeDefined();
+      expect(m!.atlases.length).toBe(ATLAS.count);
+      const res = matchMeshes(m!, buildBakeScene().meshes, uvBytes / 2, tri / 4);
       expect(res.ok ? '' : res.reason).toBe('');
     },
   );
@@ -438,5 +484,28 @@ describe('baked shader patch', () => {
     expect(shader.fragmentShader).not.toContain('#include <lights_fragment_maps>');
     expect(shader.uniforms.bakedRange?.value).toBe(8);
     expect(shader.uniforms.antiTile).toBeDefined();
+    // Normal-map relief under the baked light.
+    expect(shader.fragmentShader).toContain('bakedRelief');
+    expect(shader.fragmentShader).toContain('nonPerturbedNormal');
+  });
+
+  it('per-vertex variant (vegetation): its own program, light from the bakedRGBM attribute', () => {
+    const a = new THREE.MeshStandardMaterial();
+    const b = new THREE.MeshStandardMaterial();
+    const u = createBakedUniforms(8, 3.3);
+    applyBakedPatch(a, u, true);
+    applyBakedPatch(b, u);
+    expect(a.customProgramCacheKey()).not.toBe(b.customProgramCacheKey());
+    const shader = {
+      uniforms: {} as Record<string, THREE.IUniform>,
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+    };
+    a.onBeforeCompile(shader as unknown as THREE.WebGLProgramParametersWithUniforms, null!);
+    expect(shader.vertexShader).toContain('attribute vec4 bakedRGBM');
+    expect(shader.vertexShader).toContain('vBakedRGBM = bakedRGBM');
+    expect(shader.fragmentShader).toContain('#define BAKED_PER_VERTEX');
+    expect(shader.fragmentShader).toContain('vec4 bakedTexel = vBakedRGBM');
+    expect(shader.uniforms.bakedDetail).toBeDefined();
   });
 });

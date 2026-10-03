@@ -11,8 +11,9 @@ model transcribed from the architectural drawings (no Blender), rendered with th
   wood boards inside an anthracite metal border, a new east curtain wall (6 columns,
   one transom, single outward-opening door), all exterior metal, roof and frames in
   anthracite RAL 7016, a wall closing the basement stair off from the living room, no
-  bedroom-2 → bathroom door, south slats interrupted at the bathroom window. The baked
-  lighting is marked stale until the next bake (see "Baked lighting").
+  bedroom-2 → bathroom door, south slats interrupted at the bathroom window. Lighting
+  re-baked for it (2026-10-03, see "Baked lighting"), with ceiling lights on in the
+  basement, halls, utility room and ground-floor bathroom.
 - Current release: **I5 "Basic furniture"** — every room furnished in the style of The
   Local Project (warm minimalism: solid oak joinery, travertine, oat linen / bouclé, sand
   wool, cane, clay, aged brass): oak hall joinery with a bench niche and a round brass
@@ -109,9 +110,9 @@ Three looks of the same scene; only materials, lights and rendering settings dif
 
 | Tier     | Pixel ratio cap | MSAA | Realistic textures (hero / standard albedo) | Anisotropy | Shadow map ¹ | Lightmaps | Interior probes |
 | -------- | --------------- | ---- | ------------------------------------------- | ---------- | ------------ | --------- | --------------- |
-| `low`    | 1               | off  | 1K / 512 px                                 | 2          | 1024         | 2 × 1K    | off             |
-| `medium` | 1.5             | on   | 2K / 1K                                     | 4          | 1024         | 2 × 2K    | 3               |
-| `high`   | 2               | on   | 2K / 1K (lawn + pavers 2K)                  | 8          | 2048         | 2 × 2K    | 3               |
+| `low`    | 1               | off  | 1K / 512 px                                 | 2          | 1024         | 3 × 1K    | off             |
+| `medium` | 1.5             | on   | 2K / 1K                                     | 4          | 1024         | 3 × 2K    | 3               |
+| `high`   | 2               | on   | 2K / 1K (lawn + pavers 2K)                  | 8          | 2048         | 3 × 2K    | 3               |
 
 ¹ Stylised looks, and the realistic look only while no (current) bake is loaded.
 
@@ -193,27 +194,38 @@ Three looks of the same scene; only materials, lights and rendering settings dif
 ## Baked lighting (I6, Realistic look)
 
 The scene is static, so its global illumination is baked once on a desktop GPU and the
-phone only samples two lightmap atlases: soft sun shadows (sun disc ±0.6°), HDRI sky
+phone only samples three lightmap atlases: soft sun shadows (sun disc ±0.75°), HDRI sky
 light, 3 bounces of everything, darker corners and contact shadows, sunlight through
-the windows (glass lets sun and sky through, slightly tinted). The SketchUp and
-Borderlands looks don't use it (they keep their single soft shadow).
+the windows (glass lets sun and sky through, slightly tinted), the **ceiling lights that
+are on** (soft area lights + their bounce, the opal / paper diffusers glow) and the
+vegetation (one baked value per facet: tree shadows on the lawn and paving, the house
+shadow on shrubs and meadow). The SketchUp and Borderlands looks don't use it (they keep
+their single soft shadow).
 
-- **Run the bake:** `npm run bake` (≈ 10 min on an Intel HD 4000; much faster on any
+**Ceiling lights** (`src/data/lights.ts`, built by `src/world/furniture/lights.ts` into
+the existing `ceramic` / `linen` / `brass` / `metalBlack` meshes — no new draw calls):
+opal flush drums with a brass band on the flat ceilings, paper globes on a black cord
+under the upper-floor slope. **On** in the daytime bake where daylight isn't enough:
+storage (2, one on the edge of the basement-stair opening that also lights the stair),
+entrance hall + corridor, boiler / laundry, ground-floor bathroom, upper hall. **Off**
+(just fittings): bedrooms 1 and 2, study. To switch one, change `on` and re-bake.
+
+- **Run the bake:** `npm run bake` (≈ 25 min on an Intel HD 4000; much faster on any
   recent GPU). `tools/bake.mjs` starts Vite, opens the dev-only `bake.html` in **headed**
   Chromium on the real GPU (the page refuses SwiftShader), waits, then encodes KTX2 and
-  writes `public/assets/baked/` (`manifest.json`, `uv2.bin`, `lm<k>-2k.ktx2` for medium /
-  high, `lm<k>-1k.ktx2` for low — ≈ 5.2 MB tracked) plus tone-mapped atlas previews in
+  writes `public/assets/baked/` (`manifest.json`, `uv2.bin`, `tri.bin` (vegetation per
+  facet), `lm<k>-2k.ktx2` for medium / high, `lm<k>-1k.ktx2` for low — ≈ 8.2 MB
+  tracked) plus tone-mapped atlas previews in
   `test-results/bake/`. Options: `-- --quick` (10 % of the samples, look-dev),
   `-- --bench --debug` (timings, per-mesh validity stats). Commit the new
   `public/assets/baked/`.
-- **When to re-bake:** after **any** change to geometry, furniture, materials that
-  change colour a lot, or the sun (`site.sun`). Every lightmapped mesh is checked
+- **When to re-bake:** after **any** change to geometry, furniture, ceiling lights,
+  materials that change colour a lot, or the sun (`site.sun`). Every lightmapped mesh is checked
   against the position hash of the bake; if anything changed the runtime keeps the I4
   lighting (dynamic sun shadow map) and logs a console **info** — and the unit test
   "the committed bake matches the current scene" fails until you re-bake.
-- **Stale bake (current state):** when geometry changes land without a re-bake (e.g. the
-  2026-10 owner update: west facade boards, east curtain wall, living-room wall, bedroom-2
-  door, slat gap — lights and textures are redone at the end), `manifest.json` carries
+- **Stale bake:** when geometry changes land without a re-bake (as between the 2026-10
+  owner update and the lighting redo of 2026-10-03), `manifest.json` carries
   `"stale": { "since": "<date>", "reason": "…" }`. Then the runtime skips the bake before
   downloading any atlas (one console **info**, `lightmapStatus` =
   `unavailable: the bake is marked stale …`, Realistic look on the I4 lighting: sun shadow
@@ -226,13 +238,15 @@ Borderlands looks don't use it (they keep their single soft shadow).
 - **How it works** (`src/bake/`, plan.md §4.1): `unwrap.ts` — own deterministic chart
   builder + skyline packer instead of xatlas (flat-shaded planar architecture: charts
   grow over welded edges inside a 30° normal cone, min-area rectangles, 2-texel padding,
-  one mesh per atlas → no extra draw calls); ~3 cm texels indoors, 7 cm facades /
-  roof, 10 cm+ garden growing with distance, up to 4 m on the far ground. Vegetation,
-  glass and mirrors keep runtime lighting. `baker.ts` — texture-space G-buffer (9
+  one mesh per atlas → no extra draw calls); 2 cm texels indoors, 7 cm facades /
+  roof, 10 cm+ garden growing with distance, up to 4 m on the far ground. Vegetation is
+  baked per facet (an extra row atlas, one texel per triangle, `tri.bin`); glass and
+  mirrors keep runtime lighting. `baker.ts` — texture-space G-buffer (9
   jittered rasters → conservative coverage, positions always on the surface),
-  three-mesh-bvh BVH re-laid out for a stackless (escape-pointer) GPU traversal, 32 sun
-  - 8 / 12 / 96 sky-and-bounce samples per texel (progressive radiosity: rays that hit a
-    lightmapped surface read the previous iteration's lightmap × albedo), texels that
+  three-mesh-bvh BVH re-laid out for a stackless (escape-pointer) GPU traversal, 48 sun
+  - 8 / 12 / 112 sky-and-bounce samples per texel (progressive radiosity: rays that hit a
+    lightmapped surface read the previous iteration's lightmap × albedo; each sky sample
+    also takes one shadow-tested point on every ceiling light in reach), texels that
     see back faces are "inside geometry" and filled from their neighbours (no light
     leaks at wall / floor junctions), edge-aware à-trous denoise (position + normal) of
     the indirect part, dilation into the padding. `export.ts` — RGBM with a sqrt-encoded
@@ -240,9 +254,12 @@ Borderlands looks don't use it (they keep their single soft shadow).
 - **Runtime** (`src/world/lightmaps.ts`): loaded after the first walkable frame (only in
   the Realistic look), applied once the furniture is in: `uv1` from `uv2.bin`, the atlas
   as `lightMap` and a shader patch — surfaces are lit by the lightmap only (+ environment
-  reflections; the sun keeps a highlight where the bake saw it); the sun shadow map is
-  switched off and freed. Tuning: `BAKED_LIGHT` (interior gain = partial eye adaptation,
-  per-room adaptation from the baked mean floor irradiance, sun highlight) and
+  reflections; the sun keeps a highlight where the bake saw it; the normal maps keep a
+  little relief: the baked light is modulated by the mapped vs flat normal against the
+  sun, or `up` in the shade); vegetation gets its per-facet light as a vertex attribute;
+  the sun shadow map is switched off and freed. Tuning: `BAKED_LIGHT` (interior gain +
+  warm tint = partial eye adaptation, per-room adaptation from the baked median floor
+  irradiance, normal relief, sun highlight) and
   `REAL_BAKED_LIGHT` in `realLook.ts` (exposure). `?baked=0` shows the I4 lighting for
   comparisons.
 

@@ -15,10 +15,12 @@ import {
   furnitureColliders,
   type FurnitureItem,
 } from '../../data/furniture';
+import { CEILING_LIGHTS, type CeilingLight } from '../../data/lights';
 import type { BuiltWorld } from '../build';
 import { castsShadow } from '../materials';
 import { MeshBuilder } from '../meshBuilder';
 import { Frame } from './kit';
+import { buildCeilingLight } from './lights';
 import { BUILDERS } from './pieces';
 
 export interface BuiltFurniture {
@@ -26,8 +28,14 @@ export interface BuiltFurniture {
   collider: MeshBuilder;
 }
 
-/** Pure geometry pass (Node-safe): furniture triangles per material + collider boxes. */
-export function buildFurniture(items: readonly FurnitureItem[] = FURNITURE): BuiltFurniture {
+/**
+ * Pure geometry pass (Node-safe): furniture + ceiling-light triangles per material and the
+ * collider boxes.
+ */
+export function buildFurniture(
+  items: readonly FurnitureItem[] = FURNITURE,
+  lights: readonly CeilingLight[] = CEILING_LIGHTS,
+): BuiltFurniture {
   const mesh = new MeshBuilder();
   const collider = new MeshBuilder();
   for (const it of items) {
@@ -40,6 +48,7 @@ export function buildFurniture(items: readonly FurnitureItem[] = FURNITURE): Bui
     );
     BUILDERS[it.kind](f, it);
   }
+  for (const l of lights) buildCeilingLight(mesh, l);
   for (const c of furnitureColliders(items)) collider.box('concrete', c.min, c.max);
   return { mesh, collider };
 }

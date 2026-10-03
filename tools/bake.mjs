@@ -2,7 +2,8 @@
 // Starts the Vite dev server, opens bake.html in *headed* Chromium on the real GPU (the
 // page refuses SwiftShader), waits for the GPU bake, pulls the RGBM atlases + uv2, encodes
 // KTX2 (UASTC + Zstandard, linear, no mips) and writes public/assets/baked/:
-//   manifest.json, uv2.bin, lm<k>-2k.ktx2 (medium / high tier), lm<k>-1k.ktx2 (low tier).
+//   manifest.json, uv2.bin, lm<k>-2k.ktx2 (medium / high tier), lm<k>-1k.ktx2 (low tier),
+//   tri.bin (vegetation: RGBM bytes per triangle).
 // Debug previews (tone-mapped atlases) go to test-results/bake/ (git-ignored).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -156,10 +157,14 @@ for (const a of meta.atlases) {
   atlases.push({ size, files: { low: files.lo, medium: files.hi, high: files.hi }, bytes });
 }
 fs.writeFileSync(path.join(OUT, 'uv2.bin'), buffers.uv2);
+if (buffers.tri) fs.writeFileSync(path.join(OUT, 'tri.bin'), buffers.tri);
 const manifest = {
   ...meta,
   atlases,
   uv2: { file: 'uv2.bin', bytes: buffers.uv2.length },
+  ...(buffers.tri
+    ? { triangles: { file: 'tri.bin', bytes: buffers.tri.length, ...meta.triangles } }
+    : {}),
   generated: 'tools/bake.mjs',
 };
 manifest.bake.totalSeconds = Number(secs());

@@ -223,6 +223,12 @@ describe('I4 redo: texture budgets per tier (from the manifest and the finishes)
     }
     // Desktop GPUs transcode everything to BC7 (1 B per texel): the hard cap still holds.
     expect(tierTextureMB(manifest, 'medium', DESKTOP_BC7_FORMATS).total).toBeLessThanOrEqual(75);
+    // …also with the bake (3 × 2K lightmaps instead of the 1024² shadow map).
+    const bakedDesktop = tierTextureMB(manifest, 'medium', DESKTOP_BC7_FORMATS, true);
+    expect(bakedDesktop.lightmaps).toBeCloseTo(12, 5);
+    expect(bakedDesktop.shadow).toBe(0);
+    expect(bakedDesktop.total).toBeLessThanOrEqual(75);
+    expect(tierTextureMB(manifest, 'low', PHONE_FORMATS, true).lightmaps).toBeCloseTo(3, 5);
     expect(phone.low!.total).toBeLessThan(phone.medium!.total);
     expect(phone.medium!.total).toBeLessThanOrEqual(phone.high!.total);
   });
