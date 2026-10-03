@@ -7,7 +7,7 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 **Live:** https://psticea.github.io/house-sim/
 
 - What we want: [`goal.md`](goal.md) · How and roadmap: [`plan.md`](plan.md)
-- Design update (2026-10, owner's latest drawings): west gable in vertical / horizontal
+- Design update (2026-10, owner's latest drawings): west gable in vertical
   wood boards inside an anthracite metal border, a new east curtain wall (6 columns,
   one transom, single outward-opening door), all exterior metal, roof and frames in
   anthracite RAL 7016, a wall closing the basement stair off from the living room, no

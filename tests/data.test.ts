@@ -303,7 +303,8 @@ describe('owner updates (2026-10): east curtain wall, west facade, south slats',
     // Zones tile the field exactly (convex pieces, no overlaps → areas add up).
     const total = clad.zones.reduce((s, zn) => s + polygonArea(zn.polygon), 0);
     expect(total).toBeCloseTo(polygonArea(clad.region), 6);
-    expect(clad.zones.filter((zn) => zn.direction === 'horizontal')).toHaveLength(2);
+    // Owner decision (2026-10-03): only vertical boards.
+    expect(clad.zones.every((zn) => zn.direction === 'vertical')).toBe(true);
     // Every west window lies inside the wood field, ≥ 10 cm below its top.
     const profile = (u: number): number => {
       let best = -Infinity;
@@ -321,21 +322,13 @@ describe('owner updates (2026-10): east curtain wall, west facade, south slats',
         expect(profile(u) - (o.sill + o.height), o.id).toBeGreaterThan(0.1);
       }
     }
-    // Horizontal boards: 7 over F-04's height; joints of the vertical boards on the
-    // window edges.
+    // Vertical boards: a joint on the shared south edge of F-04 / F-08.
     const f04 = ground.openings.find((o) => o.id === 'f04-bed1-w')!;
-    const lower = clad.zones[0]!;
-    expect(lower.direction).toBe('horizontal');
-    expect(f04.height / lower.pitch).toBeCloseTo(7, 9);
-    for (const zn of clad.zones.filter((x) => x.direction === 'vertical')) {
-      for (const o of ground.openings.filter((x) => x.wall === 'ext-w')) {
-        for (const u of [o.offset, o.offset + o.width]) {
-          const k = (u - zn.anchor) / zn.pitch;
-          const inside = zn.polygon.some((p) => Math.abs(p[0] - u) < 1e-6);
-          if (inside) expect(Math.abs(k - Math.round(k)), `${o.id} edge`).toBeLessThan(1e-6);
-        }
-      }
-    }
+    const f08 = ground.openings.find((o) => o.id === 'f08-upper-w')!;
+    const zn = clad.zones[0]!;
+    expect(f04.offset + f04.width).toBeCloseTo(f08.offset + f08.width, 9);
+    const k = (f04.offset + f04.width - zn.anchor) / zn.pitch;
+    expect(Math.abs(k - Math.round(k))).toBeLessThan(1e-6);
   });
 
   it('south slats are interrupted in front of the bathroom window F-06 (window band only)', () => {
