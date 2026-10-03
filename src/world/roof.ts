@@ -214,9 +214,9 @@ function buildRoofWindow(
     box(mat, [0, fw], [fw, Ls - fw], n);
     box(mat, [W - fw, W], [fw, Ls - fw], n);
   };
-  // Outer frame (dark aluminium cladding), 7 cm wide, 6 cm proud of the sheet.
+  // Outer frame (aluminium cladding, RAL 7016 like all frames), 7 cm wide, 6 cm proud.
   const fw = 0.07;
-  ring('metalBlack', fw, [0, 0.06]);
+  ring('frame', fw, [0, 0.06]);
   mesh.quad(
     'glass',
     L(fw, fw, 0.045),
@@ -243,7 +243,7 @@ function buildRoofWindow(
   edge([W, 0], [W, Ls]);
   edge([W, Ls], [0, Ls]);
   edge([0, Ls], [0, 0]);
-  // Inner sash (wood, RAL 1011 like the other frames) seen from the room.
+  // Inner sash (RAL 7016 like the other frames) seen from the room.
   ring('frame', 0.06, [-0.12, -0.01]);
 }
 
@@ -327,7 +327,7 @@ function buildSeams(
   }
 }
 
-/** Two tubes on brackets (every second seam), parallel to the eaves. */
+/** Two tubes on brackets (every second seam), parallel to the eaves (RAL 7016 like the sheet). */
 function buildSnowGuards(mesh: MeshBuilder, roof: Roof, F: Record<Side, SlopeFrame>): void {
   const { inset, x, tubes } = roof.snowGuards;
   const [zN, zS] = roof.eaveZ;
@@ -339,7 +339,7 @@ function buildSnowGuards(mesh: MeshBuilder, roof: Roof, F: Record<Side, SlopeFra
     for (let t = 0; t < tubes; t++) {
       const v = (t - (tubes - 1) / 2) * 0.065;
       const c = add(add(base, f.up, v), f.n, 0.07);
-      mesh.orientedBox('metalBlack', [(x[0] + x[1]) / 2, c[1], c[2]], [1, 0, 0], f.up, f.n, [
+      mesh.orientedBox('roofMetal', [(x[0] + x[1]) / 2, c[1], c[2]], [1, 0, 0], f.up, f.n, [
         (x[1] - x[0]) / 2,
         0.014,
         0.014,
@@ -348,7 +348,7 @@ function buildSnowGuards(mesh: MeshBuilder, roof: Roof, F: Record<Side, SlopeFra
     for (let bx = x0 + spacing; bx < x[1]; bx += 2 * spacing) {
       if (bx < x[0]) continue;
       const c = add([bx, base[1], base[2]], f.n, 0.04);
-      mesh.orientedBox('metalBlack', c, [1, 0, 0], f.up, f.n, [0.01, 0.07, 0.04]);
+      mesh.orientedBox('roofMetal', c, [1, 0, 0], f.up, f.n, [0.01, 0.07, 0.04]);
     }
   }
 }
@@ -357,9 +357,9 @@ export function buildChimney(mesh: MeshBuilder, roof: Roof): void {
   const { center, radius, top } = roof.chimney;
   const [cx, cz] = center;
   mesh.cylinder('metalBlack', cx, cz, radius, 0, top, 12);
-  // Collar at the roof sheet and a rain cap on three short legs.
+  // Collar (RAL 7016 flashing) at the roof sheet and a rain cap on three short legs.
   const yRoof = roofTopY(roof, cz);
-  mesh.cylinder('metalBlack', cx, cz, radius + 0.03, yRoof - 0.05, yRoof + 0.12, 12);
+  mesh.cylinder('roofMetal', cx, cz, radius + 0.03, yRoof - 0.05, yRoof + 0.12, 12);
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2;
     const px = cx + Math.cos(a) * (radius - 0.01);

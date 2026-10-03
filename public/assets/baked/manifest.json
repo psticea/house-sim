@@ -1,5 +1,9 @@
 {
   "version": 1,
+  "stale": {
+    "since": "2026-10-03",
+    "reason": "geometry changed after the bake (owner update: west facade boards, east curtain wall, living-room / basement-stair wall, bedroom-2 door removed, south slat gap)"
+  },
   "encoding": "rgbm",
   "range": 8,
   "sunLuminance": 3.1093800399447384,

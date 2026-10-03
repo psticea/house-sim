@@ -6,7 +6,8 @@
  * `lightMap`, with a shader patch that lights them only by the lightmap (sun + sky + 3
  * bounces) plus environment reflections — the direct sun keeps just a highlight where
  * the bake saw sunlight. While active the dynamic sun shadow map is switched off (and
- * freed). Missing or stale bake → console info and the I4 lighting stays (shadow map).
+ * freed). Missing, stale (manifest `stale` flag) or outdated bake → console info and the
+ * I4 lighting stays (shadow map).
  */
 import * as THREE from 'three';
 import { LEVELS, SHELL } from '../data/grid';
@@ -47,6 +48,18 @@ export interface LightmapManifest {
   /** Mean baked floor irradiance per room (eye adaptation). */
   rooms?: Record<string, number>;
   bake?: Record<string, unknown>;
+  /**
+   * Set by hand when the scene changed after the bake and it must not be used (geometry
+   * edits pending a re-bake): the runtime skips it (I4 lighting) without downloading the
+   * atlases, and the scene-consistency unit test is skipped. `npm run bake` writes a new
+   * manifest without it.
+   */
+  stale?: { since: string; reason: string };
+}
+
+/** Why the bake is marked stale (`null` = current). */
+export function bakeStaleReason(m: Pick<LightmapManifest, 'stale'>): string | null {
+  return m.stale ? `marked stale since ${m.stale.since}: ${m.stale.reason}` : null;
 }
 
 /** Positions quantised to 0.1 mm → two FNV-1a style 32-bit hashes (16 hex digits). */
@@ -85,6 +98,10 @@ export function parseLightmapManifest(json: unknown): LightmapManifest | null {
   if (m.rooms !== undefined) {
     if (!m.rooms || typeof m.rooms !== 'object') return null;
     if (Object.values(m.rooms).some((v) => typeof v !== 'number')) return null;
+  }
+  const stale = m.stale as { since?: unknown; reason?: unknown } | null | undefined;
+  if (stale !== undefined) {
+    if (!stale || typeof stale.since !== 'string' || typeof stale.reason !== 'string') return null;
   }
   if (!Array.isArray(m.meshes)) return null;
   const count = m.atlases.length;
@@ -324,6 +341,12 @@ export class Lightmaps {
     const manifest = parseLightmapManifest(await r.json());
     if (!manifest) {
       this.unavailable('manifest has an unknown format');
+      return;
+    }
+    const stale = bakeStaleReason(manifest);
+    if (stale) {
+      // Don't download atlases that can't match the scene.
+      this.unavailable(`the bake is ${stale} (re-run \`npm run bake\`)`);
       return;
     }
     const tier = this.o.tier();

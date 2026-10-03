@@ -15,6 +15,10 @@ const _n = new THREE.Vector3();
 
 export class TriangleBucket {
   readonly positions: number[] = [];
+  /** Indices of triangles whose box-projected UVs are swapped (u ↔ v, grain turned 90°). */
+  readonly swapped: number[] = [];
+  /** While set, new triangles are recorded in `swapped`. */
+  swapUv = false;
 
   get triangleCount(): number {
     return this.positions.length / 9;
@@ -25,6 +29,7 @@ export class TriangleBucket {
    * front face (counter-clockwise) points along `facing`.
    */
   tri(a: V3, b: V3, c: V3, facing?: V3): void {
+    if (this.swapUv) this.swapped.push(this.positions.length / 9);
     if (facing) {
       _a.set(...a);
       _b.set(...b).sub(_a);
@@ -47,6 +52,11 @@ export class TriangleBucket {
 /** Collects triangles per material. */
 export class MeshBuilder {
   private readonly buckets = new Map<MaterialId, TriangleBucket>();
+  /**
+   * While set, emitted triangles get their world-space UVs swapped (u ↔ v): e.g. the
+   * vertical boards of a facade, so a board texture's grain runs along them.
+   */
+  swapUv = false;
 
   bucket(id: MaterialId): TriangleBucket {
     let b = this.buckets.get(id);
@@ -54,6 +64,7 @@ export class MeshBuilder {
       b = new TriangleBucket();
       this.buckets.set(id, b);
     }
+    b.swapUv = this.swapUv;
     return b;
   }
 
@@ -222,7 +233,7 @@ export class MeshBuilder {
     const out = new Map<MaterialId, THREE.BufferGeometry>();
     for (const [id, bucket] of this.buckets) {
       if (bucket.triangleCount === 0) continue;
-      out.set(id, trianglesToGeometry(bucket.positions));
+      out.set(id, trianglesToGeometry(bucket.positions, bucket.swapped));
     }
     return out;
   }
@@ -238,9 +249,17 @@ export function ringSignedArea(ring: readonly (readonly [number, number])[]): nu
   return a / 2;
 }
 
-/** Flat normals + world-space box-projected UVs (1 unit = 1 m) for I4 tiling textures. */
-export function trianglesToGeometry(positions: readonly number[]): THREE.BufferGeometry {
+/**
+ * Flat normals + world-space box-projected UVs (1 unit = 1 m) for I4 tiling textures;
+ * the triangles listed in `swapped` get u ↔ v.
+ */
+export function trianglesToGeometry(
+  positions: readonly number[],
+  swapped: readonly number[] = [],
+): THREE.BufferGeometry {
   const n = positions.length / 3;
+  const swap = new Uint8Array(n / 3);
+  for (const t of swapped) swap[t] = 1;
   const pos = new Float32Array(positions);
   const nor = new Float32Array(n * 3);
   const uv = new Float32Array(n * 2);
@@ -270,6 +289,11 @@ export function trianglesToGeometry(positions: readonly number[]): THREE.BufferG
       } else {
         uv[v * 2] = x;
         uv[v * 2 + 1] = y;
+      }
+      if (swap[t / 3]) {
+        const u0 = uv[v * 2]!;
+        uv[v * 2] = uv[v * 2 + 1]!;
+        uv[v * 2 + 1] = u0;
       }
     }
   }

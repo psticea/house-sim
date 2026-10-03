@@ -1,7 +1,8 @@
 /** Local wall frame helpers shared by the wall / opening builders. */
-import type { Wall } from '../data/schema';
+import type { MaterialId, Vec2, Wall } from '../data/schema';
 import { wallFrame, wallThickness } from '../data/geometry2d';
-import type { V3 } from './meshBuilder';
+import type { MeshBuilder, V3 } from './meshBuilder';
+import { ringSignedArea } from './meshBuilder';
 
 export interface WallSpace {
   wall: Wall;
@@ -44,4 +45,47 @@ export function wallSpace(wall: Wall, floorY: number): WallSpace {
     p: (u, v, w) => [fx + dir[0] * u + left[0] * w, floorY + v, fz + dir[1] * u + left[1] * w],
     dirOf: (du, dw) => [dir[0] * du + left[0] * dw, 0, dir[1] * du + left[1] * dw],
   };
+}
+
+/**
+ * Prism in a wall's plane: `outline` (u, v) extruded between the depths w0 < w1 (w toward
+ * the wall's left face). `faces` picks the flat faces to draw (both by default); `side`
+ * filters the edge faces by edge index.
+ */
+export function wallPrism(
+  mesh: MeshBuilder,
+  mat: MaterialId,
+  ws: WallSpace,
+  outline: readonly Vec2[],
+  w0: number,
+  w1: number,
+  opts: { faces?: 'both' | 'left' | 'right'; side?: (i: number) => boolean } = {},
+): void {
+  const faces = opts.faces ?? 'both';
+  const rightN: V3 = [-ws.aw[0], 0, -ws.aw[2]];
+  if (faces !== 'right') mesh.polygon(mat, outline, [], (u, v) => ws.p(u, v, w1), ws.aw);
+  if (faces !== 'left') mesh.polygon(mat, outline, [], (u, v) => ws.p(u, v, w0), rightN);
+  const ccw = ringSignedArea(outline) > 0;
+  for (let i = 0; i < outline.length; i++) {
+    if (opts.side && !opts.side(i)) continue;
+    const a = outline[i]!;
+    const b = outline[(i + 1) % outline.length]!;
+    const du = b[0] - a[0];
+    const dv = b[1] - a[1];
+    const len = Math.hypot(du, dv);
+    if (len < 1e-9) continue;
+    // Outward normal of the outline in (u, v).
+    const s = ccw ? 1 : -1;
+    const nu = (s * dv) / len;
+    const nv = (-s * du) / len;
+    const facing: V3 = [ws.ax[0] * nu, nv, ws.ax[2] * nu];
+    mesh.quad(
+      mat,
+      ws.p(a[0], a[1], w0),
+      ws.p(b[0], b[1], w0),
+      ws.p(b[0], b[1], w1),
+      ws.p(a[0], a[1], w1),
+      facing,
+    );
+  }
 }

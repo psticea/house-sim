@@ -7,6 +7,12 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 **Live:** https://psticea.github.io/house-sim/
 
 - What we want: [`goal.md`](goal.md) · How and roadmap: [`plan.md`](plan.md)
+- Design update (2026-10, owner's latest drawings): west gable in vertical / horizontal
+  wood boards inside an anthracite metal border, a new east curtain wall (6 columns,
+  one transom, single outward-opening door), all exterior metal, roof and frames in
+  anthracite RAL 7016, a wall closing the basement stair off from the living room, no
+  bedroom-2 → bathroom door, south slats interrupted at the bathroom window. The baked
+  lighting is marked stale until the next bake (see "Baked lighting").
 - Current release: **I5 "Basic furniture"** — every room furnished in the style of The
   Local Project (warm minimalism: solid oak joinery, travertine, oat linen / bouclé, sand
   wool, cane, clay, aged brass): oak hall joinery with a bench niche and a round brass
@@ -23,10 +29,11 @@ model transcribed from the architectural drawings (no Blender), rendered with th
   downloaded models), merged per material; built right after the house is walkable.
 - Previous: **I4 "Materials & textures"** — the **Realistic** look (`?style=real`)
   gets CC0 PBR materials (KTX2): natural oak parquet, warm sand stone-look tiles in the
-  bathrooms, exterior wood boards and slats, grey standing-seam metal (RAL 7045),
+  bathrooms, exterior wood boards and slats, standing-seam metal (RAL 7045 then; RAL 7016
+  anthracite since the 2026-10 facade update),
   micro-textured warm-white plaster, oak board ceiling, concrete pavers, stone slabs,
   gravel, lawn, timber fence, Corten, bark; clear glass with sky reflections, RAL 1011
-  frames; an HDRI partly-cloudy sky with image-based lighting, interior reflection probes
+  frames (now RAL 7016); an HDRI partly-cloudy sky with image-based lighting, interior reflection probes
   and eye adaptation between inside and outside; low / medium / high quality tiers with
   dynamic resolution. SketchUp and Borderlands are unchanged.
 - Before: **I3 "Garden & fence"** — start on the parking, walk in through the
@@ -189,6 +196,18 @@ Borderlands looks don't use it (they keep their single soft shadow).
   against the position hash of the bake; if anything changed the runtime keeps the I4
   lighting (dynamic sun shadow map) and logs a console **info** — and the unit test
   "the committed bake matches the current scene" fails until you re-bake.
+- **Stale bake (current state):** when geometry changes land without a re-bake (e.g. the
+  2026-10 owner update: west facade boards, east curtain wall, living-room wall, bedroom-2
+  door, slat gap — lights and textures are redone at the end), `manifest.json` carries
+  `"stale": { "since": "<date>", "reason": "…" }`. Then the runtime skips the bake before
+  downloading any atlas (one console **info**, `lightmapStatus` =
+  `unavailable: the bake is marked stale …`, Realistic look on the I4 lighting: sun shadow
+  map, probes, eye adaptation), the scene-consistency unit test is **skipped** (its name
+  shows the reason; the other bake tests still run) and `materials.spec` checks the
+  fallback lighting instead of the lightmaps. **To clear it, re-bake:** `npm run bake`
+  writes a fresh manifest without the flag, then `npm test` runs the consistency check
+  again (it must pass) and the e2e checks expect the lightmaps again. Mark a bake stale
+  by hand only when the re-bake is deliberately deferred.
 - **How it works** (`src/bake/`, plan.md §4.1): `unwrap.ts` — own deterministic chart
   builder + skyline packer instead of xatlas (flat-shaded planar architecture: charts
   grow over welded edges inside a 30° normal cone, min-area rectangles, 2-texel padding,
@@ -261,7 +280,8 @@ in `test-results/style-shots/`).
   `texturesReady()` (resolves when the realistic textures, sky and probes are in; used by the
   e2e tests). `getStats()` also reports `quality`, `pixelRatio`, `textureMB` (GPU estimate:
   compressed mips, env maps, shadow maps, lightmaps), `textureDownloadMB`, `probes`,
-  `lightmaps` (baked lighting active) and `lightmapStatus`.
+  `lightmaps` (baked lighting active), `lightmapStatus` and `sunShadow` (the sun's shadow
+  map is on — the lighting without the bake).
 - `GPU=1 npm run shots:styles -- http://localhost:5173/ real living-east,f-storage` —
   review shots on the real GPU (headed Chromium) instead of SwiftShader.
 - `npm run shots -- http://localhost:5173/ upper-hall,bedroom-3,storage` — review shots

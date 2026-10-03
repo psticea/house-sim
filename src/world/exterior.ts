@@ -53,7 +53,27 @@ export function buildExteriorElement(
   const gap = count > 1 ? (e.x[1] - e.x[0] - e.width) / (count - 1) : 0;
   for (let i = 0; i < count; i++) {
     const x0 = e.x[0] + i * gap;
-    mesh.box(e.material, [x0, e.y[0], e.z[0]], [x0 + e.width, e.y[1], e.z[1]], { bottom: null });
+    const x1 = x0 + e.width;
+    // Vertical spans of this slat outside the gaps it crosses (cut ends get end faces).
+    let spans: [number, number][] = [[e.y[0], e.y[1]]];
+    for (const g of e.gaps ?? []) {
+      if (x1 <= g.x[0] || x0 >= g.x[1]) continue;
+      spans = spans.flatMap(([a, b]): [number, number][] =>
+        g.y[1] <= a || g.y[0] >= b
+          ? [[a, b]]
+          : (
+              [
+                [a, g.y[0]],
+                [g.y[1], b],
+              ] as [number, number][]
+            ).filter(([p, q]) => q - p > 1e-3),
+      );
+    }
+    for (const [a, b] of spans) {
+      mesh.box(e.material, [x0, a, e.z[0]], [x1, b, e.z[1]], {
+        bottom: a > e.y[0] + 1e-6 ? undefined : null,
+      });
+    }
   }
   if (e.collide) collider.box('concrete', [e.x[0], e.y[0], e.z[0]], [e.x[1], e.y[1], e.z[1]]);
 }

@@ -400,7 +400,9 @@ export const FURNITURE: readonly FurnitureItem[] = [
   }),
   item('terrace-bench-w', 'outdoorBench', G, 'terrace', [17.18, 4.6], 'E', [1.8, 0.36, 0.45]),
   item('terrace-bench-e', 'outdoorBench', G, 'terrace', [18.62, 4.6], 'W', [1.8, 0.36, 0.45]),
-  item('terrace-lounger-1', 'lounger', G, 'terrace', [17.4, 0.85], 30, [0.72, 0.85, 0.72]),
+  // Lounger 1 turned to face the garden (was at 17.4, 0.85, 30°) so the open, outward
+  // curtain-wall door leaf (z ≈ 1.2, x 16.6…17.6) and its swing stay clear.
+  item('terrace-lounger-1', 'lounger', G, 'terrace', [17.25, 0.7], 'E', [0.72, 0.85, 0.72]),
   item('terrace-lounger-2', 'lounger', G, 'terrace', [18.55, 0.85], -20, [0.72, 0.85, 0.72]),
   item('terrace-side-table', 'sideTable', G, 'terrace', [17.98, 0.55], 'S', [0.4, 0.4, 0.42]),
 ];

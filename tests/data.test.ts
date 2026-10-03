@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  curtainLines,
+  pointInPolygon,
   polygonArea,
   roofSegment,
   roofTopY,
   roofUndersideY,
+  wallFrame,
   wallLength,
   wallThickness,
   wallTopAt,
@@ -185,7 +188,7 @@ describe('openings', () => {
       'F-09': { w: 1.5, h: 1.5, hp: 3.25 },
       'F-02u': { w: 0.9, h: 0.9, hp: 0.8 },
       F01: { w: 1.15, h: 0.75, hp: 1.0 },
-      'CW-door': { w: 0.9, h: 2.505, hp: 0 },
+      'CW-door': { w: 1.05, h: 2.475, hp: 0 },
     };
     for (const level of levels) {
       for (const o of level.openings) {
@@ -198,8 +201,9 @@ describe('openings', () => {
       }
     }
     const count = (code: string) => ground.openings.filter((o) => o.code === code).length;
-    // Tag counts on sheet 05: Ui-01 ×2, Ui-02 ×2, one each of the others.
-    expect(count('Ui-01')).toBe(2);
+    // Tag counts on sheet 05: Ui-01 ×2, Ui-02 ×2, one each of the others — minus the
+    // bedroom-2 → bathroom Ui-01 the owner removed (2026-10).
+    expect(count('Ui-01')).toBe(1);
     expect(count('Ui-02')).toBe(2);
     expect(count('Ue-01')).toBe(1);
   });
@@ -234,5 +238,120 @@ describe('site (sheet 03)', () => {
   it('parking pad ≈ 80 m² (2 spaces)', () => {
     const parking = house.site.patches.find((p) => p.id === 'parking')!;
     expect(Math.abs(polygonArea(parking.polygon) - 80) / 80).toBeLessThan(0.03);
+  });
+});
+
+describe('owner updates (2026-10): east curtain wall, west facade, south slats', () => {
+  const cw = ground.walls.find((w) => w.id === 'cw-e')!;
+  const c = cw.curtain!;
+  const lines = curtainLines(c);
+  const zAt = (u: number): number => cw.from[1] + u;
+
+  it('curtain wall: 6 columns 855 | 1100 | 1400 | 1350 | 1100 | 855 (north → south) = 6.66 m', () => {
+    expect([...c.columns]).toEqual([0.855, 1.1, 1.4, 1.35, 1.1, 0.855]);
+    expect(c.columns.reduce((s, w) => s + w, 0)).toBeCloseTo(6.66, 9);
+    expect(c.profile).toBe(0.05);
+    expect([...c.transoms]).toEqual([2.5]);
+    // Exterior view (south on the left): 855 | 1100 | 1350 | 1400 | 1100 | 855, apex
+    // after 3305 from the south edge = the mullion on the ridge line.
+    expect(zAt(lines[0]!)).toBeCloseTo(0.27, 6);
+    expect(zAt(lines[6]!)).toBeCloseTo(6.93, 6);
+    expect(zAt(lines[3]!)).toBeCloseTo(house.roof.ridgeZ, 6);
+    expect(zAt(lines[6]!) - zAt(lines[3]!)).toBeCloseTo(3.305, 6);
+    // The glass field sits inside the loggia opening (side walls z 0.275 / 6.975).
+    expect(zAt(lines[0]!)).toBeGreaterThan(0.275 - 0.01);
+    expect(zAt(lines[6]!)).toBeLessThan(6.975);
+  });
+
+  it('curtain wall: glass up to the gable (sides ≈ +3.97, apex ≈ +6.805 within 5 cm)', () => {
+    const profile = wallTopProfile(cw, house.roof, 0);
+    const side = wallTopAt(profile, lines[0]!);
+    const apex = wallTopAt(profile, lines[3]!);
+    expect(Math.abs(side - (6.805 - 2.835))).toBeLessThan(0.05);
+    expect(Math.abs(apex - 6.805)).toBeLessThan(0.05);
+    expect(c.transoms[0]!).toBeLessThan(side);
+  });
+
+  it('curtain wall: the single door is the 2nd column from the north, hinged north, opening out', () => {
+    const doors = ground.openings.filter((o) => o.wall === 'cw-e');
+    expect(doors.map((o) => o.id)).toEqual(['cw-door']);
+    const d = doors[0]!;
+    // Between the mullion faces of the 1100 column, up to the transom.
+    expect(d.offset).toBeCloseTo(lines[1]! + c.profile / 2, 9);
+    expect(d.offset + d.width).toBeCloseTo(lines[2]! - c.profile / 2, 9);
+    expect(lines[2]! - lines[1]!).toBeCloseTo(1.1, 9);
+    expect(d.sill + d.height).toBeCloseTo(c.transoms[0]! - c.profile / 2, 9);
+    expect(d.state).toBe('open');
+    expect(d.leaf).toMatchObject({ hinge: 'start', openAngle: 90, glazed: true });
+    // Left of the north → south wall = east = outside: the leaf opens out onto the deck.
+    expect(wallFrame(cw).left[0]).toBeCloseTo(1, 9);
+    expect(d.leaf!.swing).toBe('left');
+    // Clear width between the 5 cm door-frame jambs ≥ 0.9 m.
+    expect(d.width - 2 * 0.05).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('west gable: wood field in a 0.605 m metal border, board zones tile it, windows inside', () => {
+    const w = ground.walls.find((x) => x.id === 'ext-w')!;
+    const clad = w.cladding!;
+    expect(clad).toBeDefined();
+    expect(clad.material).toBe('cladWood');
+    expect(w.layers[w.layers.length - 1]!.material).toBe('cladMetal');
+    const zOf = (u: number): number => w.from[1] + u;
+    const us = clad.region.map((p) => p[0]);
+    expect(zOf(Math.min(...us)) - SHELL.north).toBeCloseTo(0.605, 6);
+    expect(SHELL.south - zOf(Math.max(...us))).toBeCloseTo(0.605, 6);
+    // Zones tile the field exactly (convex pieces, no overlaps → areas add up).
+    const total = clad.zones.reduce((s, zn) => s + polygonArea(zn.polygon), 0);
+    expect(total).toBeCloseTo(polygonArea(clad.region), 6);
+    expect(clad.zones.filter((zn) => zn.direction === 'horizontal')).toHaveLength(2);
+    // Every west window lies inside the wood field, ≥ 10 cm below its top.
+    const profile = (u: number): number => {
+      let best = -Infinity;
+      for (let i = 0; i < clad.region.length; i++) {
+        const a = clad.region[i]!;
+        const b = clad.region[(i + 1) % clad.region.length]!;
+        if (u < Math.min(a[0], b[0]) || u > Math.max(a[0], b[0]) || a[0] === b[0]) continue;
+        best = Math.max(best, a[1] + ((b[1] - a[1]) * (u - a[0])) / (b[0] - a[0]));
+      }
+      return best;
+    };
+    for (const o of ground.openings.filter((x) => x.wall === 'ext-w')) {
+      for (const u of [o.offset, o.offset + o.width]) {
+        expect(pointInPolygon(u, o.sill, clad.region), o.id).toBe(true);
+        expect(profile(u) - (o.sill + o.height), o.id).toBeGreaterThan(0.1);
+      }
+    }
+    // Horizontal boards: 7 over F-04's height; joints of the vertical boards on the
+    // window edges.
+    const f04 = ground.openings.find((o) => o.id === 'f04-bed1-w')!;
+    const lower = clad.zones[0]!;
+    expect(lower.direction).toBe('horizontal');
+    expect(f04.height / lower.pitch).toBeCloseTo(7, 9);
+    for (const zn of clad.zones.filter((x) => x.direction === 'vertical')) {
+      for (const o of ground.openings.filter((x) => x.wall === 'ext-w')) {
+        for (const u of [o.offset, o.offset + o.width]) {
+          const k = (u - zn.anchor) / zn.pitch;
+          const inside = zn.polygon.some((p) => Math.abs(p[0] - u) < 1e-6);
+          if (inside) expect(Math.abs(k - Math.round(k)), `${o.id} edge`).toBeLessThan(1e-6);
+        }
+      }
+    }
+  });
+
+  it('south slats are interrupted in front of the bathroom window F-06 (window band only)', () => {
+    const slats = house.exterior.find((e) => e.id === 'south-slats');
+    expect(slats?.type).toBe('slats');
+    if (slats?.type !== 'slats') return;
+    const f06 = ground.openings.find((o) => o.id === 'f06-bath-s')!;
+    const x0 = SHELL.west + f06.offset;
+    expect(slats.gaps).toHaveLength(1);
+    const g = slats.gaps![0]!;
+    expect(g.x[0]).toBeCloseTo(x0, 9);
+    expect(g.x[1]).toBeCloseTo(x0 + f06.width, 9);
+    expect(g.y[0]).toBeCloseTo(f06.sill, 9);
+    expect(g.y[1]).toBeCloseTo(f06.sill + f06.height, 9);
+    // Slats continue above (to the sunshade) and below the window.
+    expect(slats.y[1]).toBeGreaterThan(f06.sill + f06.height);
+    expect(slats.y[0]).toBeLessThan(f06.sill);
   });
 });

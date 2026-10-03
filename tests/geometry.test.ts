@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
+import { pointInPolygon, polygonArea } from '../src/data/geometry2d';
 import { house } from '../src/data/house';
 import { buildGeometry, buildWorld } from '../src/world/build';
+import { insetConvex, zoneBoards } from '../src/world/cladding';
 
 describe('generated geometry', () => {
   const { mesh, collider } = buildGeometry(house);
@@ -78,6 +80,20 @@ describe('generated geometry', () => {
     expect(hit(new THREE.Vector3(8.7, 1.0, -1.0), new THREE.Vector3(0, 0, 1), 2)).toBeNull();
     // Window F-03 is glass: blocked.
     expect(hit(new THREE.Vector3(2.575, 1.4, -1.0), new THREE.Vector3(0, 0, 1), 2)).not.toBeNull();
+    // Owner changes (2026-10): from the play corner toward the basement-stair opening
+    // under the landing — blocked at the new wall (x 9.625) at every player height; the
+    // bedroom-2 → bathroom wall is solid; the curtain-wall door (z 1.15…2.20) is open.
+    const west = new THREE.Vector3(-1, 0, 0);
+    for (const z of [6.0, 6.3, 6.65, 7.0]) {
+      for (const y of [0.1, 0.7, 1.3]) {
+        const h = hit(new THREE.Vector3(10.6, y, z), west.clone(), 2);
+        expect(h, `living → basement stair at y ${y}, z ${z}`).not.toBeNull();
+        expect(h!.point.x, `y ${y}, z ${z}`).toBeGreaterThan(9.6);
+      }
+    }
+    expect(hit(new THREE.Vector3(3.9, 1.0, 5.78), new THREE.Vector3(1, 0, 0), 2)).not.toBeNull();
+    expect(hit(new THREE.Vector3(15.6, 1.0, 1.7), new THREE.Vector3(1, 0, 0), 2)).toBeNull();
+    expect(hit(new THREE.Vector3(15.6, 1.0, 3.0), new THREE.Vector3(1, 0, 0), 2)).not.toBeNull();
   });
 
   it('walkable surfaces on all three levels: floors, stair ramps, no stair blocker', () => {
@@ -108,5 +124,47 @@ describe('generated geometry', () => {
     }
     const y = floorAt(7.8, 1.2, 4.6);
     expect(y, 'basement stair under the upper flight').toBeLessThan(0);
+  });
+});
+
+describe('west facade boards (cladding.ts)', () => {
+  it('boards fill the wood field around the windows, with the zone directions', () => {
+    const ground = house.levels.find((l) => l.id === 'ground')!;
+    const w = ground.walls.find((x) => x.id === 'ext-w')!;
+    const clad = w.cladding!;
+    const holes = ground.openings
+      .filter((o) => o.wall === 'ext-w')
+      .map((o) => ({ u0: o.offset, u1: o.offset + o.width, v0: o.sill, v1: o.sill + o.height }));
+    let boards = 0;
+    for (const zone of clad.zones) {
+      const pieces = zoneBoards(zone, clad.joint, holes);
+      expect(pieces.length, zone.direction).toBeGreaterThan(3);
+      for (const p of pieces) {
+        const us = p.map((q) => q[0]);
+        const vs = p.map((q) => q[1]);
+        const [u0, u1, v0, v1] = [
+          Math.min(...us),
+          Math.max(...us),
+          Math.min(...vs),
+          Math.max(...vs),
+        ];
+        // Boards are long in their direction, at most one pitch wide across it.
+        const across = zone.direction === 'vertical' ? u1 - u0 : v1 - v0;
+        expect(across).toBeLessThanOrEqual(zone.pitch * 1.31);
+        for (const h of holes) {
+          const overlap =
+            u0 < h.u1 - 1e-6 && u1 > h.u0 + 1e-6 && v0 < h.v1 - 1e-6 && v1 > h.v0 + 1e-6;
+          expect(overlap, 'board over a window').toBe(false);
+        }
+        for (const q of p) {
+          expect(pointInPolygon(q[0], q[1], insetConvex(zone.polygon, -1e-6))).toBe(true);
+        }
+        boards += polygonArea(p);
+      }
+    }
+    const windows = holes.reduce((s, h) => s + (h.u1 - h.u0) * (h.v1 - h.v0), 0);
+    const field = polygonArea(clad.region) - windows;
+    expect(boards / field).toBeGreaterThan(0.93);
+    expect(boards / field).toBeLessThan(1);
   });
 });

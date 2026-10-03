@@ -10,6 +10,7 @@
  * outer face at x = −0.33) and south chain 2.62 | 2.00 | 63⁵ | 2.00 | 5.20 | 3.30 |
  * 1.20 | 1.75⁵. Room polygons are the plan's own room fills (finished inner faces).
  */
+import { WEST_CLADDING } from './facade';
 import { GARDEN_ZONES } from './garden';
 import { LEVELS, SHELL } from './grid';
 import type { Level, Opening, Polygon, Room, Slab, Stairs, Wall, WallLayer, Zone } from './schema';
@@ -36,6 +37,16 @@ const inner = (t: number): WallLayer[] => [{ thickness: t, material: 'plaster' }
 const zN = SHELL.north + EXT_T / 2; // −0.1025 centre of the north wall
 const zS = SHELL.south - EXT_T / 2; // 7.3525
 const xW = SHELL.west + EXT_T / 2; // −0.1025
+
+/** East curtain wall: column widths from the north end (wall `from`), see `cw-e`. */
+export const CW_COLUMNS = [0.855, 1.1, 1.4, 1.35, 1.1, 0.855] as const;
+/** u of the north frame edge (z 0.270): the apex mullion (after 3.355 m) is on the ridge. */
+const CW_START = (SHELL.north + SHELL.south) / 2 - (0.855 + 1.1 + 1.4) - SHELL.innerNorth;
+/** The single door: 2nd column from the north (5th from the left in the exterior view). */
+const CW_DOOR_COLUMN = 1;
+const CW_PROFILE = 0.05;
+const CW_TRANSOM = 2.5;
+const cwLine = (i: number): number => CW_START + CW_COLUMNS.slice(0, i).reduce((s, w) => s + w, 0);
 
 export const groundWalls: Wall[] = [
   // --- Exterior shell -------------------------------------------------------------
@@ -99,10 +110,18 @@ export const groundWalls: Wall[] = [
     to: [xW, 7.375],
     top: { roof: 'upper' },
     layers: extOutRight(BRICK, BRICK),
-    source: 'sheet 05 west wall x −0.33…0.125; gable per elevation 08 (west)',
+    // Up-to-date west facade: wood boards in a 0.605 m anthracite metal border (facade.ts).
+    cladding: WEST_CLADDING,
+    source: 'sheet 05 west wall x −0.33…0.125; gable per elevation 08 / up-to-date west facade',
   },
   {
     // East glazed wall of the living room (curtain wall), recessed behind the loggia.
+    // Up-to-date supplier drawing (exterior view, south on the left): 6.66 m wide in 6
+    // columns 855 | 1100 | 1350 | 1400 | 1100 | 855 (south → north), the mullion between
+    // the 1350 and 1400 columns under the apex (3305 | 3355), 50 mm mullions, one transom
+    // at +2.500, glass up to the gable (+3.97 at the sides = 6805 − 2835, apex +6.805 —
+    // the loggia roof underside here: +3.945 / +6.756). The field is centred on the ridge
+    // line: z 0.270…6.930 inside the loggia opening z 0.275…6.975.
     id: 'cw-e',
     level: 'ground',
     kind: 'curtain',
@@ -111,13 +130,12 @@ export const groundWalls: Wall[] = [
     top: { roof: 'loggia' },
     layers: [{ thickness: 0.15, material: 'frame' }],
     curtain: {
-      // Mullion centres (offset from z = 0.125): plan frames at z 0.25–0.30, 1.824–1.874,
-      // 2.775–2.825 (door / side light post), 3.60–3.65, 5.35–5.40, 6.95–7.00.
-      mullions: [0.15, 1.724, 2.675, 3.5, 5.25, 6.85],
-      // Elevation 08 (east): opaque aluminium band "3**" from +2.505 to +3.005.
-      band: [2.505, 3.005],
+      start: CW_START,
+      columns: CW_COLUMNS,
+      transoms: [CW_TRANSOM],
+      profile: CW_PROFILE,
     },
-    source: 'sheet 05 frames x 16.475…16.625; elevation 08 curtain wall',
+    source: 'sheet 05 frames x 16.475…16.625; curtain-wall supplier drawing (exterior view)',
   },
 
   // --- Interior walls (H 2.68 to the upper slab) ------------------------------------
@@ -189,6 +207,8 @@ export const groundWalls: Wall[] = [
     to: [4.75, 7.125],
     top: H,
     layers: inner(0.25),
+    // Owner decision (2026-10): no door to the bathroom any more (sheet 05 drew Ui-01 at
+    // z 5.378…6.178); the bathroom is entered from the hall only.
     source: 'brick x 4.625…4.875',
   },
   {
@@ -252,6 +272,21 @@ export const groundWalls: Wall[] = [
     top: (LEVELS.upperFloor / 17) * 8,
     layers: inner(0.23),
     source: 'sheet 04 partition z 6.06…6.175 + end of flight 1 at z 5.945',
+  },
+  {
+    // Owner decision (2026-10): brick wall closing the basement-stair opening under the
+    // main-stair landing from the living room / play corner (on axis 3, in line with the
+    // column and the upper void wall), from the floor past the landing soffit up to the
+    // landing top, so it also covers the landing's edge (no 25 cm ledge under the rail);
+    // the basement is reached only through Ui-02 and the basement stair.
+    id: 'i-living-stair',
+    level: 'ground',
+    kind: 'interior',
+    from: [9.5, 5.945],
+    to: [9.5, SHELL.innerSouth],
+    top: (LEVELS.upperFloor / 17) * 9,
+    layers: inner(0.25),
+    source: 'x 9.375…9.625 (axis 3), z 5.945 (end of flight 1) … 7.125, up to the landing (+1.56)',
   },
 ];
 
@@ -374,17 +409,20 @@ export const groundOpenings: Opening[] = [
     source: 'south chain … 5.20 | 3.30; tag F-07 2.50 × 3.30, hp 0.00; lift-and-slide (elev. 10)',
   },
   {
+    // Single door "open out, hinge right" (exterior view) in the 1100 column: the leaf
+    // (between 5 cm door-frame jambs) is kept open 90° outward onto the deck, hinged on
+    // the north mullion. Opening = between the mullion faces, up to the transom.
     id: 'cw-door',
     code: 'CW-door',
     wall: 'cw-e',
-    offset: 1.75,
-    width: 0.9,
-    height: 2.505,
+    offset: cwLine(CW_DOOR_COLUMN) + CW_PROFILE / 2,
+    width: CW_COLUMNS[CW_DOOR_COLUMN] - CW_PROFILE,
+    height: CW_TRANSOM - CW_PROFILE / 2,
     sill: 0,
     kind: 'door',
     state: 'open',
-    leaf: { hinge: 'start', swing: 'right', openAngle: 90, material: 'frame', glazed: true },
-    source: 'sheet 05 leaf drawn open x 15.665…16.565 at z ≈ 1.94; elev. 08 door head +2.505',
+    leaf: { hinge: 'start', swing: 'left', openAngle: 90, material: 'frame', glazed: true },
+    source: 'curtain-wall supplier drawing: door in the 5th column from the left (exterior view)',
   },
   // --- Interior doors (tags Ui-01…04, H 2.10) -----------------------------------------
   {
@@ -438,19 +476,6 @@ export const groundOpenings: Opening[] = [
     state: 'open',
     leaf: interiorLeaf('start', 'right'),
     source: 'frames x 5.44 / 6.24; leaf x 5.48…5.52 into the bathroom',
-  },
-  {
-    id: 'ui01-bath-bed2',
-    code: 'Ui-01',
-    wall: 'i-bed2-bath',
-    offset: 1.503,
-    width: 0.8,
-    height: 2.1,
-    sill: 0,
-    kind: 'door',
-    state: 'open',
-    leaf: interiorLeaf('end', 'left'),
-    source: 'frames z 5.378 / 6.178; leaf z 6.10…6.14 into the bathroom',
   },
   {
     id: 'ui02-basement',

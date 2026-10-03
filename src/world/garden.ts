@@ -235,13 +235,14 @@ function buildGates(mesh: MeshBuilder, g: Gate): void {
     base + 0.06,
     base + g.height - 0.02,
   );
-  // Bronze-toned letterbox and number plate on the street face of the post between the gates.
+  // Bronze-toned (Corten) letterbox and number plate on the street face of the post
+  // between the gates (kept off the `frame` material, which is now anthracite RAL 7016).
   const p = g.hinge === 'b' ? g.a : g.b;
   const out: V3 = [-f.n[0], 0, -f.n[2]];
   const y0 = H(...p);
   const face = GATE_POST / 2;
   mesh.orientedBox(
-    'frame',
+    'corten',
     [p[0] + out[0] * (face + 0.055), y0 + 0.93, p[1] + out[2] * (face + 0.055)],
     f.u,
     UP,
@@ -249,7 +250,7 @@ function buildGates(mesh: MeshBuilder, g: Gate): void {
     [0.16, 0.13, 0.055],
   );
   const plate: V3 = [p[0] + out[0] * (face + 0.004), y0 + 1.14, p[1] + out[2] * (face + 0.004)];
-  mesh.orientedBox('frame', plate, f.u, UP, out, [0.07, 0.055, 0.004]);
+  mesh.orientedBox('corten', plate, f.u, UP, out, [0.07, 0.055, 0.004]);
   const right: V3 = [-f.u[0], 0, -f.u[2]]; // reads left → right from the street
   digits(
     mesh,
@@ -583,6 +584,12 @@ function buildBinCorner(mesh: MeshBuilder): void {
   }
 }
 
+/**
+ * Neighbour roofs stay light grey context massing (not the house's anthracite RAL 7016
+ * sheet, which `roofMetal` became).
+ */
+const NEIGHBOUR_ROOF = 'concrete' as const;
+
 function buildNeighbours(mesh: MeshBuilder): void {
   for (const n of NEIGHBOURS) {
     const [x0, z0] = n.min;
@@ -598,8 +605,8 @@ function buildNeighbours(mesh: MeshBuilder): void {
       const r1: V3 = [x1 + o, n.ridgeY, zm];
       const s0: V3 = [x0 - o, n.eave - 0.25, z1 + o];
       const s1: V3 = [x1 + o, n.eave - 0.25, z1 + o];
-      mesh.quad('roofMetal', e0, e1, r1, r0, [0, 1, -1]);
-      mesh.quad('roofMetal', s0, s1, r1, r0, [0, 1, 1]);
+      mesh.quad(NEIGHBOUR_ROOF, e0, e1, r1, r0, [0, 1, -1]);
+      mesh.quad(NEIGHBOUR_ROOF, s0, s1, r1, r0, [0, 1, 1]);
       mesh.tri(
         'plasterExterior',
         [x0, n.eave, z0],
@@ -622,8 +629,8 @@ function buildNeighbours(mesh: MeshBuilder): void {
       const r1: V3 = [xm, n.ridgeY, z1 + o];
       const s0: V3 = [x1 + o, n.eave - 0.25, z0 - o];
       const s1: V3 = [x1 + o, n.eave - 0.25, z1 + o];
-      mesh.quad('roofMetal', e0, e1, r1, r0, [-1, 1, 0]);
-      mesh.quad('roofMetal', s0, s1, r1, r0, [1, 1, 0]);
+      mesh.quad(NEIGHBOUR_ROOF, e0, e1, r1, r0, [-1, 1, 0]);
+      mesh.quad(NEIGHBOUR_ROOF, s0, s1, r1, r0, [1, 1, 0]);
       mesh.tri(
         'plasterExterior',
         [x0, n.eave, z0],

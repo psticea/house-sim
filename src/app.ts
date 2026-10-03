@@ -84,6 +84,8 @@ export interface Stats {
   lightmaps: boolean;
   /** `idle` | `loading` | `loaded` | `applied` | `unavailable: <reason>`. */
   lightmapStatus: string;
+  /** The sun casts its (static) shadow map — the lighting without the bake. */
+  sunShadow: boolean;
 }
 
 export interface HouseSimHooks {
@@ -509,6 +511,7 @@ export async function startApp(): Promise<void> {
         lightmapStatus: lightmaps.reason
           ? `${lightmaps.status}: ${lightmaps.reason}`
           : lightmaps.status,
+        sunShadow: lighting.sun.castShadow,
       };
     },
     walk: async (dx, dz, seconds, run = false) => {

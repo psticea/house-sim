@@ -3,7 +3,8 @@
  * frame; GPU texture memory per quality tier (medium ≤ 75 MB, plan.md §3.1), no failed
  * or third-party requests, draw calls unchanged, style switching leak-free with the
  * textures loaded. I6: the baked lightmaps are applied once the furniture is in (the sun
- * shadow map is off then) and survive style switching; `?baked=0` keeps the I4 lighting.
+ * shadow map is off then) and survive style switching — or, while the committed bake is
+ * marked stale, the I4 shadow-map lighting runs instead; `?baked=0` keeps the I4 lighting.
  * Quick pass (desktop project), one test per tier (SwiftShader is slow).
  */
 import fs from 'node:fs';
@@ -13,6 +14,25 @@ import { hideStartOverlay, openSim, sim } from './helpers';
 
 const LIVING: [number, number, number, number, number] = [10.4, 0, 3.6, -90, 8];
 const REPORT = 'test-results/materials-stats.json';
+// A bake marked stale (geometry changed, re-bake pending) is not used: the realistic look
+// must then run on the I4 lighting (sun shadow map) instead — checked in place of the
+// lightmaps until `npm run bake` clears the flag.
+const BAKE = JSON.parse(fs.readFileSync('public/assets/baked/manifest.json', 'utf8')) as {
+  stale?: { since: string; reason: string };
+};
+const expectBakedLighting = (
+  st: { lightmaps: boolean; lightmapStatus: string; sunShadow: boolean },
+  real = true,
+): void => {
+  if (BAKE.stale) {
+    expect(st.lightmaps, st.lightmapStatus).toBe(false);
+    if (real) expect(st.lightmapStatus).toMatch(/^unavailable: the bake is marked stale/);
+    expect(st.sunShadow, 'fallback lighting: sun shadow map on').toBe(true);
+  } else {
+    expect(st.lightmaps, st.lightmapStatus).toBe(real);
+    expect(st.sunShadow).toBe(!real);
+  }
+};
 
 for (const tier of ['medium', 'low', 'high'] as Tier[]) {
   test(`realistic look (${tier}): textures, memory, clean network${tier === 'medium' ? ', leak-free' : ''}`, async ({
@@ -41,7 +61,7 @@ for (const tier of ['medium', 'low', 'high'] as Tier[]) {
     const st = await sim.stats(page);
     expect(st.texturesLoaded).toBe(true);
     expect(st.probes).toBe(tier === 'low' ? 0 : 3);
-    expect(st.lightmaps, st.lightmapStatus).toBe(true);
+    expectBakedLighting(st);
     expect(st.drawCalls).toBeLessThanOrEqual(45);
     if (tier === 'medium') {
       expect(st.textureMB).toBeLessThanOrEqual(75);
@@ -57,7 +77,7 @@ for (const tier of ['medium', 'low', 'high'] as Tier[]) {
         const key = { geometries: c.geometries, textures: c.textures, drawCalls: c.drawCalls };
         if (seen.has(style)) expect(key, style).toEqual(seen.get(style));
         else seen.set(style, key);
-        expect(c.lightmaps, style).toBe(style === 'real');
+        expectBakedLighting(c, style === 'real');
       }
     }
     expect(s.errors).toEqual([]);
@@ -94,6 +114,7 @@ test('realistic look without the bake (?baked=0): I4 shadow-map lighting', async
   const st = await sim.stats(page);
   expect(st.lightmaps).toBe(false);
   expect(st.lightmapStatus).toBe('idle');
+  expect(st.sunShadow).toBe(true);
   expect(st.drawCalls).toBeLessThanOrEqual(45);
   expect(s.errors).toEqual([]);
   expect(s.warnings).toEqual([]);

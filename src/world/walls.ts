@@ -6,6 +6,7 @@
 import type { MaterialId, Opening, Roof, Vec2, Wall } from '../data/schema';
 import { isPassable, wallTopAt, wallTopProfile } from '../data/geometry2d';
 import type { MeshBuilder, V3 } from './meshBuilder';
+import { buildCladdingFace } from './cladding';
 import { wallSpace, type WallSpace } from './wallSpace';
 
 const EPS = 1e-6;
@@ -110,11 +111,48 @@ export function buildWall(
       const holeRings = holes.map((h) => h.ring);
       const leftN: V3 = ws.aw;
       const rightN: V3 = [-ws.aw[0], 0, -ws.aw[2]];
+      const clad = wall.cladding;
       if (li === 0) {
-        ctx.mesh.polygon(layer.material, outline, holeRings, (u, v) => ws.p(u, v, wLeft), leftN);
+        if (clad && ws.outside === 'left') {
+          buildCladdingFace(
+            ctx.mesh,
+            ws,
+            wall,
+            ctx.roof,
+            clad,
+            layer.material,
+            outline,
+            holeRings,
+            wLeft,
+            1,
+          );
+        } else {
+          ctx.mesh.polygon(layer.material, outline, holeRings, (u, v) => ws.p(u, v, wLeft), leftN);
+        }
       }
       if (li === wall.layers.length - 1) {
-        ctx.mesh.polygon(layer.material, outline, holeRings, (u, v) => ws.p(u, v, wRight), rightN);
+        if (clad && ws.outside === 'right') {
+          buildCladdingFace(
+            ctx.mesh,
+            ws,
+            wall,
+            ctx.roof,
+            clad,
+            layer.material,
+            outline,
+            holeRings,
+            wRight,
+            -1,
+          );
+        } else {
+          ctx.mesh.polygon(
+            layer.material,
+            outline,
+            holeRings,
+            (u, v) => ws.p(u, v, wRight),
+            rightN,
+          );
+        }
       }
       const edges = (ring: Pt[], isHole: boolean, opening?: Opening): void => {
         for (let i = 0; i < ring.length; i++) {

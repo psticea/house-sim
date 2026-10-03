@@ -1,6 +1,7 @@
 /**
  * Shared material library. `PALETTE` holds the flat I1 colours (the stylised looks
- * derive theirs from it — keep unchanged) plus shadow / transparency flags; the
+ * derive theirs from it; the facade metal / frames follow the owner's RAL 7016 update)
+ * plus shadow / transparency flags; the
  * realistic look uses the I4 finishes (`finishes.ts`) and streamed PBR textures.
  * Geometry carries world-space UVs (1 unit = 1 m).
  */
@@ -21,14 +22,16 @@ interface MaterialSpec {
 export const PALETTE: Record<MaterialId, MaterialSpec> = {
   plaster: { color: '#F4F1EA', roughness: 0.92, castShadow: true },
   plasterExterior: { color: '#F2F0EA', roughness: 0.95, castShadow: true },
-  cladMetal: { color: '#8F9695', roughness: 0.62, metalness: 0.15, castShadow: true },
+  // Owner decision (2026-10): all exterior metal sheet, frames and curtain-wall profiles
+  // in anthracite RAL 7016 (was RAL 7045 grey / RAL 1011 beige-brown).
+  cladMetal: { color: '#383E42', roughness: 0.62, metalness: 0.15, castShadow: true },
   cladWood: { color: '#B48A5C', roughness: 0.8, castShadow: true },
-  roofMetal: { color: '#858C8C', roughness: 0.55, metalness: 0.2, castShadow: true },
+  roofMetal: { color: '#383E42', roughness: 0.55, metalness: 0.2, castShadow: true },
   ceilingWood: { color: '#E4D0AE', roughness: 0.8, castShadow: true },
   oak: { color: '#D8B98E', roughness: 0.8, castShadow: true },
   tile: { color: '#CBC5BC', roughness: 0.45, castShadow: true },
   tileUtility: { color: '#D6D5D1', roughness: 0.5, castShadow: true },
-  frame: { color: '#8A6642', roughness: 0.55, castShadow: true },
+  frame: { color: '#383E42', roughness: 0.55, castShadow: true },
   doorLeaf: { color: '#F2F0EB', roughness: 0.6, castShadow: true },
   glass: {
     color: '#BFD3DA',

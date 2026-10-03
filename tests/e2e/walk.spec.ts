@@ -86,7 +86,8 @@ test.describe('first walk (desktop)', () => {
         ])
       ).room,
     ).toBe('bedroom-1');
-    // Bedroom 2 through Ui-04, bathroom through Ui-01 (bedroom side), back to the hall.
+    // Bedroom 2 through Ui-04, back to the hall, bathroom through Ui-01 (the hall door —
+    // the bedroom-2 door was removed), back to the hall.
     expect(
       (
         await leg([
@@ -99,7 +100,9 @@ test.describe('first walk (desktop)', () => {
     expect(
       (
         await leg([
-          [4.1, 5.76],
+          [4.1, 3.2],
+          [5.86, 3.1],
+          [5.86, 4.4],
           [5.6, 5.76],
         ])
       ).room,
@@ -139,14 +142,15 @@ test.describe('first walk (desktop)', () => {
       ).room,
     ).toBe('living-kitchen');
     expect((await leg([[10.6, 5.5]])).place).toBe('play-corner');
-    // Along the walkway between the island and the sofa to the glass door.
+    // Along the walkway between the island and the sofa to the glass door (2nd column from
+    // the north, z 1.15…2.20; its leaf stands open outward at z ≈ 1.2).
     expect(
       (
         await leg([
           [10.9, 3.2],
           [15.5, 3.2],
-          [16.0, 2.37],
-          [17.6, 2.37],
+          [16.0, 1.75],
+          [17.6, 1.75],
         ])
       ).room,
     ).toBe('terrace');
@@ -212,6 +216,18 @@ test.describe('first walk (desktop)', () => {
     await sim.teleport(page, 1.5, 0, 2.8);
     p = await sim.walk(page, 0, 1, 4, true);
     expect(p.z).toBeLessThan(3.625 - 0.2);
+    // Bedroom 2 → bathroom where the removed door was (z 5.38…6.18): solid wall.
+    await sim.teleport(page, 3.9, 0, 5.78);
+    p = await sim.walk(page, 1, 0, 3, true);
+    expect(p.x).toBeLessThan(4.625 - 0.2);
+    expect(p.room).toBe('bedroom-2');
+    // The wall under the stair landing closes the basement-stair opening from the play
+    // corner: walking west stays in the living room, on the floor.
+    await sim.teleport(page, 10.4, 0, 6.6);
+    p = await sim.walk(page, -1, 0, 3, true);
+    expect(p.x).toBeGreaterThan(9.625 + 0.2);
+    expect(p.y).toBeCloseTo(0, 2);
+    expect(p.room).toBe('living-kitchen');
     // Stairs: walking straight up the lower flight reaches the landing (+1.56).
     await sim.teleport(page, 8.9, 0, 3.3);
     p = await sim.walk(page, 0, 1, 4);

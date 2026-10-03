@@ -152,5 +152,15 @@ export function wallTopAt(profile: readonly Vec2[], u: number): number {
 export const isPassable = (o: Opening): boolean =>
   o.state === 'open' && (o.kind === 'door' || o.kind === 'passage' || o.kind === 'sliding');
 
+/**
+ * Curtain-wall grid lines (u along the wall): the outer frame edges at both ends and
+ * the mullion centre lines in between.
+ */
+export function curtainLines(c: NonNullable<Wall['curtain']>): number[] {
+  const lines = [c.start];
+  for (const w of c.columns) lines.push(lines[lines.length - 1]! + w);
+  return lines;
+}
+
 export const deg = (r: number): number => (r * 180) / Math.PI;
 export const rad = (d: number): number => (d * Math.PI) / 180;

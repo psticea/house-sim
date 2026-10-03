@@ -122,8 +122,9 @@ export const exterior: ExteriorElement[] = [
       min: [2.193, LEVELS.sunshadeBottom, SHELL.south],
       max: [15.51, LEVELS.sunshadeTop, 8.08],
     },
-    // Metal structure (black fascia), wood-board soffit, standing-seam top (item 11).
-    material: 'metalBlack',
+    // Metal structure with a standing-seam RAL 7016 sheet covering (fascia + top, items
+    // 11 / 8 on elevation 10), wood-board soffit.
+    material: 'roofMetal',
     topMaterial: 'roofMetal',
     bottomMaterial: 'cladWood',
     seams: 0.5,
@@ -161,7 +162,10 @@ export const exterior: ExteriorElement[] = [
     collide: true,
   })),
   {
-    // Decorative 5×7 cm slats between F-05 and F-07 (elevation 10, item 13).
+    // Decorative 5×7 cm slats between F-05 and F-07 (elevation 10, item 13), interrupted
+    // in front of the bathroom window F-06 (x 4.925…6.925, +1.60…+2.20): elevation 10
+    // draws the window over the slats, which continue above it (to the sunshade) and
+    // below it (to the ground).
     id: 'south-slats',
     type: 'slats',
     x: [4.4, 12.0],
@@ -170,6 +174,7 @@ export const exterior: ExteriorElement[] = [
     width: 0.05,
     spacing: 0.15,
     material: 'woodSlat',
+    gaps: [{ x: [4.925, 6.925], y: [1.6, 2.2] }],
     collide: true,
   },
   // "curte de lumina" (sheet 04): 15 cm concrete walls x 7.175…9.525, z …8.175, bottom

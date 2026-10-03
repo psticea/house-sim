@@ -16,14 +16,14 @@ export type LevelId = 'basement' | 'ground' | 'upper';
 export type MaterialId =
   | 'plaster' // interior walls & ceilings, warm white
   | 'plasterExterior' // exterior plinth plaster, white
-  | 'cladMetal' // standing-seam metal facade RAL 7045
-  | 'cladWood' // wood boards (loggia, canopy, fins)
-  | 'roofMetal' // standing-seam roof sheet
+  | 'cladMetal' // standing-seam metal facade, anthracite RAL 7016
+  | 'cladWood' // wood boards (west gable, loggia, canopy, fins)
+  | 'roofMetal' // standing-seam roof sheet, flashings, gutters (RAL 7016)
   | 'ceilingWood' // wood-board sloped ceiling (living, loggia)
   | 'oak' // parquet
   | 'tile' // bathroom porcelain tiles
   | 'tileUtility' // boiler / laundry tiles
-  | 'frame' // window & door frames RAL 1011
+  | 'frame' // exterior window & door frames, curtain-wall profiles, RAL 7016
   | 'doorLeaf' // interior door leaves
   | 'glass'
   | 'metalBlack' // rails, chimney, sunshade
@@ -94,14 +94,55 @@ export interface Wall {
   /** Top of the wall; numbers are relative to the level floor. */
   top: WallTop;
   layers: readonly WallLayer[];
-  /** Curtain walls only: mullion positions (distance along the wall) and transom band. */
+  /**
+   * Curtain walls only: a grid of `profile`-wide aluminium mullions / transoms. The
+   * glazed field starts at `start` (outer frame edge, distance along the wall) and is
+   * divided into `columns` (widths from the wall's `from` end; inner widths are measured
+   * to the mullion centre lines, the outer ones to the frame edges). `transoms` are the
+   * centre heights of the horizontal bars above the wall base. Outside the field the
+   * wall is a solid end frame (behind the side walls).
+   */
   curtain?: {
-    mullions: readonly number[];
-    /** Opaque aluminium band [bottom, top] relative to the wall base. */
-    band?: readonly [number, number];
+    start: number;
+    columns: readonly number[];
+    transoms: readonly number[];
+    profile: number;
   };
+  /**
+   * Board cladding pattern on the outer face of the outermost layer (exterior walls):
+   * wood boards inside `region`, the layer's own material (metal) outside it.
+   */
+  cladding?: WoodCladding;
   /** Where the number came from on the plans. */
   source?: string;
+}
+
+/**
+ * Zone of one board direction. `polygon` is convex, in wall coordinates (u = distance
+ * along the wall from `from`, v = height above the level floor); joints every `pitch`
+ * from `anchor` (a u value for vertical boards, a v value for horizontal ones).
+ */
+export interface BoardZone {
+  polygon: Polygon;
+  direction: 'vertical' | 'horizontal';
+  pitch: number;
+  anchor: number;
+}
+
+/**
+ * Wood board cladding on part of a facade (west gable): the zones tile `region` (a
+ * convex polygon in wall coordinates); boards stand `depth` proud of the wall face with
+ * `joint`-wide gaps showing the dark `backing` behind them.
+ */
+export interface WoodCladding {
+  region: Polygon;
+  zones: readonly BoardZone[];
+  material: MaterialId;
+  backing: MaterialId;
+  joint: number;
+  depth: number;
+  /** Seams on the metal border along the rakes (spacing in plan, rib size). */
+  rakeSeams?: { spacing: number; width: number; height: number };
 }
 
 export type OpeningKind = 'window' | 'door' | 'sliding' | 'passage';
@@ -349,6 +390,8 @@ export type ExteriorElement =
       width: number;
       spacing: number;
       material: MaterialId;
+      /** Boxes (x and y ranges) where the slats are interrupted (e.g. in front of a window). */
+      gaps?: readonly { x: readonly [number, number]; y: readonly [number, number] }[];
       collide?: boolean;
     }
   | {

@@ -110,9 +110,10 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
     scaleM: 0.5,
     normalScale: 0.25,
   },
-  // Facade (plans): grey RAL 7045 standing seam, natural wood, RAL 1011 frames
+  // Facade (owner update 2026-10): anthracite RAL 7016 standing seam, roof sheet and
+  // frames (were grey RAL 7045 / RAL 1011), natural wood
   cladMetal: {
-    color: '#8F9695',
+    color: '#383E42',
     roughness: 0.55,
     metalness: 0.1,
     set: 'metal',
@@ -120,7 +121,7 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
     normalScale: 1,
   },
   roofMetal: {
-    color: '#8A9191',
+    color: '#383E42',
     roughness: 0.5,
     metalness: 0.1,
     set: 'metal-flat',
@@ -144,7 +145,7 @@ export const FINISHES: Readonly<Record<MaterialId, Finish>> = {
     scaleM: 0.8,
   },
   frame: {
-    color: '#8A6642',
+    color: '#383E42',
     roughness: 0.42,
     metalness: 0.15,
     set: 'detail-fine',
