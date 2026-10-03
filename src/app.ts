@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { house } from './data/house';
 import type { LevelId } from './data/schema';
-import { OUTSIDE, locate } from './data/topology';
+import { OUTSIDE, lightRoom, locate } from './data/topology';
 import { DebugOverlay, estimateTextureMB, FrameStats } from './core/debug';
 import { Loop } from './core/loop';
 import { readParams, STYLE_NAMES, styleNameOf, DEFAULT_STYLE, type StyleName } from './core/params';
@@ -33,7 +33,8 @@ import { PLAYER, PlayerController, yawToward } from './player/controller';
 import { buildWorld } from './world/build';
 import { createLighting } from './world/lighting';
 import { Lightmaps } from './world/lightmaps';
-import { RealLook } from './world/realLook';
+import { RealLook, type LookState } from './world/realLook';
+import { renderMask } from './world/debugMask';
 import { createSky } from './world/sky';
 import { getStyle, isStyleBuilt, refreshStyledMeshes, setStyle, STYLE_LABELS } from './world/style';
 import { LoadingScreen } from './ui/loading';
@@ -125,6 +126,13 @@ export interface HouseSimHooks {
    * (probes need the look to be shown).
    */
   texturesReady(): Promise<void>;
+  /** Dev tools (tools/flicker-check.mjs): exposure / environment of the realistic look. */
+  lookState(): LookState & { room: string };
+  /**
+   * Dev tools: material-class mask of the last rendered view (`width × height`, row 0 at the
+   * bottom; 0 = other, 1 = reflective finishes, 2 = glass / mirror). Renders off-screen.
+   */
+  debugMask(width: number, height: number): Uint8Array;
 }
 
 declare global {
@@ -347,6 +355,12 @@ export async function startApp(): Promise<void> {
   });
   const stats = new FrameStats();
   let lastPlace = '';
+  /** Room the realistic look adapts to (exposure, reflections; door openings keep the last room). */
+  let adaptRoom: string | null = null;
+  const snapLight = (): void => {
+    adaptRoom = null;
+    realLook.snap();
+  };
 
   const info = (): PlayerInfo => {
     const p = player.position;
@@ -433,7 +447,8 @@ export async function startApp(): Promise<void> {
           player.applyToCamera(camera);
         }
         const i = info();
-        realLook.update(frameDt, freeView ? freeViewRoom() : i.room, getStyle(scene) === 'real');
+        adaptRoom = freeView ? freeViewRoom() : lightRoom(house, adaptRoom, i.x, i.y, i.z);
+        realLook.update(frameDt, adaptRoom, getStyle(scene) === 'real');
         renderer.render(scene, camera);
         frameTimes(frameDt);
         if (i.place !== lastPlace) {
@@ -471,7 +486,7 @@ export async function startApp(): Promise<void> {
     furnished: false,
     teleport: async (x, y, z, yawD, pitchD) => {
       freeView = null;
-      realLook.snap();
+      snapLight();
       player.teleport(
         x,
         y,
@@ -516,7 +531,7 @@ export async function startApp(): Promise<void> {
     },
     walk: async (dx, dz, seconds, run = false) => {
       freeView = null;
-      realLook.snap();
+      snapLight();
       const len = Math.hypot(dx, dz) || 1;
       const speed = run ? PLAYER.runSpeed : PLAYER.walkSpeed;
       const n = Math.round(seconds / PLAYER.fixedDt);
@@ -527,7 +542,7 @@ export async function startApp(): Promise<void> {
     },
     walkTo: async (x, z, opts = {}) => {
       freeView = null;
-      realLook.snap();
+      snapLight();
       const speed = opts.run ? PLAYER.runSpeed : PLAYER.walkSpeed;
       const maxSteps = Math.round((opts.timeout ?? 30) / PLAYER.fixedDt);
       let reached = false;
@@ -549,7 +564,7 @@ export async function startApp(): Promise<void> {
     },
     view: async (pose) => {
       freeView = pose;
-      realLook.snap();
+      snapLight();
       await loop.nextFrame();
     },
     look: async (yawD, pitchD) => {
@@ -579,6 +594,8 @@ export async function startApp(): Promise<void> {
       }
       await loop.nextFrame();
     },
+    lookState: () => ({ ...realLook.debugState(), room: adaptRoom ?? OUTSIDE }),
+    debugMask: (w, h) => renderMask(renderer, scene, camera, w, h),
   };
   window.__houseSim = hooks;
 

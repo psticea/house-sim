@@ -31,6 +31,7 @@
     "plans:overlay": "node tools/overlay-screenshot.mjs",
     "shots": "node tools/screenshots.mjs",
     "shots:styles": "node tools/style-shots.mjs",
+    "flicker": "node tools/flicker-check.mjs",
     "assets:fetch": "node tools/fetch-assets.mjs",
     "assets:optimize": "node tools/optimize-assets.mjs",
     "bake": "node tools/bake.mjs"

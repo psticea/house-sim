@@ -94,6 +94,128 @@ export function probeFor(room: string): string | null {
   return PROBES.find((p) => p.rooms.includes(room))?.id ?? 'living';
 }
 
+/** Cube face size of the interior probes (and of the low-res sky used for cross-fades). */
+export const PROBE_SIZE = 64;
+/** Time constant (s) of the cross-fade between two interior probes. */
+export const PROBE_FADE_SECONDS = 0.15;
+
+/** One exponential smoothing step toward `target` (never overshoots, `dt` ≥ 0). */
+export function approach(value: number, target: number, dt: number, seconds: number): number {
+  return value + (target - value) * (1 - Math.exp(-Math.max(0, dt) / seconds));
+}
+
+/**
+ * Eye adaptation: `adapt` 0 (outdoors) … 1 (indoors) and the smoothed log of the per-room
+ * exposure gain, both exponential (monotonic, no overshoot) and snapped when within 1e-3.
+ */
+export class EyeAdaptation {
+  adapt = 0;
+  roomGain = 0;
+
+  update(dt: number, indoors: boolean, gain: number, snap: boolean, seconds: number): void {
+    const target = indoors ? 1 : 0;
+    const logGain = Math.log(gain);
+    this.adapt = snap ? target : approach(this.adapt, target, dt, seconds);
+    this.roomGain = snap ? logGain : approach(this.roomGain, logGain, dt, seconds);
+    if (Math.abs(this.adapt - target) < 1e-3) this.adapt = target;
+    if (Math.abs(this.roomGain - logGain) < 1e-3) this.roomGain = logGain;
+  }
+
+  /** Tone-mapping exposure for the outdoor `exposure` and the indoor multiplier. */
+  exposure(exposure: number, insideExposure: number): number {
+    return exposure * (1 + (insideExposure - 1) * this.adapt) * Math.exp(this.roomGain);
+  }
+}
+
+/**
+ * Reflection weights: the interior probes cross-fade (time constant
+ * {@link PROBE_FADE_SECONDS}) instead of switching when the room changes, and the sky
+ * fades out / in the same way on the way in / out (the reflections follow the player's
+ * position; the exposure follows the slower eye adaptation). Outdoors the last probe is
+ * kept for the fade-out. Weights sum to 1.
+ */
+export class ReflectionMix {
+  private readonly w = new Map<string, number>();
+  private current: string | null = null;
+  private inside = 0;
+
+  constructor(readonly ids: readonly string[]) {}
+
+  /** `probe` = the room's probe (`null` outdoors); `snap` jumps to it. */
+  update(dt: number, probe: string | null, snap = false): void {
+    const indoors = probe !== null && this.ids.includes(probe);
+    let snapProbe = snap;
+    if (indoors) {
+      if (this.current === null) snapProbe = true;
+      this.current = probe;
+    }
+    const target = indoors ? 1 : 0;
+    this.inside = snap ? target : approach(this.inside, target, dt, PROBE_FADE_SECONDS);
+    if (Math.abs(this.inside - target) < 1e-3) this.inside = target;
+    const cur = this.current;
+    if (cur === null) return;
+    for (const id of this.ids) {
+      const goal = id === cur ? 1 : 0;
+      const v = this.w.get(id) ?? 0;
+      this.w.set(id, snapProbe ? goal : approach(v, goal, dt, PROBE_FADE_SECONDS));
+    }
+    if ((this.w.get(cur) ?? 0) > 0.999)
+      for (const id of this.ids) this.w.set(id, id === cur ? 1 : 0);
+  }
+
+  /** Sky and probe weights. */
+  weights(): { sky: number; probes: [string, number][] } {
+    const sum = this.ids.reduce((s, id) => s + (this.w.get(id) ?? 0), 0);
+    if (sum <= 0 || this.inside === 0) return { sky: 1, probes: this.ids.map((id) => [id, 0]) };
+    return {
+      sky: 1 - this.inside,
+      probes: this.ids.map((id) => [id, (this.inside * (this.w.get(id) ?? 0)) / sum]),
+    };
+  }
+}
+
+// Weighted sum of PMREM textures of the same layout, texel by texel (cross-fades).
+const BLEND_VERTEX = /* glsl */ `
+in vec3 position;
+void main() { gl_Position = vec4( position.xy, 0.0, 1.0 ); }`;
+const BLEND_FRAGMENT = /* glsl */ `
+precision highp float;
+uniform sampler2D t0;
+uniform sampler2D t1;
+uniform sampler2D t2;
+uniform sampler2D t3;
+uniform vec4 weights;
+out vec4 color;
+void main() {
+  ivec2 c = ivec2( gl_FragCoord.xy );
+  color = vec4( texelFetch( t0, c, 0 ).rgb * weights.x + texelFetch( t1, c, 0 ).rgb * weights.y +
+                texelFetch( t2, c, 0 ).rgb * weights.z + texelFetch( t3, c, 0 ).rgb * weights.w, 1.0 );
+}`;
+
+type BlendUniforms = {
+  t0: { value: THREE.Texture | null };
+  t1: { value: THREE.Texture | null };
+  t2: { value: THREE.Texture | null };
+  t3: { value: THREE.Texture | null };
+  weights: { value: THREE.Vector4 };
+};
+
+/** Render target with the layout / format of a PMREM output (`fromCubemap`). */
+function pmremTarget(like: THREE.WebGLRenderTarget): THREE.WebGLRenderTarget {
+  const rt = new THREE.WebGLRenderTarget(like.width, like.height, {
+    magFilter: THREE.LinearFilter,
+    minFilter: THREE.LinearFilter,
+    generateMipmaps: false,
+    type: THREE.HalfFloatType,
+    format: THREE.RGBAFormat,
+    colorSpace: THREE.LinearSRGBColorSpace,
+    depthBuffer: false,
+  });
+  rt.texture.mapping = THREE.CubeUVReflectionMapping;
+  rt.texture.name = 'PMREM.blend';
+  return rt;
+}
+
 /** Texture maps `finish` needs from its set: full PBR sets vs normal-only / detail sets. */
 export function mapsFor(finish: Finish, manifest: TextureManifest): MapKind[] {
   if (!finish.set) return [];
@@ -161,6 +283,18 @@ export function applyAntiTiling(
   material.userData.antiTile = uniform;
 }
 
+/** Per-frame light balance of the realistic look (dev tools). */
+export interface LookState {
+  exposure: number;
+  /** `sky`, `probe:<id>`, `blend` or `none`. */
+  env: string;
+  envIntensity: number;
+  /** Eye adaptation, 0 = outdoors … 1 = indoors. */
+  adapt: number;
+  /** Shader programs compiled so far. */
+  programs: number;
+}
+
 export interface RealLookOptions {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
@@ -187,14 +321,20 @@ export class RealLook {
   private env: THREE.WebGLRenderTarget | null = null;
   private skyBg: THREE.Texture | null = null;
   private readonly probes = new Map<string, THREE.WebGLRenderTarget>();
+  /** The sky at the probes' PMREM size (cross-fades between the sky and the probes). */
+  private skyLow: THREE.WebGLRenderTarget | null = null;
+  /** Cross-fade target (probe layout), rendered only while the weights change. */
+  private blend: THREE.WebGLRenderTarget | null = null;
+  private blendKey = '';
+  private blendPass: { scene: THREE.Scene; camera: THREE.Camera; uniforms: BlendUniforms } | null =
+    null;
+  private readonly mix = new ReflectionMix(PROBES.map((p) => p.id));
+  private readonly eye = new EyeAdaptation();
   /** Probes still to be captured (next frames with the realistic look shown). */
   probesPending = false;
   private snapNext = true;
   private framesSinceLoad = 0;
-  private adapt = 0;
   private baked = false;
-  /** Smoothed log of the per-room exposure multiplier (baked lighting only). */
-  private roomGain = 0;
   /** Per-room exposure multiplier while baked (set by the app from the lightmaps). */
   roomExposure: ((room: string) => number) | null = null;
   private readonly base: { exposure: number; hemi: number; hemiColor: THREE.Color };
@@ -258,6 +398,13 @@ export class RealLook {
             t.mapping = THREE.EquirectangularReflectionMapping;
             const pmrem = new THREE.PMREMGenerator(renderer);
             this.env = pmrem.fromEquirectangular(t);
+            if (quality.probes) {
+              // Same sky at the probes' size: the cross-fades blend PMREMs of one layout.
+              const cube = new THREE.WebGLCubeRenderTarget(PROBE_SIZE);
+              cube.fromEquirectangularTexture(renderer, t);
+              this.skyLow = pmrem.fromCubemap(cube.texture);
+              cube.dispose();
+            }
             pmrem.dispose();
             t.dispose();
           }),
@@ -333,27 +480,20 @@ export class RealLook {
     this.resolveReady();
   }
 
-  /** Per frame: eye adaptation, probe choice, sky; `active` = realistic look shown. */
+  /** Per frame: eye adaptation, reflections, sky; `active` = realistic look shown. */
   update(dt: number, room: string, active: boolean): void {
     if (!active) return;
     const { renderer, scene, lighting, sky } = this.o;
-    const target = isIndoors(room) ? 1 : 0;
-    this.adapt += (target - this.adapt) * (1 - Math.exp(-dt / REAL_LIGHT.adaptSeconds));
-    const gain =
-      this.baked && this.roomExposure && isIndoors(room) ? Math.log(this.roomExposure(room)) : 0;
-    this.roomGain += (gain - this.roomGain) * (1 - Math.exp(-dt / REAL_LIGHT.adaptSeconds));
-    if (this.snapNext) {
-      this.adapt = target;
-      this.roomGain = gain;
-    }
+    const indoors = isIndoors(room);
+    const gain = this.baked && this.roomExposure && indoors ? this.roomExposure(room) : 1;
+    const snap = this.snapNext;
     this.snapNext = false;
-    if (Math.abs(this.adapt - target) < 1e-3) this.adapt = target;
-    const a = this.adapt;
+    this.eye.update(dt, indoors, gain, snap, REAL_LIGHT.adaptSeconds);
+    const a = this.eye.adapt;
     const L = this.balance;
     const ambient = 1 + (L.insideAmbient - 1) * a;
     const exposure = this.env || this.baked ? L.exposure : this.base.exposure;
-    renderer.toneMappingExposure =
-      exposure * (1 + (L.insideExposure - 1) * a) * Math.exp(this.roomGain);
+    renderer.toneMappingExposure = this.eye.exposure(exposure, L.insideExposure);
     const hemi = this.env ? L.hemiWithEnv : this.base.hemi;
     lighting.hemi.intensity = hemi * ambient;
     lighting.hemi.color.copy(this.base.hemiColor).lerp(this.insideHemi, a);
@@ -366,16 +506,90 @@ export class RealLook {
       u.hdriRotation.value = scene.environmentRotation.y;
       (u.hdriHorizon.value as THREE.Color).copy(this.horizon);
     }
-    scene.environmentIntensity = this.skyRadianceScale * ambient;
     if (this.probesPending && ++this.framesSinceLoad > 2) {
       this.probesPending = false;
       this.captureProbes();
     }
-    const probe = this.probes.get(probeFor(room) ?? '');
-    const env = probe && a > 0.5 ? probe.texture : this.env.texture;
-    if (scene.environment !== env) scene.environment = env;
+    const probe = probeFor(room);
+    this.mix.update(dt, probe !== null && this.probes.has(probe) ? probe : null, snap);
+    this.applyReflections(this.skyRadianceScale * ambient);
+  }
+
+  /**
+   * Environment map: the sky outdoors, the room's probe
+   * indoors and, in between (or between two probes), a cross-fade rendered into a PMREM
+   * of the probes' layout — the same shader program as the probes, no hard switch.
+   */
+  private applyReflections(skyIntensity: number): void {
+    const { scene } = this.o;
+    if (!this.env) return;
+    let tex: THREE.Texture = this.env.texture;
     // Probes store absolute radiance: no sky scale on top.
-    if (probe && a > 0.5) scene.environmentIntensity = 1;
+    let intensity = skyIntensity;
+    if (this.probes.size && this.skyLow && this.blend) {
+      const w = this.mix.weights();
+      if (w.sky < 1) {
+        intensity = 1;
+        const single = w.sky === 0 ? w.probes.find(([, v]) => v === 1) : undefined;
+        tex = single ? this.probes.get(single[0])!.texture : this.renderBlend(w, skyIntensity);
+      }
+    }
+    if (scene.environment !== tex) scene.environment = tex;
+    scene.environmentIntensity = intensity;
+  }
+
+  private renderBlend(
+    w: { sky: number; probes: [string, number][] },
+    skyIntensity: number,
+  ): THREE.Texture {
+    const blend = this.blend!;
+    const key = `${w.sky.toFixed(4)}:${skyIntensity.toFixed(4)}:${w.probes.map(([, v]) => v.toFixed(4)).join(':')}`;
+    if (key === this.blendKey) return blend.texture;
+    this.blendKey = key;
+    const { renderer } = this.o;
+    if (!this.blendPass) {
+      const uniforms: BlendUniforms = {
+        t0: { value: null },
+        t1: { value: null },
+        t2: { value: null },
+        t3: { value: null },
+        weights: { value: new THREE.Vector4() },
+      };
+      const material = new THREE.RawShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        vertexShader: BLEND_VERTEX,
+        fragmentShader: BLEND_FRAGMENT,
+        uniforms,
+        depthTest: false,
+        depthWrite: false,
+      });
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3),
+      );
+      const quad = new THREE.Mesh(geometry, material);
+      quad.frustumCulled = false;
+      const scene = new THREE.Scene();
+      scene.add(quad);
+      this.blendPass = { scene, camera: new THREE.OrthographicCamera(), uniforms };
+    }
+    const { uniforms: un, scene, camera } = this.blendPass;
+    const sky = this.skyLow!.texture;
+    const slots = [un.t0, un.t1, un.t2];
+    const weights = [0, 0, 0];
+    w.probes.slice(0, 3).forEach(([id, v], k) => {
+      const p = this.probes.get(id);
+      slots[k]!.value = p ? p.texture : sky;
+      weights[k] = p ? v : 0;
+    });
+    un.t3.value = sky;
+    un.weights.value.set(weights[0]!, weights[1]!, weights[2]!, w.sky * skyIntensity);
+    const prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(blend);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(prev);
+    return blend.texture;
   }
 
   /** Renders the interior probes once (inside light balance), then precompiles shaders. */
@@ -384,13 +598,12 @@ export class RealLook {
     if (!this.env) return;
     const hemi = lighting.hemi.intensity;
     const envI = scene.environmentIntensity;
-    const envT = scene.environment;
     const L = this.balance;
     lighting.hemi.intensity = L.hemiWithEnv * L.insideAmbient;
     scene.environment = this.env.texture;
     scene.environmentIntensity = this.skyRadianceScale * L.insideAmbient;
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const cubeRT = new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType });
+    const cubeRT = new THREE.WebGLCubeRenderTarget(PROBE_SIZE, { type: THREE.HalfFloatType });
     const cam = new THREE.CubeCamera(0.05, 300, cubeRT);
     scene.add(cam);
     for (const p of PROBES) {
@@ -404,19 +617,24 @@ export class RealLook {
     cubeRT.dispose();
     pmrem.dispose();
     lighting.hemi.intensity = hemi;
-    scene.environment = envT;
     scene.environmentIntensity = envI;
-    // Materials need one more program variant for the probes' PMREM size: build it now,
-    // in the background, instead of on the first step indoors.
     const first = this.probes.values().next().value;
-    if (first) {
-      scene.environment = first.texture;
+    if (first && this.skyLow && !this.blend) {
+      this.blend = pmremTarget(first);
+      // Builds the cross-fade program now, not on the first step through a door.
+      this.renderBlend({ sky: 1, probes: [] }, 0);
+    }
+    this.blendKey = '';
+    // Materials need a program variant per PMREM size (sky: 256 faces, probes and the
+    // cross-fade: 64): build both now, in the background, not on the first step in or out.
+    for (const t of [first?.texture, this.env.texture]) {
+      if (!t) continue;
+      scene.environment = t;
       if (renderer.extensions.has('KHR_parallel_shader_compile')) {
         void renderer.compileAsync(scene, camera).catch(() => undefined);
       } else {
         renderer.compile(scene, camera);
       }
-      scene.environment = envT;
     }
   }
 
@@ -450,10 +668,29 @@ export class RealLook {
     if (this.env) out.push(this.env.texture);
     if (this.skyBg) out.push(this.skyBg);
     for (const p of this.probes.values()) out.push(p.texture);
+    if (this.skyLow) out.push(this.skyLow.texture);
+    if (this.blend) out.push(this.blend.texture);
     return out;
   }
 
   get probeCount(): number {
     return this.probes.size;
+  }
+
+  /** Light balance in use (dev tools: tools/flicker-check.mjs). */
+  debugState(): LookState {
+    const { renderer, scene } = this.o;
+    const t = scene.environment;
+    let env = t ? 'other' : 'none';
+    if (t && t === this.env?.texture) env = 'sky';
+    if (t && t === this.blend?.texture) env = 'blend';
+    for (const [id, p] of this.probes) if (t === p.texture) env = `probe:${id}`;
+    return {
+      exposure: renderer.toneMappingExposure,
+      env,
+      envIntensity: scene.environmentIntensity,
+      adapt: this.eye.adapt,
+      programs: renderer.info.programs?.length ?? 0,
+    };
   }
 }

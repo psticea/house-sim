@@ -46,7 +46,7 @@ export function tierFiles(manifest: TextureManifest, tier: Tier): Map<string, Ma
 export interface TierBudget {
   /** PBR sets of the finishes. */
   materials: number;
-  /** PMREM environment (256 faces, half float) + interior probes (64 faces). */
+  /** PMREM environment (256 faces, half float) + interior probes, low sky, cross-fade (64). */
   environment: number;
   /** Sky dome background (UASTC, no mips). */
   sky: number;
@@ -73,9 +73,10 @@ export function tierTextureMB(
     const px = filePx(rel);
     materials += px * px * (kind === 'normal' ? formats.uastc : formats.etc1s) * MIPS;
   }
-  // PMREM of the 1K sky: 3 × 256 by 4 × 256 texels, RGBA half float; probes 336 × 256.
+  // PMREM of the 1K sky: 3 × 256 by 4 × 256 texels, RGBA half float; probes 336 × 256, plus
+  // the sky at the probes' size and the cross-fade target (same layout).
   const pmrem = 768 * 1024 * 8;
-  const probes = settings.probes ? PROBES.length * 336 * 256 * 8 : 0;
+  const probes = settings.probes ? (PROBES.length + 2) * 336 * 256 * 8 : 0;
   const skyW = manifest.sky?.width ?? 0;
   const sky = skyW * (skyW / 2) * formats.uastc;
   const shadow = baked ? 0 : settings.shadowMapSize ** 2 * 8;

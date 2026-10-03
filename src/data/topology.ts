@@ -1,8 +1,10 @@
 /**
  * Space topology: which rooms connect through open doors / passages, and which room
- * contains a point. Used by the room toast, the reachability test and e2e checks.
+ * contains a point. Used by the room toast, the eye adaptation of the realistic look, the
+ * reachability test and e2e checks.
  */
 import { isPassable, pointInPolygon, wallFrame, wallThickness } from './geometry2d';
+import { SHELL } from './grid';
 import type { HouseModel, Level, LevelId, Opening, Polygon, Room, Vec2, Zone } from './schema';
 
 export const OUTSIDE = 'outside';
@@ -144,6 +146,31 @@ export function locate(model: HouseModel, x: number, y: number, z: number): Loca
     if (place.id !== OUTSIDE) return { level: own.id, room: roomAt(lv, x, z), place };
   }
   return { level: own.id, room: OUTSIDE, place: { id: OUTSIDE, name: 'Garden' } };
+}
+
+/** (x, z) within the building's outer wall faces. */
+export const insideShell = (x: number, z: number): boolean =>
+  x >= SHELL.west && x <= SHELL.east && z >= SHELL.north && z <= SHELL.south;
+
+/**
+ * Room the eye adapts to (realistic look: exposure and reflection probe). Like
+ * `locate().room`, but a reading taken between rooms inside the building keeps `prev`: in a
+ * door opening the level has no room there, so `locate` reports `outside` (or, upstairs,
+ * the room below), which used to flash the outdoor light balance for a few frames. A new
+ * room is taken once the feet are inside a room of their own level, or outside the shell
+ * (really outdoors). `prev = null`: no history (teleports).
+ */
+export function lightRoom(
+  model: HouseModel,
+  prev: string | null,
+  x: number,
+  y: number,
+  z: number,
+): string {
+  const loc = locate(model, x, y, z);
+  if (prev === null || loc.room === prev) return loc.room;
+  if (roomAt(levelById(model, loc.level), x, z) !== OUTSIDE) return loc.room;
+  return insideShell(x, z) ? prev : loc.room;
 }
 
 export interface HouseEdge {
