@@ -1,15 +1,26 @@
 /**
- * Furniture placement per room (plan.md I5, §6.2): The Local Project style — warm
- * minimalism in natural timber, travertine, linen, wool, cane and clay. Pure data (no
- * three.js) so the unit tests can check every piece against the room polygons, door
- * swings, stairs, ceilings and the e2e walking routes.
+ * Furniture placement per room — placed from the furniture drawn on the architect's floor
+ * plans (sheets 04 basement, 05 ground floor, 06 upper floor, 1:50); materials, colours
+ * and shapes in the style of The Local Project (plan.md §6.1/§6.2): warm minimalism in
+ * natural oak, travertine, linen, wool, cane and clay. Pure data (no three.js) so the
+ * unit tests can check every piece against the room polygons, door swings, stairs,
+ * ceilings, the e2e walking routes and the drawn symbols.
  *
- * Every item is a footprint `size` = [w, d, h] (m) centred at `at` on its level's floor,
- * rotated so its front faces `face` (S = +z, E = +x, N = −z, W = −x, or degrees with
- * 0 = S, 90 = E). Local x runs along the width, local z (depth) toward the front.
- * Wall-mounted pieces (`wall: true`) hang at `y` above the floor with their back on the
- * wall face. Large pieces collide (a simplified box = footprint × height); small ones
- * don't (plan.md I5: beds, sofa, tables, kitchen, island, wardrobes, tub, vanity…).
+ * Method: the furniture symbols were read from the sheets' vector geometry (pdfjs operator
+ * list; thin grey strokes #7f7f7f / #9f9f9f / #5f5f5f / #7b766f / #8b8878, glass as
+ * #fbfaea fills), converted with the building's calibration — sheet 05:
+ * x = (pt − 184.165) / 56.693, z = (pt − 258.745) / 56.693; sheet 06: origin 195.16 /
+ * 256.575 pt — and their outlines' bounds taken as footprints (`plan` below, x0 z0 x1 z1).
+ * Every item records its `source`: the sheet and what was measured, or "not on plans"
+ * for the few pieces the drawings leave open (basement, terrace, play corner, boiler)
+ * and "extra" for plants and small accessories.
+ *
+ * Every item is a footprint `size` = [w, d, h] (m) centred at `at` on its level's floor
+ * (or `on` a surface that high), rotated so its front faces `face` (S = +z, E = +x,
+ * N = −z, W = −x, or degrees with 0 = S, 90 = E). Local x runs along the width, local z
+ * (depth) toward the front. Wall-mounted pieces (`wall: true`) hang at `y` above the
+ * floor with their back on the wall face. Large pieces collide (a simplified box =
+ * footprint × height); small ones don't.
  */
 import { roofSegment, roofUndersideY } from './geometry2d';
 import { LEVELS } from './grid';
@@ -31,10 +42,13 @@ export type FurnitureKind =
   | 'diningChair'
   | 'coffeeTable'
   | 'sofa'
+  | 'ottoman'
   | 'armchair'
+  | 'tubChair'
   | 'loungeChair'
   | 'rug'
   | 'mirror'
+  | 'print'
   | 'pendant'
   | 'floorLamp'
   | 'sconce'
@@ -49,6 +63,7 @@ export type FurnitureKind =
   | 'towelLadder'
   | 'boiler'
   | 'washerStack'
+  | 'laundryRun'
   | 'dryingRack'
   | 'basket'
   | 'teepee'
@@ -77,8 +92,17 @@ export interface FurnitureItem {
   face: Face;
   /** Width (local x), depth (local z), height (m). */
   size: readonly [number, number, number];
+  /**
+   * Where it comes from: "sheet NN: …" (drawn on the plans: what was measured), "not on
+   * plans: …" (a room the drawings leave unfurnished) or "extra: …" (plants, accessories).
+   */
+  source: string;
+  /** Bounds of the drawn symbol on the sheet (x0, z0, x1, z1), where it is a rectangle. */
+  plan?: readonly [number, number, number, number];
   /** Mounting height of wall pieces / hanging height of pendants (above the floor). */
   y?: number;
+  /** Stands on a surface this high (a plant on a shelf, the stove on its hearth). */
+  on?: number;
   /** Back on a wall face (mirrors, sconces, boiler…): may touch the room outline. */
   wall?: boolean;
   collide?: boolean;
@@ -107,304 +131,1208 @@ const item = (
   at: Vec2,
   face: Face,
   size: readonly [number, number, number],
+  source: string,
   extra: Partial<FurnitureItem> = {},
-): FurnitureItem => ({ id, kind, level, room, at, face, size, ...extra });
+): FurnitureItem => ({ id, kind, level, room, at, face, size, source, ...extra });
+
+const round3 = (v: number): number => Math.round(v * 1000) / 1000;
+
+/** A drawn rectangle (x0, z0, x1, z1) → centre, for pieces placed on their symbol. */
+const mid = (r: readonly [number, number, number, number]): Vec2 => [
+  (r[0] + r[2]) / 2,
+  (r[1] + r[3]) / 2,
+];
+
+/** Rectangular piece placed exactly on its drawn symbol `r` (x0, z0, x1, z1). */
+const drawn = (
+  id: string,
+  kind: FurnitureKind,
+  level: LevelId,
+  room: string,
+  r: readonly [number, number, number, number],
+  face: Face,
+  h: number,
+  source: string,
+  extra: Partial<FurnitureItem> = {},
+): FurnitureItem => {
+  const along = face === 'E' || face === 'W';
+  const w = along ? r[3] - r[1] : r[2] - r[0];
+  const d = along ? r[2] - r[0] : r[3] - r[1];
+  const size = [round3(w), round3(d), h] as const;
+  return item(id, kind, level, room, mid(r), face, size, source, { plan: r, ...extra });
+};
 
 const G = 'ground' as const;
 const U = 'upper' as const;
 const B = 'basement' as const;
 
+// Upper floor (sheet 06): stepped joinery under the 40° roof — each section ends 8 cm
+// below the sloped ceiling at its low edge (1.006 m at z 0.132, 3.94 at the ridge).
+const upperCeil = (z: number): number =>
+  roofUndersideY(roof, roofSegment(roof, 'upper'), z) - LEVELS.upperFloor;
+const stepH = (z: number, cap = 2.4): number => Math.min(cap, round3(upperCeil(z) - 0.08));
+
+/** Sections of a drawn wardrobe x0…x1 split along z at `cuts`, each under the slope. */
+function steppedWardrobe(
+  id: string,
+  room: string,
+  x0: number,
+  x1: number,
+  cuts: readonly number[],
+  source: string,
+): FurnitureItem[] {
+  const out: FurnitureItem[] = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const z0 = cuts[i]!;
+    const z1 = cuts[i + 1]!;
+    // The low edge of a section is the one farther from the ridge (z 3.625).
+    const low = Math.abs(z0 - 3.625) > Math.abs(z1 - 3.625) ? z0 : z1;
+    out.push(
+      drawn(`${id}-${i + 1}`, 'wardrobe', U, room, [x0, z0, x1, z1], 'W', stepH(low), source, {
+        collide: true,
+      }),
+    );
+  }
+  return out;
+}
+
+const S05 = 'sheet 05';
+const S06 = 'sheet 06';
+
 export const FURNITURE: readonly FurnitureItem[] = [
+  // ============================================================== GROUND (sheet 05)
   // ------------------------------------------------------------- entrance hall
-  // Full-height oak joinery along the vestibule's west wall with an open bench niche.
-  item('hall-joinery', 'hallJoinery', G, 'entrance-hall', [7.55, 1.225], 'E', [2.05, 0.45, 2.6], {
-    collide: true,
-    opts: { bench: 0.95 },
-  }),
-  item('hall-mirror', 'mirror', G, 'entrance-hall', [9.36, 1.8], 'W', [0.7, 0.03, 0.7], {
-    wall: true,
-    y: 1.2,
-  }),
-  item('hall-runner', 'rug', G, 'entrance-hall', [6.1, 3.025], 'S', [3.8, 0.7, 0.012], {
-    material: 'cane',
-  }),
-  item('hall-sconce', 'sconce', G, 'entrance-hall', [7.0, 2.515], 'S', [0.16, 0.18, 0.2], {
-    wall: true,
-    y: 1.75,
-    material: 'clay',
-  }),
+  drawn(
+    'hall-joinery',
+    'hallJoinery',
+    G,
+    'entrance-hall',
+    [7.325, 0.125, 7.925, 2.31],
+    'E',
+    2.6,
+    `${S05}: X-crossed wardrobe x 7.325…7.925, z 0.125…2.310 on the vestibule's west wall (#7b766f); built as oak joinery with a bench niche`,
+    { collide: true, opts: { bench: 0.95 } },
+  ),
+  item(
+    'hall-mirror',
+    'mirror',
+    G,
+    'entrance-hall',
+    [9.36, 1.8],
+    'W',
+    [0.7, 0.03, 0.7],
+    'extra: round brass mirror opposite the joinery',
+    {
+      wall: true,
+      y: 1.2,
+    },
+  ),
+  item(
+    'hall-runner',
+    'rug',
+    G,
+    'entrance-hall',
+    [6.1, 3.025],
+    'S',
+    [3.8, 0.7, 0.012],
+    'extra: woven jute runner along the corridor',
+    {
+      material: 'cane',
+    },
+  ),
+  item(
+    'hall-sconce',
+    'sconce',
+    G,
+    'entrance-hall',
+    [7.0, 2.515],
+    'S',
+    [0.16, 0.18, 0.2],
+    'extra: ceramic wall light',
+    {
+      wall: true,
+      y: 1.75,
+      material: 'clay',
+    },
+  ),
 
   // ---------------------------------------------------------- living + kitchen
-  // Kitchen: oak joinery along the (windowless) north wall, travertine top + splashback.
-  item(
-    'kitchen-tall',
+  // Kitchen: one 6.6 m run along the north wall (fridge column "F" + base units with the
+  // hob), sink in the island, dining table joined to the island's east end, 3 + 3 chairs.
+  drawn(
+    'kitchen-fridge',
     'kitchenTall',
     G,
     'living-kitchen',
-    [10.225, 0.435],
+    [9.625, 0.125, 10.225, 0.725],
     'S',
-    [1.2, 0.62, 2.35],
+    2.4,
+    `${S05}: fridge "F" x 9.625…10.225, z 0.125…0.725 at the west end of the run (#7f7f7f)`,
+    { collide: true },
+  ),
+  drawn(
+    'kitchen-run',
+    'kitchenRun',
+    G,
+    'living-kitchen',
+    [10.225, 0.125, 16.222, 0.725],
+    'S',
+    0.9,
+    `${S05}: base run x 9.625…16.222, z 0.125…0.725 (60 cm modules), hob x 10.835…11.415, z 0.205…0.695 (#7f7f7f)`,
+    // Local x offsets from the run's centre (13.2235): hob centre 11.125.
     {
       collide: true,
+      opts: { hob: -2.099, oven: true, hood: true, shelfFrom: 0.45, shelfTo: 2.65 },
     },
   ),
-  item('kitchen-run', 'kitchenRun', G, 'living-kitchen', [12.625, 0.435], 'S', [3.6, 0.62, 0.9], {
-    collide: true,
-    // Offsets along the run (local x, m from its centre): sink, hob.
-    opts: { sink: -0.45, hob: 1.05 },
-  }),
-  item('island', 'island', G, 'living-kitchen', [12.15, 2.125], 'S', [2.4, 0.95, 0.9], {
-    collide: true,
-    opts: { overhang: 0.25 },
-  }),
-  ...[11.45, 12.15, 12.85].map((x, i) =>
-    item(`stool-${i + 1}`, 'stool', G, 'living-kitchen', [x, 2.63], 'N', [0.4, 0.4, 0.66]),
+  drawn(
+    'island',
+    'island',
+    G,
+    'living-kitchen',
+    [11.372, 1.722, 13.372, 2.722],
+    'S',
+    0.9,
+    `${S05}: island x 11.372…13.372, z 1.722…2.722 — cabinets to z 2.322 + 0.40 m strip toward the living room (#494641); sink 0.52 × 0.42 centred (12.372, 2.002), tap at z 2.24`,
+    { collide: true, opts: { sink: 0, sinkZ: -0.22, shelf: 0.4 } },
   ),
-  ...[11.55, 12.75].map((x, i) =>
+  drawn(
+    'dining-table',
+    'diningTable',
+    G,
+    'living-kitchen',
+    [13.372, 1.922, 15.372, 2.722],
+    'S',
+    0.75,
+    `${S05}: table 2.00 × 0.80, x 13.372…15.372, z 1.922…2.722, joined to the island's east end`,
+    { collide: true, opts: { legs: 'end' } },
+  ),
+  ...(
+    [
+      [13.423, 1.661, 13.914, 2.183],
+      [14.061, 1.644, 14.552, 2.166],
+      [14.7, 1.626, 15.19, 2.148],
+    ] as const
+  ).map((r, i) =>
+    drawn(
+      `dining-chair-n${i + 1}`,
+      'diningChair',
+      G,
+      'living-kitchen',
+      r,
+      'S',
+      0.8,
+      `${S05}: chair ${i + 1} of 3 on the north side (backrest at z ≈ 1.72…1.92)`,
+    ),
+  ),
+  ...(
+    [
+      [13.436, 2.56, 13.927, 3.082],
+      [14.074, 2.542, 14.565, 3.064],
+      [14.713, 2.524, 15.204, 3.046],
+    ] as const
+  ).map((r, i) =>
+    drawn(
+      `dining-chair-s${i + 1}`,
+      'diningChair',
+      G,
+      'living-kitchen',
+      r,
+      'N',
+      0.8,
+      `${S05}: chair ${i + 1} of 3 on the south side (backrest at z ≈ 2.76…2.99)`,
+    ),
+  ),
+  ...[11.872, 12.872].map((x, i) =>
     item(
       `island-pendant-${i + 1}`,
       'pendant',
       G,
       'living-kitchen',
-      [x, 2.12],
+      [x, 2.222],
       'S',
       [0.42, 0.42, 0.34],
+      'extra: ceramic globe pendants over the island',
       {
         y: 1.95,
         material: 'ceramic',
-        opts: { top: livingCeiling(2.12), shape: 'globe' },
+        opts: { top: livingCeiling(2.222), shape: 'globe' },
       },
     ),
   ),
-  // Dining: solid oak table for six in front of the closed half of F-07, cane chairs.
-  item('dining-table', 'diningTable', G, 'living-kitchen', [15.2, 5.75], 'S', [2.0, 0.9, 0.75], {
-    collide: true,
-  }),
-  ...[14.6, 15.2, 15.8].flatMap((x, i) => [
-    item(
-      `dining-chair-n${i + 1}`,
-      'diningChair',
-      G,
-      'living-kitchen',
-      [x, 5.0],
-      'S',
-      [0.46, 0.5, 0.8],
-    ),
-    item(
-      `dining-chair-s${i + 1}`,
-      'diningChair',
-      G,
-      'living-kitchen',
-      [x, 6.5],
-      'N',
-      [0.46, 0.5, 0.8],
-    ),
-  ]),
-  item('dining-pendant', 'pendant', G, 'living-kitchen', [15.2, 5.75], 'S', [0.7, 0.7, 0.42], {
-    y: 1.72,
-    material: 'linen',
-    opts: { top: livingCeiling(5.75), shape: 'wide' },
-  }),
-  // Living: low modular sofa facing the garden and the stove, travertine coffee table.
-  item('sofa', 'sofa', G, 'living-kitchen', [12.6, 4.325], 'S', [2.6, 0.95, 0.72], {
-    collide: true,
-  }),
-  item('living-rug', 'rug', G, 'living-kitchen', [12.6, 5.15], 'S', [2.9, 2.2, 0.012], {
-    material: 'wool',
-  }),
-  item('coffee-table', 'coffeeTable', G, 'living-kitchen', [12.6, 5.6], 'S', [1.2, 0.7, 0.36], {
-    collide: true,
-  }),
-  item('lounge-chair', 'loungeChair', G, 'living-kitchen', [15.75, 4.2], 'W', [0.72, 0.8, 0.75]),
-  item('olive-tree', 'olive', G, 'living-kitchen', [15.95, 0.75], 'S', [0.6, 0.6, 2.3], {
-    opts: { seed: 23 },
-  }),
-  // Wood-burning stove on a travertine hearth, around the black flue at (11.65, 6.91).
-  item('hearth', 'hearth', G, 'living-kitchen', [11.65, 6.7125], 'S', [1.2, 0.825, 0.03]),
-  item('stove', 'stove', G, 'living-kitchen', [11.65, 6.9], 'N', [0.5, 0.42, 1.0], {
-    collide: true,
-  }),
-  item('log-store', 'logStore', G, 'living-kitchen', [10.93, 6.93], 'N', [0.36, 0.36, 0.5]),
-  // Play corner by the stairs: teepee, floor cushions, book ledge, baskets, soft rug.
-  item('play-rug', 'rug', G, 'living-kitchen', [10.4, 5.7], 'S', [1.3, 1.6, 0.012], {
-    material: 'cane',
-  }),
-  item('teepee', 'teepee', G, 'living-kitchen', [10.2, 6.5], 'S', [1.1, 1.1, 1.6]),
-  item('play-cushion-1', 'cushion', G, 'living-kitchen', [10.5, 5.25], 'S', [0.6, 0.6, 0.14], {
-    material: 'linen',
-  }),
-  item('play-cushion-2', 'cushion', G, 'living-kitchen', [11.0, 5.6], 20, [0.55, 0.55, 0.13], {
-    material: 'foliage',
-  }),
-  item('book-ledge', 'bookLedge', G, 'living-kitchen', [9.8, 4.5], 'E', [1.0, 0.28, 0.45]),
-  item('play-basket-1', 'basket', G, 'living-kitchen', [9.86, 5.3], 'S', [0.36, 0.36, 0.3]),
-  item('play-basket-2', 'basket', G, 'living-kitchen', [9.9, 5.72], 'S', [0.3, 0.3, 0.24]),
+  item(
+    'dining-pendant',
+    'pendant',
+    G,
+    'living-kitchen',
+    [14.372, 2.322],
+    'S',
+    [0.7, 0.7, 0.42],
+    'extra: linen pendant over the table',
+    {
+      y: 1.72,
+      material: 'linen',
+      opts: { top: livingCeiling(2.322), shape: 'wide' },
+    },
+  ),
+  // Living: 3-seat sofa facing the garden with a chaise module at its west end, coffee
+  // table, round lounge chair by the glass wall, round stove at the chimney.
+  drawn(
+    'sofa',
+    'sofa',
+    G,
+    'living-kitchen',
+    [12.11, 3.92, 15.11, 4.82],
+    'S',
+    0.72,
+    `${S05}: 3-seat sofa x 12.110…15.110, z 3.920…4.820, back cushions to z 4.10 (#7f7f7f)`,
+    { collide: true, opts: { arm: 0.14 } },
+  ),
+  drawn(
+    'sofa-chaise',
+    'ottoman',
+    G,
+    'living-kitchen',
+    [12.251, 4.828, 13.11, 5.579],
+    'S',
+    0.42,
+    `${S05}: chaise / ottoman module x 12.251…13.110, z 4.828…5.579 in front of the sofa's west seat`,
+    { collide: true },
+  ),
+  drawn(
+    'coffee-table',
+    'coffeeTable',
+    G,
+    'living-kitchen',
+    [13.4, 5.187, 14.5, 5.787],
+    'S',
+    0.36,
+    `${S05}: coffee table 1.10 × 0.60, x 13.400…14.500, z 5.187…5.787`,
+    { collide: true },
+  ),
+  item(
+    'lounge-chair',
+    'tubChair',
+    G,
+    'living-kitchen',
+    [15.91, 5.518],
+    255,
+    [0.88, 0.92, 0.72],
+    `${S05}: round lounge chair, outline x 15.448…16.416, z 5.008…6.028; shell thickest to the east → faces west, turned ~15° toward the garden`,
+  ),
+  item(
+    'living-rug',
+    'rug',
+    G,
+    'living-kitchen',
+    [13.75, 5.45],
+    'S',
+    [3.0, 2.0, 0.012],
+    'extra: wool rug under the sofa group',
+    {
+      material: 'wool',
+    },
+  ),
+  item(
+    'hearth',
+    'hearth',
+    G,
+    'living-kitchen',
+    [11.65, 6.8],
+    'S',
+    [1.0, 0.65, 0.03],
+    'extra: travertine hearth plate under the stove',
+  ),
+  item(
+    'stove',
+    'stove',
+    G,
+    'living-kitchen',
+    [11.65, 6.8],
+    'N',
+    [0.51, 0.51, 1.0],
+    `${S05}: round stove Ø 0.51 centred (11.650, 6.802) around the flue Ø 0.20 at (11.650, 6.907)`,
+    { collide: true, on: 0.03, plan: [11.395, 6.549, 11.905, 7.055], opts: { round: true } },
+  ),
+  item(
+    'log-store',
+    'logStore',
+    G,
+    'living-kitchen',
+    [10.93, 6.93],
+    'N',
+    [0.36, 0.36, 0.5],
+    'extra: log store beside the stove',
+  ),
+  item(
+    'olive-tree',
+    'olive',
+    G,
+    'living-kitchen',
+    [16.0, 6.6],
+    'S',
+    [0.6, 0.6, 2.3],
+    'extra: olive tree in a clay pot by the glass wall',
+    {
+      opts: { seed: 23 },
+    },
+  ),
+  item(
+    'living-fig',
+    'plant',
+    G,
+    'living-kitchen',
+    [15.75, 4.2],
+    'S',
+    [0.44, 0.44, 1.5],
+    'extra: fig in a ceramic pot at the sofa end',
+    {
+      material: 'ceramic',
+    },
+  ),
+  // Play corner ("loc de joaca", nothing drawn): teepee, floor cushions, book ledge.
+  item(
+    'play-rug',
+    'rug',
+    G,
+    'living-kitchen',
+    [10.4, 5.7],
+    'S',
+    [1.3, 1.6, 0.012],
+    'not on plans: play corner rug',
+    {
+      material: 'cane',
+    },
+  ),
+  item(
+    'teepee',
+    'teepee',
+    G,
+    'living-kitchen',
+    [10.2, 6.5],
+    'S',
+    [1.1, 1.1, 1.6],
+    'not on plans: play corner teepee',
+  ),
+  item(
+    'play-cushion-1',
+    'cushion',
+    G,
+    'living-kitchen',
+    [10.5, 5.25],
+    'S',
+    [0.6, 0.6, 0.14],
+    'not on plans: floor cushion',
+    {
+      material: 'linen',
+    },
+  ),
+  item(
+    'play-cushion-2',
+    'cushion',
+    G,
+    'living-kitchen',
+    [11.0, 5.6],
+    20,
+    [0.55, 0.55, 0.13],
+    'not on plans: floor cushion',
+    {
+      material: 'foliage',
+    },
+  ),
+  item(
+    'book-ledge',
+    'bookLedge',
+    G,
+    'living-kitchen',
+    [9.8, 4.5],
+    'E',
+    [1.0, 0.28, 0.45],
+    'not on plans: low book ledge',
+  ),
+  item(
+    'play-basket-1',
+    'basket',
+    G,
+    'living-kitchen',
+    [9.86, 5.3],
+    'S',
+    [0.36, 0.36, 0.3],
+    'not on plans: toy basket',
+  ),
+  item(
+    'play-basket-2',
+    'basket',
+    G,
+    'living-kitchen',
+    [9.9, 5.72],
+    'S',
+    [0.3, 0.3, 0.24],
+    'not on plans: toy basket',
+  ),
 
   // ----------------------------------------------------------------- bedroom 1
-  item('bed-1', 'bed', G, 'bedroom-1', [2.3, 1.175], 'S', [1.7, 2.1, 0.75], {
-    collide: true,
-    opts: { throw: 'clay', pillows: 2 },
-  }),
-  item('bed-1-side-w', 'bedside', G, 'bedroom-1', [1.19, 0.32], 'S', [0.42, 0.38, 0.48], {
-    opts: { lamp: 'ceramic' },
-  }),
-  item('bed-1-side-e', 'bedside', G, 'bedroom-1', [3.41, 0.32], 'S', [0.42, 0.38, 0.48], {
-    opts: { lamp: 'ceramic' },
-  }),
-  item('bed-1-wardrobe', 'wardrobe', G, 'bedroom-1', [4.325, 1.2], 'W', [2.0, 0.6, 2.4], {
-    collide: true,
-  }),
-  item('bed-1-rug', 'rug', G, 'bedroom-1', [2.1, 2.1], 'S', [1.9, 1.6, 0.012], {
-    material: 'wool',
-  }),
+  drawn(
+    'bed-1',
+    'bed',
+    G,
+    'bedroom-1',
+    [3.18, 0.231, 4.58, 2.231],
+    'N',
+    0.9,
+    `${S05}: bed 1.40 × 2.00, x 3.180…4.580, z 0.231…2.231 (#5f5f5f); pillow strip at the south end → head against the hall wall`,
+    { collide: true, opts: { throw: 'clay', pillows: 2 } },
+  ),
+  drawn(
+    'bed-1-wardrobe',
+    'wardrobe',
+    G,
+    'bedroom-1',
+    [0.125, 0.125, 2.125, 0.725],
+    'S',
+    2.4,
+    `${S05}: X-crossed wardrobe 2.00 × 0.60, x 0.125…2.125, z 0.125…0.725 (#7b766f)`,
+    { collide: true },
+  ),
+  drawn(
+    'bed-1-desk',
+    'desk',
+    G,
+    'bedroom-1',
+    [0.475, 3.025, 1.775, 3.625],
+    'N',
+    0.75,
+    `${S05}: desk 1.30 × 0.60 with screen + keyboard, x 0.475…1.775, z 3.025…3.625 (#8b8878)`,
+    { collide: true, opts: { lamp: true } },
+  ),
+  drawn(
+    'bed-1-chair',
+    'deskChair',
+    G,
+    'bedroom-1',
+    [0.815, 2.346, 1.435, 2.936],
+    'S',
+    0.8,
+    `${S05}: desk chair, outline x 0.815…1.435, z 2.346…2.936, backrest to the north`,
+  ),
+  item(
+    'bed-1-rug',
+    'rug',
+    G,
+    'bedroom-1',
+    [2.9, 1.25],
+    'S',
+    [1.3, 1.8, 0.012],
+    'extra: wool rug beside the bed',
+    {
+      material: 'wool',
+    },
+  ),
+  item(
+    'bed-1-plant',
+    'plant',
+    G,
+    'bedroom-1',
+    [0.4, 1.0],
+    'S',
+    [0.4, 0.4, 1.3],
+    'extra: plant in a clay pot by window F-04',
+    {
+      material: 'clay',
+    },
+  ),
+  item(
+    'bed-1-sconce',
+    'sconce',
+    G,
+    'bedroom-1',
+    [3.42, 2.22],
+    'N',
+    [0.16, 0.18, 0.2],
+    'extra: reading light above the bed head',
+    {
+      wall: true,
+      y: 1.15,
+      material: 'ceramic',
+    },
+  ),
+  item(
+    'bed-1-print',
+    'print',
+    G,
+    'bedroom-1',
+    [1.125, 3.6125],
+    'N',
+    [0.5, 0.025, 0.7],
+    'extra: framed print above the desk',
+    {
+      wall: true,
+      y: 1.25,
+      material: 'clay',
+    },
+  ),
 
   // ----------------------------------------------------------------- bedroom 2
-  item('bed-2', 'bed', G, 'bedroom-2', [0.625, 6.1], 'N', [1.0, 2.05, 0.8], {
-    collide: true,
-    opts: { throw: 'cane', pillows: 1 },
-  }),
-  item('bed-2-desk', 'desk', G, 'bedroom-2', [2.0, 4.175], 'S', [1.2, 0.6, 0.75], {
-    collide: true,
-  }),
-  item('bed-2-chair', 'deskChair', G, 'bedroom-2', [2.0, 4.72], 'N', [0.46, 0.5, 0.8]),
-  item('bed-2-shelf', 'openShelf', G, 'bedroom-2', [3.15, 4.035], 'S', [0.8, 0.32, 0.6]),
-  item('bed-2-rug', 'rug', G, 'bedroom-2', [2.45, 5.85], 'S', [2.0, 1.6, 0.012], {
-    material: 'wool',
-  }),
-  item('bed-2-sconce', 'sconce', G, 'bedroom-2', [0.215, 5.5], 'E', [0.16, 0.18, 0.2], {
-    wall: true,
-    y: 1.35,
-    material: 'clay',
-  }),
-  item('bed-2-plant', 'plant', G, 'bedroom-2', [4.38, 6.86], 'S', [0.4, 0.4, 1.1], {
-    material: 'ceramic',
-  }),
+  drawn(
+    'bed-2-wardrobe',
+    'wardrobe',
+    G,
+    'bedroom-2',
+    [0.125, 3.875, 0.73, 7.119],
+    'E',
+    2.4,
+    `${S05}: X-crossed wardrobe along the whole west wall, x 0.125…0.730, z 3.875…7.119 (#7b766f)`,
+    { collide: true },
+  ),
+  drawn(
+    'bed-2',
+    'bed',
+    G,
+    'bedroom-2',
+    [1.53, 3.893, 3.18, 5.993],
+    'S',
+    0.95,
+    `${S05}: bed 1.65 × 2.10, x 1.530…3.180, z 3.893…5.993, two pillows at the north (#9f9f9f)`,
+    { collide: true, opts: { throw: 'cane', pillows: 2 } },
+  ),
+  ...(
+    [
+      [1.18, 3.892, 1.53, 4.242],
+      [3.18, 3.893, 3.53, 4.243],
+    ] as const
+  ).map((r, i) =>
+    drawn(
+      `bed-2-side-${i ? 'e' : 'w'}`,
+      'bedside',
+      G,
+      'bedroom-2',
+      r,
+      'S',
+      0.48,
+      `${S05}: bedside table 0.35 × 0.35`,
+      {
+        opts: { lamp: 'ceramic' },
+      },
+    ),
+  ),
+  item(
+    'bed-2-armchair',
+    'armchair',
+    G,
+    'bedroom-2',
+    [4.139, 6.66],
+    225,
+    [0.66, 0.62, 0.74],
+    `${S05}: armchair in the south-east corner, outline x 3.731…4.548, z 6.252…7.068, turned 45° toward the bed`,
+  ),
+  item(
+    'bed-2-rug',
+    'rug',
+    G,
+    'bedroom-2',
+    [2.4, 5.75],
+    'S',
+    [2.2, 1.6, 0.012],
+    'extra: wool rug at the foot of the bed',
+    {
+      material: 'wool',
+    },
+  ),
+  item(
+    'bed-2-plant',
+    'plant',
+    G,
+    'bedroom-2',
+    [1.05, 6.8],
+    'S',
+    [0.4, 0.4, 1.1],
+    'extra: plant in a ceramic pot',
+    {
+      material: 'ceramic',
+    },
+  ),
+  item(
+    'bed-2-print',
+    'print',
+    G,
+    'bedroom-2',
+    [2.355, 3.8875],
+    'S',
+    [0.9, 0.025, 0.6],
+    'extra: framed print above the bed',
+    {
+      wall: true,
+      y: 1.25,
+      material: 'foliage',
+      opts: { split: 0.55 },
+    },
+  ),
 
   // --------------------------------------------------------- ground bathroom
-  item('bath-screen', 'showerScreen', G, 'bathroom', [6.39, 6.25], 'N', [0.97, 0.02, 2.0]),
-  item('bath-shower', 'showerHead', G, 'bathroom', [6.7, 6.72], 'W', [0.3, 0.35, 0.3], {
-    wall: true,
-    y: 1.0,
-  }),
-  item('bath-vanity', 'vanity', G, 'bathroom', [6.635, 5.2], 'W', [0.9, 0.48, 0.85], {
-    collide: true,
-  }),
-  item('bath-mirror', 'mirror', G, 'bathroom', [6.86, 5.2], 'W', [0.62, 0.03, 0.62], {
-    wall: true,
-    y: 1.25,
-  }),
-  item('bath-wc', 'wc', G, 'bathroom', [6.6, 5.94], 'W', [0.38, 0.55, 0.42]),
-  item('bath-ladder', 'towelLadder', G, 'bathroom', [4.98, 4.85], 'E', [0.5, 0.2, 1.7]),
-  item('bath-mat', 'rug', G, 'bathroom', [6.02, 5.2], 'W', [0.8, 0.5, 0.01], {
-    material: 'linen',
-  }),
+  drawn(
+    'bath-vanity',
+    'vanity',
+    G,
+    'bathroom',
+    [4.875, 4.119, 5.375, 5.119],
+    'E',
+    0.85,
+    `${S05}: washbasin counter 1.00 × 0.50 on the west wall, x 4.875…5.375, z 4.119…5.119, basin centred z 4.619 (#9f9f9f)`,
+    { collide: true },
+  ),
+  item(
+    'bath-mirror',
+    'mirror',
+    G,
+    'bathroom',
+    [4.89, 4.619],
+    'E',
+    [0.62, 0.03, 0.62],
+    'extra: round mirror above the basin',
+    {
+      wall: true,
+      y: 1.2,
+    },
+  ),
+  drawn(
+    'bath-bidet',
+    'wc',
+    G,
+    'bathroom',
+    [6.335, 4.1, 6.875, 4.46],
+    'W',
+    0.42,
+    `${S05}: wall-hung bidet 0.54 × 0.36 on the east wall, x 6.335…6.875, z 4.100…4.460 (#9f9f9f)`,
+    { opts: { bidet: true } },
+  ),
+  drawn(
+    'bath-wc',
+    'wc',
+    G,
+    'bathroom',
+    [6.315, 4.637, 6.875, 4.987],
+    'W',
+    0.42,
+    `${S05}: wall-hung WC 0.56 × 0.35, x 6.315…6.875, z 4.637…4.987, cistern in the wall (#7f7f7f)`,
+  ),
+  drawn(
+    'bath-screen',
+    'showerScreen',
+    G,
+    'bathroom',
+    [6.075, 5.286, 6.875, 5.306],
+    'S',
+    2.0,
+    `${S05}: glass screen x 6.075…6.875, z 5.286…5.306 (walk-in shower between it and the tub)`,
+  ),
+  item(
+    'bath-shower',
+    'showerHead',
+    G,
+    'bathroom',
+    [6.7, 5.725],
+    'W',
+    [0.3, 0.35, 0.3],
+    `${S05}: shower mixer on the east wall, z 5.497…5.953`,
+    { wall: true, y: 1.0 },
+  ),
+  drawn(
+    'bath-tub',
+    'tub',
+    G,
+    'bathroom',
+    [5.014, 6.21, 6.714, 7.11],
+    'N',
+    0.58,
+    `${S05}: oval freestanding tub 1.70 × 0.90, x 5.014…6.714, z 6.210…7.110, drain at the west end`,
+    { collide: true },
+  ),
+  item(
+    'bath-ladder',
+    'towelLadder',
+    G,
+    'bathroom',
+    [4.98, 5.75],
+    'E',
+    [0.5, 0.2, 1.7],
+    'extra: oak towel ladder',
+  ),
+  item(
+    'bath-mat',
+    'rug',
+    G,
+    'bathroom',
+    [5.5, 5.85],
+    'S',
+    [0.8, 0.5, 0.01],
+    'extra: linen bath mat',
+    {
+      material: 'linen',
+    },
+  ),
 
   // --------------------------------------------------------- boiler + laundry
-  item('boiler', 'boiler', G, 'boiler-laundry', [5.045, 0.5], 'E', [0.44, 0.34, 0.72], {
-    wall: true,
-    y: 1.3,
-  }),
-  item('washer-stack', 'washerStack', G, 'boiler-laundry', [6.9, 0.51], 'W', [0.62, 0.62, 1.78], {
-    collide: true,
-  }),
-  item('utility-cabinet', 'wardrobe', G, 'boiler-laundry', [6.91, 1.25], 'W', [0.6, 0.6, 2.2], {
-    collide: true,
-  }),
-  item('drying-rack', 'dryingRack', G, 'boiler-laundry', [5.2, 0.95], 'E', [0.6, 0.5, 1.0]),
-  item('laundry-basket', 'basket', G, 'boiler-laundry', [5.07, 1.88], 'S', [0.36, 0.36, 0.4]),
+  item(
+    'boiler',
+    'boiler',
+    G,
+    'boiler-laundry',
+    [5.045, 0.5],
+    'E',
+    [0.44, 0.34, 0.72],
+    'not on plans: wall boiler of the boiler room (CT)',
+    {
+      wall: true,
+      y: 1.3,
+    },
+  ),
+  drawn(
+    'laundry',
+    'laundryRun',
+    G,
+    'boiler-laundry',
+    [6.61, 0.143, 7.21, 1.343],
+    'W',
+    0.9,
+    `${S05}: washer "W" + dryer "D" side by side on the east wall, x 6.610…7.210, z 0.143…1.343 (#5f5f5f)`,
+    { collide: true },
+  ),
+  item(
+    'laundry-basket',
+    'basket',
+    G,
+    'boiler-laundry',
+    [5.07, 1.88],
+    'S',
+    [0.36, 0.36, 0.4],
+    'extra: laundry basket',
+  ),
 
-  // ------------------------------------------------------------ basement storage
-  item('storage-shelf-e1', 'shelving', B, 'storage', [12.06, 4.75], 'W', [1.4, 0.42, 1.9], {
-    collide: true,
-  }),
-  item('storage-shelf-e2', 'shelving', B, 'storage', [12.06, 6.2], 'W', [1.4, 0.42, 1.9], {
-    collide: true,
-  }),
-  item('storage-shelf-n', 'shelving', B, 'storage', [10.75, 4.085], 'S', [1.7, 0.42, 1.9], {
-    collide: true,
-  }),
+  // ======================================================== BASEMENT (sheet 04)
+  // Storage: nothing drawn — simple oak/steel shelving with woven boxes.
+  item(
+    'storage-shelf-e1',
+    'shelving',
+    B,
+    'storage',
+    [12.06, 4.75],
+    'W',
+    [1.4, 0.42, 1.9],
+    'not on plans: shelving',
+    {
+      collide: true,
+    },
+  ),
+  item(
+    'storage-shelf-e2',
+    'shelving',
+    B,
+    'storage',
+    [12.06, 6.2],
+    'W',
+    [1.4, 0.42, 1.9],
+    'not on plans: shelving',
+    {
+      collide: true,
+    },
+  ),
+  item(
+    'storage-shelf-n',
+    'shelving',
+    B,
+    'storage',
+    [10.75, 4.085],
+    'S',
+    [1.7, 0.42, 1.9],
+    'not on plans: shelving',
+    {
+      collide: true,
+    },
+  ),
 
+  // =========================================================== UPPER (sheet 06)
   // ------------------------------------------------------------------ bedroom 3
-  item('bed-3', 'bed', U, 'bedroom-3', [3.575, 5.25], 'W', [1.9, 2.1, 0.9], {
-    collide: true,
-    opts: { throw: 'wool', pillows: 2, cushion: 'foliage' },
-  }),
-  item('bed-3-side-n', 'bedside', U, 'bedroom-3', [4.4, 4.03], 'W', [0.4, 0.4, 0.45], {
-    opts: { lamp: 'clay' },
-  }),
-  item('bed-3-side-s', 'bedside', U, 'bedroom-3', [4.4, 6.47], 'W', [0.4, 0.4, 0.45], {
-    opts: { lamp: 'clay' },
-  }),
-  item('bed-3-bench', 'bench', U, 'bedroom-3', [2.25, 5.25], 'W', [1.3, 0.4, 0.45]),
-  item('bed-3-wardrobe-n', 'wardrobe', U, 'bedroom-3', [2.15, 0.4], 'S', [3.6, 0.55, 0.9], {
-    collide: true,
-    opts: { low: true },
-  }),
-  item('bed-3-wardrobe-s', 'wardrobe', U, 'bedroom-3', [1.325, 6.85], 'N', [1.95, 0.55, 0.9], {
-    collide: true,
-    opts: { low: true },
-  }),
-  item('bed-3-armchair', 'armchair', U, 'bedroom-3', [0.9, 3.95], 'E', [0.82, 0.8, 0.74]),
-  item('bed-3-lamp', 'floorLamp', U, 'bedroom-3', [0.42, 3.35], 'S', [0.4, 0.4, 1.55]),
-  item('bed-3-rug', 'rug', U, 'bedroom-3', [3.05, 5.25], 'S', [2.3, 2.9, 0.012], {
-    material: 'wool',
-  }),
+  // Two single beds head to head along the knee walls, low built-in cupboards under both
+  // knee walls, two wardrobes on the east wall (stepped under the slope).
+  drawn(
+    'bed-3-knee-n',
+    'wardrobe',
+    U,
+    'bedroom-3',
+    [0.132, 0.132, 4.611, 0.432],
+    'S',
+    0.9,
+    `${S06}: X-crossed low cupboard under the north knee wall, x 0.132…4.611, z 0.132…0.432 (#7b766f)`,
+    { collide: true, opts: { low: true } },
+  ),
+  drawn(
+    'bed-3-knee-s',
+    'wardrobe',
+    U,
+    'bedroom-3',
+    [0.156, 6.491, 4.61, 7.091],
+    'N',
+    0.9,
+    `${S06}: X-crossed low cupboard under the south knee wall, x 0.156…4.610, z 6.491…7.091 (#7b766f)`,
+    { collide: true, opts: { low: true } },
+  ),
+  ...steppedWardrobe(
+    'bed-3-wardrobe-n',
+    'bedroom-3',
+    4.01,
+    4.611,
+    [0.432, 1.053, 1.673, 2.294],
+    `${S06}: X-crossed wardrobe x 4.010…4.611, z 0.432…2.294; three sections stepped under the slope`,
+  ),
+  ...steppedWardrobe(
+    'bed-3-wardrobe-s',
+    'bedroom-3',
+    4.01,
+    4.61,
+    [3.743, 4.843, 5.443, 5.993, 6.491],
+    `${S06}: X-crossed wardrobe x 4.010…4.610, z 3.743…6.491; four sections stepped under the slope`,
+  ),
+  drawn(
+    'bed-3-n',
+    'bed',
+    U,
+    'bedroom-3',
+    [1.775, 0.432, 2.675, 2.432],
+    'S',
+    0.8,
+    `${S06}: single bed 0.90 × 2.00, x 1.775…2.675, z 0.432…2.432, head north (#5f5f5f)`,
+    { collide: true, opts: { throw: 'clay', pillows: 1, cushion: 'foliage' } },
+  ),
+  drawn(
+    'bed-3-s',
+    'bed',
+    U,
+    'bedroom-3',
+    [1.74, 4.491, 2.64, 6.491],
+    'N',
+    0.8,
+    `${S06}: single bed 0.90 × 2.00, x 1.740…2.640, z 4.491…6.491, head south (#5f5f5f)`,
+    { collide: true, opts: { throw: 'wool', pillows: 1, cushion: 'clay' } },
+  ),
+  ...(
+    [
+      ['nw', [1.3, 0.432, 1.7, 0.782], 'S'],
+      ['ne', [2.75, 0.432, 3.15, 0.782], 'S'],
+      ['sw', [1.264, 6.141, 1.664, 6.491], 'N'],
+      ['se', [2.715, 6.141, 3.115, 6.491], 'N'],
+    ] as const
+  ).map(([k, r, face]) =>
+    drawn(
+      `bed-3-side-${k}`,
+      'bedside',
+      U,
+      'bedroom-3',
+      r,
+      face,
+      0.45,
+      `${S06}: bedside table 0.40 × 0.35 (#9f9f9f)`,
+      {
+        opts: { lamp: 'clay' },
+      },
+    ),
+  ),
+  item(
+    'bed-3-rug',
+    'rug',
+    U,
+    'bedroom-3',
+    [2.2, 3.46],
+    'S',
+    [1.8, 1.3, 0.012],
+    'extra: wool rug between the beds',
+    {
+      material: 'wool',
+    },
+  ),
+  item(
+    'bed-3-plant',
+    'plant',
+    U,
+    'bedroom-3',
+    [0.45, 3.7],
+    'S',
+    [0.45, 0.45, 1.3],
+    'extra: plant between the west windows',
+    {
+      material: 'clay',
+    },
+  ),
 
   // ---------------------------------------------------------------------- study
-  item('study-desk', 'desk', U, 'study', [7.75, 0.475], 'S', [1.4, 0.7, 0.75], {
-    collide: true,
-    opts: { lamp: true },
-  }),
-  item('study-chair', 'deskChair', U, 'study', [7.75, 1.12], 'N', [0.46, 0.5, 0.8]),
-  item('study-bookshelf', 'bookshelf', U, 'study', [4.9, 1.6], 'E', [1.2, 0.32, 1.6], {
-    collide: true,
-  }),
-  item('study-daybed', 'daybed', U, 'study', [6.025, 0.55], 'S', [1.85, 0.8, 0.45], {
-    collide: true,
-  }),
-  item('study-rug', 'rug', U, 'study', [6.9, 1.6], 'S', [2.0, 1.1, 0.012], {
-    material: 'cane',
-  }),
-  item('study-plant', 'plant', U, 'study', [9.2, 0.55], 'S', [0.36, 0.36, 0.8], {
-    material: 'clay',
-  }),
+  ...(
+    [
+      [0.132, 0.862],
+      [0.862, 1.581],
+      [1.581, 2.31],
+    ] as const
+  ).map(([z0, z1], i) =>
+    drawn(
+      `study-bookcase-${i + 1}`,
+      'bookshelf',
+      U,
+      'study',
+      [4.74, z0, 5.29, z1],
+      'E',
+      stepH(z0, 2.15),
+      `${S06}: storage unit 0.55 deep on the west wall, x 4.740…5.290, z 0.132…2.310 in three bays (#7f7f7f); open oak shelves stepped under the slope`,
+      { collide: true },
+    ),
+  ),
+  item(
+    'study-desk',
+    'desk',
+    U,
+    'study',
+    [9.21, 1.218],
+    'W',
+    [1.2, 0.6, 0.75],
+    `${S06}: keyboard x 8.950…9.120 + screen x 9.170…9.300 centred z 1.218 on the east wall (the desk outline itself is not drawn): 1.20 × 0.60 desk`,
+    { collide: true, opts: { lamp: true, monitor: true } },
+  ),
+  drawn(
+    'study-chair',
+    'deskChair',
+    U,
+    'study',
+    [8.261, 0.908, 8.851, 1.528],
+    'E',
+    0.8,
+    `${S06}: desk chair, outline x 8.261…8.851, z 0.908…1.528, facing the desk`,
+  ),
+  item(
+    'study-rug',
+    'rug',
+    U,
+    'study',
+    [7.1, 1.3],
+    'S',
+    [2.0, 1.3, 0.012],
+    'extra: cane-coloured rug',
+    {
+      material: 'cane',
+    },
+  ),
+  item(
+    'study-plant',
+    'plant',
+    U,
+    'study',
+    [5.0, 1.45],
+    'S',
+    [0.24, 0.24, 0.26],
+    'extra: small plant on the middle bookcase bay',
+    {
+      on: stepH(0.862, 2.15),
+      material: 'clay',
+    },
+  ),
 
   // ----------------------------------------------------------------- upper hall
-  item('hall-bench', 'bench', U, 'upper-hall', [7.2, 2.61], 'S', [1.2, 0.36, 0.45]),
-  item('upper-hall-sconce', 'sconce', U, 'upper-hall', [7.2, 2.515], 'S', [0.16, 0.18, 0.2], {
-    wall: true,
-    y: 1.7,
-    material: 'clay',
-  }),
+  drawn(
+    'upper-hall-wardrobe',
+    'wardrobe',
+    U,
+    'upper-hall',
+    [8.9, 2.435, 9.5, 3.625],
+    'W',
+    2.4,
+    `${S06}: X-crossed wardrobe at the hall's east end, x 8.900…9.500, z 2.435…3.625 (#7b766f)`,
+    { collide: true },
+  ),
+  item(
+    'upper-hall-sconce',
+    'sconce',
+    U,
+    'upper-hall',
+    [7.2, 2.515],
+    'S',
+    [0.16, 0.18, 0.2],
+    'extra: ceramic wall light',
+    {
+      wall: true,
+      y: 1.7,
+      material: 'clay',
+    },
+  ),
+  item(
+    'upper-hall-print',
+    'print',
+    U,
+    'upper-hall',
+    [6.65, 3.6125],
+    'N',
+    [0.5, 0.025, 0.7],
+    'extra: framed print',
+    {
+      wall: true,
+      y: 1.3,
+      material: 'cane',
+    },
+  ),
 
   // ------------------------------------------------------------- upper bathroom
-  item('upper-tub', 'tub', U, 'upper-bathroom', [5.85, 6.72], 'N', [1.7, 0.76, 0.58], {
-    collide: true,
-  }),
-  item('upper-vanity', 'vanity', U, 'upper-bathroom', [5.115, 5.45], 'E', [0.9, 0.48, 0.85], {
-    collide: true,
-  }),
-  item('upper-mirror', 'mirror', U, 'upper-bathroom', [4.89, 5.45], 'E', [0.56, 0.03, 0.56], {
-    wall: true,
-    y: 1.22,
-  }),
-  item('upper-wc', 'wc', U, 'upper-bathroom', [6.9, 4.8], 'W', [0.38, 0.55, 0.42]),
-  item('upper-ladder', 'towelLadder', U, 'upper-bathroom', [7.07, 5.25], 'W', [0.46, 0.2, 1.6]),
-  item('upper-bath-mat', 'rug', U, 'upper-bathroom', [5.85, 5.95], 'S', [0.9, 0.5, 0.01], {
-    material: 'linen',
-  }),
+  drawn(
+    'upper-vanity',
+    'vanity',
+    U,
+    'upper-bathroom',
+    [4.875, 4.653, 5.375, 5.453],
+    'E',
+    0.85,
+    `${S06}: washbasin counter 0.80 × 0.50 on the west wall, x 4.875…5.375, z 4.653…5.453 (#9f9f9f)`,
+    { collide: true },
+  ),
+  item(
+    'upper-mirror',
+    'mirror',
+    U,
+    'upper-bathroom',
+    [4.89, 5.053],
+    'E',
+    [0.56, 0.03, 0.56],
+    'extra: round mirror above the basin',
+    {
+      wall: true,
+      y: 1.22,
+    },
+  ),
+  drawn(
+    'upper-wc',
+    'wc',
+    U,
+    'upper-bathroom',
+    [6.418, 5.915, 6.978, 6.265],
+    'W',
+    0.42,
+    `${S06}: wall-hung WC 0.56 × 0.35, x 6.418…6.978, z 5.915…6.265, cistern in the shaft wall (#7f7f7f)`,
+  ),
+  drawn(
+    'upper-screen-w',
+    'showerScreen',
+    U,
+    'upper-bathroom',
+    [6.175, 3.74, 6.195, 4.637],
+    'E',
+    2.0,
+    `${S06}: shower glass x 6.175…6.195, z 3.740…4.637 (#fbfaea)`,
+  ),
+  drawn(
+    'upper-screen-s',
+    'showerScreen',
+    U,
+    'upper-bathroom',
+    [6.275, 5.49, 7.175, 5.515],
+    'S',
+    2.0,
+    `${S06}: shower glass x 6.275…7.175, z 5.490…5.515 (#fbfaea); walk-in shower x 6.195…7.175, z 3.740…5.490`,
+  ),
+  item(
+    'upper-shower',
+    'showerHead',
+    U,
+    'upper-bathroom',
+    [6.559, 3.915],
+    'S',
+    [0.3, 0.35, 0.3],
+    `${S06}: shower mixer on the north wall, x 6.331…6.787`,
+    { wall: true, y: 1.0 },
+  ),
+  item(
+    'upper-ladder',
+    'towelLadder',
+    U,
+    'upper-bathroom',
+    [4.98, 6.3],
+    'E',
+    [0.46, 0.2, 1.2],
+    'extra: oak towel ladder under the slope',
+  ),
+  item(
+    'upper-bath-mat',
+    'rug',
+    U,
+    'upper-bathroom',
+    [5.75, 4.95],
+    'E',
+    [0.8, 0.5, 0.01],
+    'extra: linen bath mat',
+    {
+      material: 'linen',
+    },
+  ),
 
   // -------------------------------------------------------------- east terrace
-  item('terrace-table', 'outdoorTable', G, 'terrace', [17.9, 4.6], 'E', [2.0, 0.9, 0.75], {
-    collide: true,
-  }),
-  item('terrace-bench-w', 'outdoorBench', G, 'terrace', [17.18, 4.6], 'E', [1.8, 0.36, 0.45]),
-  item('terrace-bench-e', 'outdoorBench', G, 'terrace', [18.62, 4.6], 'W', [1.8, 0.36, 0.45]),
-  // Lounger 1 turned to face the garden (was at 17.4, 0.85, 30°) so the open, outward
-  // curtain-wall door leaf (z ≈ 1.2, x 16.6…17.6) and its swing stay clear.
-  item('terrace-lounger-1', 'lounger', G, 'terrace', [17.25, 0.7], 'E', [0.72, 0.85, 0.72]),
-  item('terrace-lounger-2', 'lounger', G, 'terrace', [18.55, 0.85], -20, [0.72, 0.85, 0.72]),
-  item('terrace-side-table', 'sideTable', G, 'terrace', [17.98, 0.55], 'S', [0.4, 0.4, 0.42]),
+  // Not on the plans (sheets 03 / 05 draw only the deck boards).
+  item(
+    'terrace-table',
+    'outdoorTable',
+    G,
+    'terrace',
+    [17.9, 4.6],
+    'E',
+    [2.0, 0.9, 0.75],
+    'not on plans: outdoor dining table',
+    {
+      collide: true,
+    },
+  ),
+  item(
+    'terrace-bench-w',
+    'outdoorBench',
+    G,
+    'terrace',
+    [17.18, 4.6],
+    'E',
+    [1.8, 0.36, 0.45],
+    'not on plans: bench',
+  ),
+  item(
+    'terrace-bench-e',
+    'outdoorBench',
+    G,
+    'terrace',
+    [18.62, 4.6],
+    'W',
+    [1.8, 0.36, 0.45],
+    'not on plans: bench',
+  ),
+  // Lounger 1 faces the garden so the open, outward curtain-wall door leaf (z ≈ 1.2,
+  // x 16.6…17.6) and its swing stay clear.
+  item(
+    'terrace-lounger-1',
+    'lounger',
+    G,
+    'terrace',
+    [17.25, 0.7],
+    'E',
+    [0.72, 0.85, 0.72],
+    'not on plans: lounge chair',
+  ),
+  item(
+    'terrace-lounger-2',
+    'lounger',
+    G,
+    'terrace',
+    [18.55, 0.85],
+    -20,
+    [0.72, 0.85, 0.72],
+    'not on plans: lounge chair',
+  ),
+  item(
+    'terrace-side-table',
+    'sideTable',
+    G,
+    'terrace',
+    [17.98, 0.55],
+    'S',
+    [0.4, 0.4, 0.42],
+    'not on plans: side table',
+  ),
 ];
 
 /** Rotation (radians) of a face: local +z (front) → world direction (sin θ, cos θ). */
@@ -450,7 +1378,7 @@ export function furnitureColliders(
     const fp = footprint(it);
     const xs = fp.map((p) => p[0]);
     const zs = fp.map((p) => p[1]);
-    const y0 = floorOf(it.level) + (it.wall ? (it.y ?? 0) : 0);
+    const y0 = floorOf(it.level) + (it.on ?? 0) + (it.wall ? (it.y ?? 0) : 0);
     out.push({
       id: it.id,
       level: it.level,

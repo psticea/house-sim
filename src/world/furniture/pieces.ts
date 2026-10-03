@@ -211,10 +211,15 @@ const kitchenTall: Builder = (f, it) => {
   const zf = d / 2 - 0.02;
   f.box('smokedOak', [-w / 2, 0, -d / 2], [w / 2, 0.1, zf - 0.06], { bottom: false });
   f.box('joinery', [-w / 2, 0.1, -d / 2], [w / 2, h, zf]);
-  // Integrated fridge (left column): two tall doors.
-  f.box('joinery', [-w / 2 + 0.003, 0.103, zf], [-0.003, 1.497, zf + 0.02]);
-  f.box('joinery', [-w / 2 + 0.003, 1.503, zf], [-0.003, h - 0.003, zf + 0.02]);
-  f.box('smokedOak', [-0.04, 1.2, zf + 0.02], [-0.02, 1.8, zf + 0.032]);
+  // Integrated fridge column: tall fridge door, freezer door below, top cupboard.
+  const fx1 = w > 0.9 ? -0.003 : w / 2 - 0.003;
+  f.box('joinery', [-w / 2 + 0.003, 0.103, zf], [fx1, 0.797, zf + 0.02]);
+  f.box('joinery', [-w / 2 + 0.003, 0.803, zf], [fx1, 1.997, zf + 0.02]);
+  f.box('joinery', [-w / 2 + 0.003, 2.003, zf], [fx1, h - 0.003, zf + 0.02]);
+  const px = w > 0.9 ? -0.04 : w / 2 - 0.06;
+  f.box('smokedOak', [px, 1.0, zf + 0.02], [px + 0.02, 1.6, zf + 0.032]);
+  f.box('smokedOak', [px, 0.5, zf + 0.02], [px + 0.02, 0.75, zf + 0.032]);
+  if (w <= 0.9) return;
   // Oven column: drawers, flush black oven, door above.
   f.box('joinery', [0.003, 0.103, zf], [w / 2 - 0.003, 0.497, zf + 0.02]);
   f.box('joinery', [0.003, 0.503, zf], [w / 2 - 0.003, 0.897, zf + 0.02]);
@@ -225,64 +230,75 @@ const kitchenTall: Builder = (f, it) => {
     f.box('smokedOak', [x0, 0.44, zf + 0.02], [x0 + 0.14, 0.455, zf + 0.032]);
 };
 
-const kitchenRun: Builder = (f, it) => {
-  const [w, d] = it.size;
-  const zf = d / 2 - 0.02;
-  const top = 0.9;
-  f.box('smokedOak', [-w / 2, 0, -d / 2], [w / 2, 0.1, zf - 0.06], { bottom: false });
-  f.box('joinery', [-w / 2, 0.1, -d / 2], [w / 2, top - 0.04, zf], { skipTop: true });
-  const n = Math.round(w / 0.6);
-  doorFronts(f, -w / 2, w / 2, 0.1, top - 0.06, zf, n, 'h');
-  // Travertine worktop (with the sink cut-out) and splashback.
-  const sx = opt(it, 'sink', 0);
-  const sw = 0.25;
-  const sd = 0.2;
-  const sz = -0.01;
+const SINK_W = 0.25;
+const SINK_D = 0.2;
+
+/**
+ * Travertine slab between local x0…x1 / z0…z1 (top at `top`), with an optional sink
+ * cut-out centred at (sx, sz) and the integrated travertine bowl below it.
+ */
+function worktop(
+  f: Frame,
+  x0: number,
+  x1: number,
+  z0: number,
+  z1: number,
+  top: number,
+  thick: number,
+  sink?: readonly [number, number],
+): void {
   const P = (x: number, z: number): [number, number] => {
     const q = f.p(x, 0, z);
     return [q[0], q[2]];
   };
+  const outline = [P(x0, z0), P(x1, z0), P(x1, z1), P(x0, z1)];
+  if (!sink) {
+    f.box('travertine', [x0, top - thick, z0], [x1, top, z1]);
+    return;
+  }
+  const [sx, sz] = sink;
+  const sw = SINK_W;
+  const sd = SINK_D;
   f.mesh.prism(
-    [P(-w / 2, -d / 2), P(w / 2, -d / 2), P(w / 2, d / 2 + 0.01), P(-w / 2, d / 2 + 0.01)],
-    f.oy + top - 0.04,
+    outline,
+    f.oy + top - thick,
     f.oy + top,
     { top: 'travertine', bottom: null, sides: 'travertine' },
     [[P(sx - sw, sz - sd), P(sx + sw, sz - sd), P(sx + sw, sz + sd), P(sx - sw, sz + sd)]],
   );
-  // Integrated travertine sink bowl.
   const yb = top - 0.2;
-  const inward = (dx: number, dz: number): V3 => [dx, 0, dz];
+  const yt = top - thick;
   f.quad(
     'travertine',
     [sx - sw, yb, sz - sd],
     [sx + sw, yb, sz - sd],
-    [sx + sw, top - 0.04, sz - sd],
-    [sx - sw, top - 0.04, sz - sd],
-    inward(0, 1),
+    [sx + sw, yt, sz - sd],
+    [sx - sw, yt, sz - sd],
+    [0, 0, 1],
   );
   f.quad(
     'travertine',
     [sx - sw, yb, sz + sd],
     [sx + sw, yb, sz + sd],
-    [sx + sw, top - 0.04, sz + sd],
-    [sx - sw, top - 0.04, sz + sd],
-    inward(0, -1),
+    [sx + sw, yt, sz + sd],
+    [sx - sw, yt, sz + sd],
+    [0, 0, -1],
   );
   f.quad(
     'travertine',
     [sx - sw, yb, sz - sd],
     [sx - sw, yb, sz + sd],
-    [sx - sw, top - 0.04, sz + sd],
-    [sx - sw, top - 0.04, sz - sd],
-    inward(1, 0),
+    [sx - sw, yt, sz + sd],
+    [sx - sw, yt, sz - sd],
+    [1, 0, 0],
   );
   f.quad(
     'travertine',
     [sx + sw, yb, sz - sd],
     [sx + sw, yb, sz + sd],
-    [sx + sw, top - 0.04, sz + sd],
-    [sx + sw, top - 0.04, sz - sd],
-    inward(-1, 0),
+    [sx + sw, yt, sz + sd],
+    [sx + sw, yt, sz - sd],
+    [-1, 0, 0],
   );
   f.quad(
     'travertine',
@@ -292,73 +308,189 @@ const kitchenRun: Builder = (f, it) => {
     [sx - sw, yb, sz + sd],
     [0, 1, 0],
   );
+}
+
+/** Brushed-brass gooseneck tap standing at (x, tz) on a worktop, spout toward `dir` (±z). */
+function kitchenTap(f: Frame, x: number, tz: number, top: number, dir: 1 | -1): void {
+  f.tube('brass', [x, top, tz], [x, top + 0.32, tz], 0.012, 0.012, 8);
+  f.tube('brass', [x, top + 0.32, tz], [x, top + 0.32, tz + dir * 0.2], 0.011, 0.011, 8);
+  f.tube(
+    'brass',
+    [x, top + 0.32, tz + dir * 0.2],
+    [x, top + 0.26, tz + dir * 0.2],
+    0.011,
+    0.011,
+    8,
+  );
+  f.box('brass', [x + 0.06, top, tz - 0.015], [x + 0.09, top + 0.08, tz + 0.015]);
+}
+
+/**
+ * Base run along a wall: smoked-oak plinth, oak fronts (60 cm modules), travertine
+ * worktop + splashback. Options (local x from the centre): `hob` (flush black-glass hob,
+ * with `oven` a flush black oven below and `hood` an oak-clad canopy above), `sink`
+ * (cut-out bowl + tap), `shelfFrom` / `shelfTo` (open oak wall shelf with ceramics).
+ */
+const kitchenRun: Builder = (f, it) => {
+  const [w, d] = it.size;
+  const o = it.opts ?? {};
+  const zf = d / 2 - 0.02;
+  const top = 0.9;
+  f.box('smokedOak', [-w / 2, 0, -d / 2], [w / 2, 0.1, zf - 0.06], { bottom: false });
+  f.box('joinery', [-w / 2, 0.1, -d / 2], [w / 2, top - 0.04, zf], { skipTop: true });
+  const hob = typeof o.hob === 'number' ? o.hob : null;
+  const sink = typeof o.sink === 'number' ? o.sink : null;
+  const n = Math.max(1, Math.round(w / 0.6));
+  const dw = w / n;
+  for (let i = 0; i < n; i++) {
+    const a = -w / 2 + i * dw + 0.003;
+    const b = -w / 2 + (i + 1) * dw - 0.003;
+    const mid = (a + b) / 2;
+    if (hob !== null && o.oven && Math.abs(mid - hob) < dw / 2) {
+      // Drawer below a flush black oven with a slim brass bar.
+      f.box('joinery', [a, 0.103, zf], [b, 0.247, zf + 0.02]);
+      f.box('metalBlack', [a, 0.253, zf], [b, top - 0.063, zf + 0.02]);
+      f.box('brass', [a + 0.08, top - 0.14, zf + 0.02], [b - 0.08, top - 0.125, zf + 0.04]);
+      continue;
+    }
+    // Two drawers over a door every other module, plain doors otherwise.
+    const split = i % 2 === 1 ? [0.103, 0.497, top - 0.063] : [0.103, top - 0.063];
+    for (let k = 0; k + 1 < split.length; k++) {
+      const y0 = split[k]!;
+      const y1 = split[k + 1]!;
+      f.box('joinery', [a, y0 + (k ? 0.003 : 0), zf], [b, y1 - 0.003, zf + 0.02]);
+      f.box('smokedOak', [mid - 0.1, y1 - 0.05, zf + 0.02], [mid + 0.1, y1 - 0.035, zf + 0.032]);
+    }
+  }
+  worktop(
+    f,
+    -w / 2,
+    w / 2,
+    -d / 2,
+    d / 2 + 0.01,
+    top,
+    0.04,
+    sink === null ? undefined : [sink, -0.01],
+  );
+  if (sink !== null) kitchenTap(f, sink, -0.01 - SINK_D - 0.06, top, 1);
   f.box('travertine', [-w / 2, top, -d / 2], [w / 2, top + 0.6, -d / 2 + 0.015]);
-  // Brushed-brass tap behind the sink.
-  const tz = sz - sd - 0.06;
-  f.tube('brass', [sx, top, tz], [sx, top + 0.32, tz], 0.012, 0.012, 8);
-  f.tube('brass', [sx, top + 0.32, tz], [sx, top + 0.32, tz + 0.2], 0.011, 0.011, 8);
-  f.tube('brass', [sx, top + 0.32, tz + 0.2], [sx, top + 0.26, tz + 0.2], 0.011, 0.011, 8);
-  f.box('brass', [sx + 0.06, top, tz - 0.015], [sx + 0.09, top + 0.08, tz + 0.015]);
-  // Flush black-glass hob.
-  const hx = opt(it, 'hob', 0.8);
-  f.box('metalBlack', [hx - 0.3, top, -0.25], [hx + 0.3, top + 0.006, 0.25]);
-  // Open oak shelf with a few ceramics.
-  const sy = top + 0.72;
-  f.box('joinery', [-w / 2 + 0.3, sy, -d / 2 + 0.015], [w / 2 - 0.3, sy + 0.04, -d / 2 + 0.27]);
-  const jz = -d / 2 + 0.14;
-  f.lathe(
-    'ceramic',
-    -w / 2 + 0.6,
-    jz,
-    [
-      [0.07, sy + 0.04],
-      [0.075, sy + 0.2],
-      [0.05, sy + 0.24],
-    ],
-    { capEnd: true },
-  );
-  f.lathe(
-    'clay',
-    -w / 2 + 0.78,
-    jz,
-    [
-      [0.05, sy + 0.04],
-      [0.09, sy + 0.12],
-      [0.04, sy + 0.26],
-      [0.03, sy + 0.3],
-    ],
-    { capEnd: true },
-  );
-  f.lathe(
-    'ceramic',
-    w / 2 - 0.7,
-    jz,
-    [
-      [0.1, sy + 0.04],
-      [0.12, sy + 0.09],
-      [0.12, sy + 0.1],
-    ],
-    { capEnd: true },
-  );
-  books(f, w / 2 - 0.55, w / 2 - 0.35, sy + 0.04, jz, 0.18, 3, 0.24);
+  if (hob !== null) {
+    f.box('metalBlack', [hob - 0.3, top, -0.24], [hob + 0.3, top + 0.006, 0.24]);
+    if (o.hood) {
+      // Oak-clad canopy hood with a black filter strip.
+      f.box('joinery', [hob - 0.45, 1.72, -d / 2 + 0.015], [hob + 0.45, 2.4, -d / 2 + 0.5]);
+      f.box('metalBlack', [hob - 0.4, 1.715, -d / 2 + 0.05], [hob + 0.4, 1.72, -d / 2 + 0.45]);
+    }
+  }
+  if (typeof o.shelfFrom === 'number' && typeof o.shelfTo === 'number') {
+    const s0 = o.shelfFrom;
+    const s1 = o.shelfTo;
+    const sy = top + 0.6;
+    f.box('joinery', [s0, sy, -d / 2 + 0.015], [s1, sy + 0.04, -d / 2 + 0.27]);
+    const jz = -d / 2 + 0.14;
+    const y = sy + 0.04;
+    f.lathe(
+      'ceramic',
+      s0 + 0.25,
+      jz,
+      [
+        [0.07, y],
+        [0.075, y + 0.2],
+        [0.05, y + 0.24],
+      ],
+      { capEnd: true },
+    );
+    f.lathe(
+      'clay',
+      s0 + 0.43,
+      jz,
+      [
+        [0.05, y],
+        [0.09, y + 0.12],
+        [0.04, y + 0.26],
+        [0.03, y + 0.3],
+      ],
+      { capEnd: true },
+    );
+    books(f, s0 + 0.75, s0 + 0.98, y, jz, 0.18, 3, 0.24);
+    f.lathe(
+      'ceramic',
+      s1 - 0.7,
+      jz,
+      [
+        [0.1, y],
+        [0.12, y + 0.05],
+        [0.12, y + 0.06],
+      ],
+      { capEnd: true },
+    );
+    f.lathe(
+      'ceramic',
+      s1 - 0.7,
+      jz,
+      [
+        [0.1, y + 0.06],
+        [0.12, y + 0.11],
+        [0.12, y + 0.12],
+      ],
+      { capEnd: true },
+    );
+    f.lathe(
+      'clay',
+      s1 - 0.3,
+      jz,
+      [
+        [0.06, y],
+        [0.08, y + 0.1],
+        [0.05, y + 0.18],
+      ],
+      { capEnd: true },
+    );
+  }
+  // A few things on the worktop: chopping board, ceramic jars.
+  const bx = hob !== null ? hob + 0.75 : 0;
+  f.box('smokedOak', [bx - 0.2, top, -d / 2 + 0.03], [bx + 0.2, top + 0.025, -d / 2 + 0.06]);
+  f.tiltedBox('joinery', [bx, top + 0.2, -d / 2 + 0.09], [0.18, 0.2, 0.012], 0.12);
+  for (const [k, jx] of [0.32, 0.45].entries()) {
+    f.lathe(
+      'ceramic',
+      bx + jx,
+      -d / 2 + 0.12,
+      [
+        [0.055, top],
+        [0.055, top + 0.16 - k * 0.04],
+        [0.04, top + 0.18 - k * 0.04],
+      ],
+      { capEnd: true },
+    );
+  }
 };
 
+/**
+ * Kitchen island: travertine top with waterfall ends, oak drawers on the kitchen side
+ * (local −z), an optional sink (`sink` = local x, `sinkZ`) with the tap toward +z, and an
+ * open shelf strip of depth `shelf` on the living side (+z) with books and ceramics.
+ */
 const island: Builder = (f, it) => {
   const [w, d, h] = it.size;
-  const ov = opt(it, 'overhang', 0.25);
-  const zc = d / 2 - ov;
+  const o = it.opts ?? {};
+  const shelf = typeof o.shelf === 'number' ? o.shelf : 0;
   const t = 0.04;
-  // Travertine waterfall ends and top; oak carcass between them, fronts on the kitchen side.
+  const zc = d / 2 - shelf;
   for (const sx of [-1, 1]) {
     const x0 = sx < 0 ? -w / 2 : w / 2 - t;
     f.box('travertine', [x0, 0, -d / 2], [x0 + t, h - 0.05, d / 2], { bottom: false });
   }
-  f.box('travertine', [-w / 2, h - 0.05, -d / 2], [w / 2, h, d / 2]);
+  const sink =
+    typeof o.sink === 'number'
+      ? ([o.sink, typeof o.sinkZ === 'number' ? o.sinkZ : -d / 2 + 0.3] as const)
+      : undefined;
+  worktop(f, -w / 2, w / 2, -d / 2, d / 2, h, 0.05, sink);
+  if (sink) kitchenTap(f, sink[0], sink[1] + SINK_D + 0.05, h, -1);
   f.box('smokedOak', [-w / 2 + t, 0, -d / 2 + 0.06], [w / 2 - t, 0.1, zc - 0.02], {
     bottom: false,
   });
   f.box('joinery', [-w / 2 + t, 0.1, -d / 2 + 0.02], [w / 2 - t, h - 0.05, zc]);
-  f.box('joinery', [-w / 2 + t, 0.1, zc], [w / 2 - t, h - 0.05, zc + 0.012]);
   const n = Math.round((w - 2 * t) / 0.58);
   const dw = (w - 2 * t) / n;
   for (let i = 0; i < n; i++) {
@@ -372,8 +504,48 @@ const island: Builder = (f, it) => {
       [(a + b) / 2 + 0.08, h - 0.105, -d / 2],
     );
   }
-  // A shallow ceramic bowl on the top.
-  f.lathe('ceramic', w / 2 - 0.45, -0.05, [
+  if (shelf > 0) {
+    // Open oak niches toward the living room: base, middle shelf, two dividers.
+    const z0 = zc;
+    const z1 = d / 2 - 0.01;
+    f.box('smokedOak', [-w / 2 + t, 0, z0], [w / 2 - t, 0.1, z1 - 0.04], { bottom: false });
+    f.box('joinery', [-w / 2 + t, 0.1, z0], [w / 2 - t, 0.13, z1]);
+    f.box('joinery', [-w / 2 + t, 0.47, z0], [w / 2 - t, 0.5, z1]);
+    for (const x of [-(w - 2 * t) / 6, (w - 2 * t) / 6])
+      f.box('joinery', [x - 0.012, 0.13, z0], [x + 0.012, h - 0.05, z1]);
+    const zm = (z0 + z1) / 2;
+    const span = (w - 2 * t) / 3;
+    books(f, -w / 2 + t + 0.04, -w / 2 + t + span * 0.7, 0.13, zm, shelf * 0.7, 11, 0.3);
+    f.lathe(
+      'ceramic',
+      0,
+      zm,
+      [
+        [0.08, 0.13],
+        [0.11, 0.24],
+        [0.06, 0.34],
+        [0.05, 0.36],
+      ],
+      { capEnd: true },
+    );
+    f.box('cane', [w / 2 - t - span + 0.05, 0.13, z0 + 0.03], [w / 2 - t - 0.05, 0.42, z1 - 0.03]);
+    books(f, -w / 2 + t + 0.06, -w / 2 + t + span * 0.5, 0.5, zm, shelf * 0.7, 4, 0.28);
+    f.lathe(
+      'clay',
+      span * 0.2,
+      zm,
+      [
+        [0.06, 0.5],
+        [0.09, 0.58],
+        [0.05, 0.72],
+        [0.04, 0.75],
+      ],
+      { capEnd: true },
+    );
+    books(f, w / 2 - t - span + 0.08, w / 2 - t - 0.1, 0.5, zm, shelf * 0.7, 19, 0.3);
+  }
+  // A shallow ceramic fruit bowl on the top.
+  f.lathe('ceramic', w / 2 - 0.4, d / 2 - 0.3, [
     [0.08, h],
     [0.16, h + 0.06],
     [0.17, h + 0.07],
@@ -428,21 +600,38 @@ const stool: Builder = (f, it) => {
 const diningTable: Builder = (f, it) => {
   const [w, d, h] = it.size;
   f.rbox('joinery', [0, h - 0.025, 0], [w / 2, 0.025, d / 2], 0.012, 1);
-  const lx = w / 2 - 0.14;
-  const lz = d / 2 - 0.12;
-  for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) {
+  if (opt(it, 'legs', 'corners') === 'end') {
+    // Joined to the island at its −x end: one solid oak slab leg at the +x end and a
+    // recessed rail under the top, so the chairs tuck in freely.
+    f.box('joinery', [w / 2 - 0.1, 0, -d / 2 + 0.06], [w / 2 - 0.04, h - 0.05, d / 2 - 0.06], {
+      bottom: false,
+    });
+    f.box('joinery', [-w / 2, h - 0.12, -0.03], [w / 2 - 0.1, h - 0.05, 0.03]);
+  } else {
+    const lx = w / 2 - 0.14;
+    const lz = d / 2 - 0.12;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        f.box(
+          'joinery',
+          [sx * lx - 0.04, 0, sz * lz - 0.04],
+          [sx * lx + 0.04, h - 0.05, sz * lz + 0.04],
+          { bottom: false },
+        );
+      }
       f.box(
         'joinery',
-        [sx * lx - 0.04, 0, sz * lz - 0.04],
-        [sx * lx + 0.04, h - 0.05, sz * lz + 0.04],
-        { bottom: false },
+        [sx * lx - 0.02, h - 0.13, -lz + 0.04],
+        [sx * lx + 0.02, h - 0.05, lz - 0.04],
       );
     }
-    f.box('joinery', [sx * lx - 0.02, h - 0.13, -lz + 0.04], [sx * lx + 0.02, h - 0.05, lz - 0.04]);
+    for (const sz of [-1, 1])
+      f.box(
+        'joinery',
+        [-lx + 0.04, h - 0.13, sz * lz - 0.02],
+        [lx - 0.04, h - 0.05, sz * lz + 0.02],
+      );
   }
-  for (const sz of [-1, 1])
-    f.box('joinery', [-lx + 0.04, h - 0.13, sz * lz - 0.02], [lx - 0.04, h - 0.05, sz * lz + 0.02]);
   // Two ceramic vessels as a centrepiece.
   f.lathe(
     'ceramic',
@@ -524,7 +713,7 @@ const sofa: Builder = (f, it) => {
     bottom: false,
   });
   f.rbox('linen', [0, 0.16, 0], [w / 2 - 0.01, 0.11, d / 2], 0.05);
-  const arm = 0.22;
+  const arm = opt(it, 'arm', 0.22);
   for (const sx of [-1, 1])
     f.rbox('linen', [sx * (w / 2 - arm / 2), 0.32, 0], [arm / 2, 0.24, d / 2], 0.08);
   const inner = w - 2 * arm;
@@ -688,6 +877,42 @@ const sconce: Builder = (f, it) => {
 
 const stove: Builder = (f, it) => {
   const [w, d, h] = it.size;
+  if (opt(it, 'round', false)) {
+    // Round black stove (plan symbol Ø 51) around the flue: short legs, body, top plate,
+    // a curved fire window toward the front and a brass handle.
+    const r = w / 2;
+    for (let k = 0; k < 3; k++) {
+      const a = Math.PI / 2 + ((k + 0.5) / 3) * Math.PI * 2;
+      f.tube(
+        'metalBlack',
+        [Math.cos(a) * r * 0.7, 0, Math.sin(a) * r * 0.7],
+        [Math.cos(a) * r * 0.7, 0.12, Math.sin(a) * r * 0.7],
+        0.018,
+        0.018,
+        6,
+      );
+    }
+    f.lathe(
+      'metalBlack',
+      0,
+      0,
+      [
+        [r * 0.92, 0.12],
+        [r, 0.16],
+        [r, h - 0.04],
+        [r * 0.96, h],
+        [0, h],
+      ],
+      { capStart: true },
+    );
+    const win: [number, number][] = [
+      [r + 0.004, 0.38],
+      [r + 0.004, h - 0.22],
+    ];
+    f.lathe('clay', 0, 0, win, { n: 16, skip: [0, 1, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] });
+    f.box('brass', [r * 0.55, 0.5, r * 0.82], [r * 0.55 + 0.015, 0.68, r * 0.82 + 0.03]);
+    return;
+  }
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       f.box(
@@ -733,6 +958,13 @@ const wc: Builder = (f, it) => {
   const zb = -d / 2;
   f.rbox('ceramic', [0, 0.33, zb + 0.28], [w / 2 - 0.01, 0.085, 0.265], 0.09);
   f.rbox('ceramic', [0, 0.37, zb + 0.1], [w / 2 - 0.02, 0.07, 0.1], 0.04, 1);
+  if (opt(it, 'bidet', false)) {
+    // Wall-hung bidet: open bowl rim and a brass deck tap instead of the seat and plate.
+    f.rbox('ceramic', [0, 0.418, zb + 0.29], [w / 2 - 0.01, 0.004, 0.24], 0.004, 1);
+    f.tube('brass', [0, 0.44, zb + 0.12], [0, 0.5, zb + 0.12], 0.012, 0.012, 8);
+    f.tube('brass', [0, 0.5, zb + 0.12], [0, 0.5, zb + 0.2], 0.01, 0.01, 8);
+    return;
+  }
   f.rbox('ceramic', [0, 0.425, zb + 0.29], [w / 2 - 0.015, 0.012, 0.25], 0.01, 1);
   f.box('brass', [-0.11, 0.98, zb], [0.11, 1.13, zb + 0.008]);
 };
@@ -1018,7 +1250,7 @@ const bookshelf: Builder = (f, it) => {
   f.box('joinery', [-w / 2, 0, -d / 2], [-w / 2 + 0.025, h, d / 2], { bottom: false });
   f.box('joinery', [w / 2 - 0.025, 0, -d / 2], [w / 2, h, d / 2], { bottom: false });
   f.box('joinery', [-w / 2 + 0.025, 0.05, -d / 2], [w / 2 - 0.025, h - 0.025, -d / 2 + 0.012]);
-  const shelves = 4;
+  const shelves = Math.max(2, Math.round((h - 0.03) / 0.36));
   for (let i = 0; i <= shelves; i++) {
     const y = i === 0 ? 0.03 : (i / shelves) * (h - 0.03);
     f.box(
@@ -1117,8 +1349,9 @@ const desk: Builder = (f, it) => {
     [w / 2 - 0.22, h - 0.088, d / 2 - 0.018],
   );
   if (opt(it, 'lamp', false)) {
-    // Bronze task lamp.
-    const x = -w / 2 + 0.2;
+    // Bronze task lamp (pulled to the end of the desk when there is a screen).
+    const x = -w / 2 + (opt(it, 'monitor', false) ? 0.09 : 0.2);
+    const reach = opt(it, 'monitor', false) ? 0.08 : 0.2;
     const z = -d / 2 + 0.15;
     f.lathe(
       'brass',
@@ -1132,10 +1365,17 @@ const desk: Builder = (f, it) => {
       { capEnd: true },
     );
     f.tube('brass', [x, h + 0.02, z], [x + 0.05, h + 0.38, z + 0.02], 0.007, 0.007, 6);
-    f.tube('brass', [x + 0.05, h + 0.38, z + 0.02], [x + 0.25, h + 0.4, z + 0.12], 0.007, 0.007, 6);
+    f.tube(
+      'brass',
+      [x + 0.05, h + 0.38, z + 0.02],
+      [x + 0.05 + reach, h + 0.4, z + 0.12],
+      0.007,
+      0.007,
+      6,
+    );
     f.lathe(
       'brass',
-      x + 0.27,
+      x + 0.07 + reach,
       z + 0.13,
       [
         [0.07, h + 0.3],
@@ -1146,6 +1386,13 @@ const desk: Builder = (f, it) => {
     );
   }
   books(f, w / 2 - 0.26, w / 2 - 0.12, h, -d / 2 + 0.1, 0.15, 2, 0.2);
+  if (opt(it, 'monitor', false)) {
+    // Slim black screen on a brass foot (the plans draw a screen + keyboard on the desk).
+    f.box('brass', [-0.06, h, -d / 2 + 0.08], [0.14, h + 0.012, -d / 2 + 0.2]);
+    f.box('brass', [0.025, h, -d / 2 + 0.11], [0.055, h + 0.2, -d / 2 + 0.13]);
+    f.tiltedBox('metalBlack', [0.04, h + 0.36, -d / 2 + 0.14], [0.26, 0.17, 0.012], 0.08);
+    f.box('ceramic', [-0.22, h, -d / 2 + 0.28], [0.22, h + 0.012, -d / 2 + 0.42]);
+  }
 };
 
 const daybed: Builder = (f, it) => {
@@ -1308,6 +1555,164 @@ const sideTable: Builder = (f, it) => {
   ]);
 };
 
+/** Upholstered module (the sofa's chaise / ottoman): base, seat cushion, a folded throw. */
+const ottoman: Builder = (f, it) => {
+  const [w, d, h] = it.size;
+  f.box('smokedOak', [-w / 2 + 0.06, 0, -d / 2 + 0.06], [w / 2 - 0.06, 0.05, d / 2 - 0.06], {
+    bottom: false,
+  });
+  f.rbox('linen', [0, 0.16, 0], [w / 2 - 0.01, 0.11, d / 2 - 0.01], 0.05);
+  f.rbox('linen', [0, h - 0.08, 0], [w / 2 - 0.02, 0.075, d / 2 - 0.02], 0.06);
+  // Folded wool throw over the outer edge.
+  f.rbox('wool', [w / 2 - 0.26, h + 0.012, 0.02], [0.26, 0.025, d / 2 - 0.08], 0.02, 1);
+  f.rbox('wool', [w / 2 + 0.008, h - 0.13, 0.02], [0.022, 0.15, d / 2 - 0.08], 0.02, 1);
+};
+
+/**
+ * Round sculptural lounge chair (plan symbol: rounded shell with seat + back cushions):
+ * bouclé shell revolved around the seat, open toward the front (+z), on a low oak plinth.
+ */
+const tubChair: Builder = (f, it) => {
+  const [w, d] = it.size;
+  const r = w / 2;
+  const sq = d / w;
+  const n = 16;
+  f.lathe(
+    'smokedOak',
+    0,
+    0,
+    [
+      [r * 0.62, 0],
+      [r * 0.62, 0.08],
+      [0, 0.08],
+    ],
+    { n, squash: sq },
+  );
+  // Shell cross-section (radius, y): outer wall up to the rim, inner wall down to the
+  // seat. The front four of 16 segments stay open; the two cut ends are capped.
+  const ro = r;
+  const ri = r - 0.15;
+  const prof: [number, number][] = [
+    [ro * 0.86, 0.08],
+    [ro, 0.3],
+    [ro * 0.98, 0.62],
+    [ro * 0.9, 0.7],
+    [ri + 0.03, 0.7],
+    [ri, 0.62],
+    [ri, 0.3],
+  ];
+  const open = [2, 3, 4, 5];
+  f.lathe('wool', 0, 0, [...prof, prof[0]!], { n, squash: sq, skip: open });
+  const cr = prof.reduce((s, q) => s + q[0], 0) / prof.length;
+  const cy = prof.reduce((s, q) => s + q[1], 0) / prof.length;
+  const bucket = f.mesh.bucket('wool');
+  for (const k of [open[0]!, open[open.length - 1]! + 1]) {
+    const a = (k / n) * Math.PI * 2;
+    const pt = (rad: number, y: number): V3 => f.p(Math.cos(a) * rad, y, Math.sin(a) * rad * sq);
+    const t = k === open[0] ? 1 : -1;
+    const facing = f.v(-Math.sin(a) * t, 0, Math.cos(a) * sq * t);
+    for (let i = 0; i < prof.length; i++) {
+      const p0 = prof[i]!;
+      const p1 = prof[(i + 1) % prof.length]!;
+      bucket.tri(pt(cr, cy), pt(p0[0], p0[1]), pt(p1[0], p1[1]), facing);
+    }
+  }
+  // Seat (round cushion on a base) and a soft back cushion against the shell.
+  f.lathe(
+    'wool',
+    0,
+    0,
+    [
+      [ri + 0.01, 0.08],
+      [ri + 0.01, 0.3],
+      [0, 0.3],
+    ],
+    { n, squash: sq },
+  );
+  f.lathe(
+    'linen',
+    0,
+    0.02,
+    [
+      [ri - 0.02, 0.3],
+      [ri, 0.36],
+      [ri - 0.04, 0.42],
+      [0, 0.43],
+    ],
+    {
+      n,
+      squash: sq,
+    },
+  );
+  f.rbox('linen', [0, 0.55, -ri * sq + 0.1], [ri * 0.75, 0.16, 0.08], 0.07, 2, 0.25);
+};
+
+/** Washer + dryer side by side under an oak worktop, open oak shelf with baskets above. */
+const laundryRun: Builder = (f, it) => {
+  const [w, d, h] = it.size;
+  const mw = Math.min(0.6, w / 2);
+  for (const sx of [-1, 1]) {
+    const cx = sx * (w / 2 - mw / 2);
+    f.rbox('ceramic', [cx, 0.43, -0.01], [mw / 2 - 0.01, 0.42, d / 2 - 0.03], 0.015, 1);
+    f.box(
+      'metalBlack',
+      [cx - mw / 2 + 0.04, 0.74, d / 2 - 0.04],
+      [cx + mw / 2 - 0.04, 0.8, d / 2 - 0.032],
+    );
+    f.wallDisc('mirror', 'metalBlack', [cx, 0.4, d / 2 - 0.04], 0.17, 0.025, 0.03);
+  }
+  f.box('joinery', [-w / 2, h - 0.03, -d / 2], [w / 2, h, d / 2]);
+  const sy = 1.55;
+  f.box('joinery', [-w / 2, sy, -d / 2], [w / 2, sy + 0.03, -d / 2 + 0.3]);
+  for (const [k, x] of [-w / 2 + 0.2, -w / 2 + 0.52].entries())
+    f.box(
+      'cane',
+      [x - 0.13, sy + 0.03, -d / 2 + 0.03],
+      [x + 0.13, sy + 0.25 - k * 0.04, -d / 2 + 0.27],
+    );
+  f.lathe(
+    'ceramic',
+    w / 2 - 0.25,
+    -d / 2 + 0.15,
+    [
+      [0.06, sy + 0.03],
+      [0.07, sy + 0.2],
+      [0.04, sy + 0.24],
+    ],
+    { capEnd: true },
+  );
+  f.lathe('cane', w / 2 - 0.3, 0, [
+    [0.16, h],
+    [0.19, h + 0.2],
+    [0.18, h + 0.2],
+    [0.14, h + 0.02],
+    [0, h + 0.015],
+  ]);
+  f.rbox('linen', [w / 2 - 0.3, h + 0.18, 0], [0.15, 0.03, 0.15], 0.025);
+};
+
+/** Framed print on a wall: oak frame, linen mount, a calm abstract in two earthy tones. */
+const print: Builder = (f, it) => {
+  const [w, d, h] = it.size;
+  const y0 = it.y ?? 1.3;
+  const zb = -d / 2;
+  const fw = 0.025;
+  f.box('joinery', [-w / 2, y0, zb], [w / 2, y0 + fw, zb + d]);
+  f.box('joinery', [-w / 2, y0 + h - fw, zb], [w / 2, y0 + h, zb + d]);
+  f.box('joinery', [-w / 2, y0 + fw, zb], [-w / 2 + fw, y0 + h - fw, zb + d]);
+  f.box('joinery', [w / 2 - fw, y0 + fw, zb], [w / 2, y0 + h - fw, zb + d]);
+  f.box('linen', [-w / 2 + fw, y0 + fw, zb], [w / 2 - fw, y0 + h - fw, zb + d * 0.5]);
+  const art = it.material ?? 'clay';
+  const m = Math.min(w, h) * 0.18;
+  const ax0 = -w / 2 + m;
+  const ax1 = w / 2 - m;
+  const ay0 = y0 + m;
+  const ay1 = y0 + h - m;
+  const split = ay0 + (ay1 - ay0) * opt(it, 'split', 0.42);
+  f.box(art, [ax0, ay0, zb + d * 0.5], [ax1, split, zb + d * 0.55]);
+  f.box('wool', [ax0, split, zb + d * 0.5], [ax1, ay1, zb + d * 0.55]);
+};
+
 export const BUILDERS: Readonly<Record<FurnitureKind, Builder>> = {
   bed,
   bedside,
@@ -1357,4 +1762,8 @@ export const BUILDERS: Readonly<Record<FurnitureKind, Builder>> = {
   outdoorBench,
   lounger: (f, it) => lounge(f, it, 'timber'),
   sideTable,
+  ottoman,
+  tubChair,
+  laundryRun,
+  print,
 };

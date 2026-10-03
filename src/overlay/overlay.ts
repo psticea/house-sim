@@ -3,12 +3,14 @@
  * sheets (.plans-cache/, never committed or deployed; served by a dev-server middleware
  * at /__plans/, see vite.config.ts).
  *
- * `?sheet=` 04 / 05 / 06 — horizontal section 1 m above the level's floor (plan cut);
+ * `?sheet=` 04 / 05 / 06 — horizontal section 1 m above the level's floor (plan cut)
+ * and the furniture footprints of that level;
  * 07 — top view of the roof (feature edges of roof sheet, seams, windows, gutters, snow
  * guards, chimney, canopy, sunshade); 08e / 08w / 09 / 10 — orthographic elevations
  * (east / west / north / south) rendered with WebGL at the sheet's scale.
  */
 import * as THREE from 'three';
+import { FURNITURE, footprint } from '../data/furniture';
 import {
   FIRE_PIT,
   GARDEN_ZONES,
@@ -309,7 +311,20 @@ async function main(): Promise<void> {
       ctx.fillText(r.name, ...toPx(cx - 0.8, cz + 0.6));
     }
     ctx.setLineDash([]);
-    info = `Sheet ${sheet.id}: section at ${y.toFixed(2)} m, ${segs.length} segments. Red = walls, blue = frames/glass, green = door leaves, black = rails, dashed = rooms.`;
+    // 4) Furniture footprints (src/data/furniture.ts) of this level, magenta.
+    ctx.strokeStyle = '#d81bd8';
+    ctx.lineWidth = 2;
+    let nFurn = 0;
+    for (const it of FURNITURE) {
+      if (it.level !== sheet.level) continue;
+      const fp = footprint(it);
+      ctx.beginPath();
+      fp.forEach(([x, z], i) => (i ? ctx.lineTo(...toPx(x, z)) : ctx.moveTo(...toPx(x, z))));
+      ctx.closePath();
+      ctx.stroke();
+      nFurn++;
+    }
+    info = `Sheet ${sheet.id}: section at ${y.toFixed(2)} m, ${segs.length} segments, ${nFurn} furniture footprints. Red = walls, blue = frames/glass, green = door leaves, black = rails, dashed = rooms, magenta = furniture.`;
   } else if (sheet.kind === 'roof') {
     // 2) Top view of the roof-level feature edges (everything above +2.4 m).
     const { mesh } = buildGeometry(house, { site: false });

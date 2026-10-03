@@ -128,7 +128,7 @@ const ROUTES: Record<LevelId, Vec2[][]> = {
       [4.1, 3.2],
       [5.86, 3.1],
       [5.86, 4.4],
-      [5.6, 5.76],
+      [5.75, 5.7],
       [5.86, 4.4],
       [5.86, 3.1],
     ],
@@ -147,6 +147,7 @@ const ROUTES: Record<LevelId, Vec2[][]> = {
       [10.6, 5.5],
       [10.9, 3.2],
       [15.5, 3.2],
+      [16.0, 3.2],
       [16.0, 1.75],
       [17.6, 1.75],
       [19.1, 2.37],
@@ -161,7 +162,7 @@ const ROUTES: Record<LevelId, Vec2[][]> = {
       [7.8, 3.3],
       [5.775, 3.0],
       [5.775, 1.5],
-      [8.9, 1.86],
+      [8.45, 2.05],
     ],
     [
       [5.775, 3.0],
@@ -172,7 +173,7 @@ const ROUTES: Record<LevelId, Vec2[][]> = {
     [
       [5.2, 3.0],
       [5.6, 3.1],
-      [5.6, 4.6],
+      [5.75, 4.4],
     ],
     [
       [5.6, 3.1],
@@ -211,7 +212,7 @@ describe('furniture placement (plan.md §6.2)', () => {
       const r = room(it);
       if (r.ceiling.type === 'open') continue;
       const floor = floorOf(it.level);
-      const top = (it.kind === 'pendant' ? 0 : (it.y ?? 0)) + it.size[2];
+      const top = (it.on ?? 0) + (it.kind === 'pendant' ? 0 : (it.y ?? 0)) + it.size[2];
       const ceil =
         r.ceiling.type === 'flat'
           ? () => r.ceiling.type === 'flat' && r.ceiling.height
@@ -289,46 +290,55 @@ describe('furniture placement (plan.md §6.2)', () => {
     }
   });
 
-  it('every room has its basic set', () => {
+  it('the pieces drawn on the plans are all placed, per room (sheets 05 / 06)', () => {
+    // Furniture symbols read from the sheets' vectors (src/data/furniture.ts header).
+    const PLANS: Record<string, Partial<Record<FurnitureItem['kind'], number>>> = {
+      'entrance-hall': { hallJoinery: 1 },
+      'living-kitchen': {
+        kitchenTall: 1,
+        kitchenRun: 1,
+        island: 1,
+        diningTable: 1,
+        diningChair: 6,
+        sofa: 1,
+        ottoman: 1,
+        coffeeTable: 1,
+        tubChair: 1,
+        stove: 1,
+      },
+      'bedroom-1': { bed: 1, wardrobe: 1, desk: 1, deskChair: 1 },
+      'bedroom-2': { wardrobe: 1, bed: 1, bedside: 2, armchair: 1 },
+      bathroom: { vanity: 1, wc: 2, showerScreen: 1, showerHead: 1, tub: 1 },
+      'boiler-laundry': { laundryRun: 1 },
+      // Two knee-wall cupboards + the two east wardrobes in 3 + 4 stepped sections.
+      'bedroom-3': { bed: 2, bedside: 4, wardrobe: 9 },
+      study: { bookshelf: 3, desk: 1, deskChair: 1 },
+      'upper-hall': { wardrobe: 1 },
+      'upper-bathroom': { vanity: 1, wc: 1, showerScreen: 2, showerHead: 1 },
+    };
+    const fromPlans = FURNITURE.filter((f) => /^sheet 0[456]: /.test(f.source));
+    for (const [roomId, kinds] of Object.entries(PLANS)) {
+      const got: Record<string, number> = {};
+      for (const f of fromPlans.filter((x) => x.room === roomId))
+        got[f.kind] = (got[f.kind] ?? 0) + 1;
+      expect(got, roomId).toEqual(kinds);
+    }
+    for (const f of fromPlans) expect(Object.keys(PLANS), f.id).toContain(f.room);
+    // Every other piece says why it is there.
+    for (const f of FURNITURE) {
+      expect(f.source, f.id).toMatch(/^(sheet 0[456]: |not on plans: |extra: )/);
+      if (f.source.startsWith('extra: '))
+        expect(f.collide ?? false, `${f.id}: extras don't collide`).toBe(false);
+    }
+    // Rooms the plans leave unfurnished still get a sensible minimal set.
     const has = (roomId: string, kind: FurnitureItem['kind'], n = 1) =>
       expect(
         FURNITURE.filter((f) => f.room === roomId && f.kind === kind).length,
         `${roomId}: ${kind}`,
       ).toBeGreaterThanOrEqual(n);
-    for (const r of ['bedroom-1', 'bedroom-2', 'bedroom-3']) has(r, 'bed');
-    has('bedroom-1', 'wardrobe');
-    has('bedroom-3', 'wardrobe', 2);
-    has('bedroom-2', 'desk');
-    for (const k of [
-      'sofa',
-      'diningTable',
-      'kitchenRun',
-      'kitchenTall',
-      'island',
-      'stove',
-      'coffeeTable',
-      'olive',
-      'teepee',
-    ] as const) {
-      has('living-kitchen', k);
-    }
-    has('living-kitchen', 'diningChair', 6);
-    has('living-kitchen', 'stool', 3);
-    for (const r of ['bathroom', 'upper-bathroom']) {
-      has(r, 'wc');
-      has(r, 'vanity');
-      has(r, 'mirror');
-    }
-    has('bathroom', 'showerScreen');
-    has('upper-bathroom', 'tub');
-    has('entrance-hall', 'hallJoinery');
-    has('entrance-hall', 'mirror');
+    has('storage', 'shelving', 2);
     has('boiler-laundry', 'boiler');
-    has('boiler-laundry', 'washerStack');
-    has('storage', 'shelving');
-    has('study', 'desk');
-    has('study', 'bookshelf');
-    has('upper-hall', 'bench');
+    has('living-kitchen', 'teepee');
     has('terrace', 'outdoorTable');
     has('terrace', 'lounger', 2);
     // Large pieces collide.
@@ -337,16 +347,61 @@ describe('furniture placement (plan.md §6.2)', () => {
         [
           'bed',
           'sofa',
+          'ottoman',
           'diningTable',
           'kitchenRun',
+          'kitchenTall',
           'island',
           'wardrobe',
+          'hallJoinery',
           'tub',
           'vanity',
+          'laundryRun',
+          'bookshelf',
+          'desk',
+          'stove',
         ].includes(it.kind)
       ) {
         expect(it.collide, `${it.id} collides`).toBe(true);
       }
+    }
+  });
+
+  it('pieces sit on their drawn symbols (footprint bounds within 3 cm)', () => {
+    let n = 0;
+    for (const it of FURNITURE) {
+      if (!it.plan) continue;
+      const r = rectOf(footprint(it));
+      const [x0, z0, x1, z1] = it.plan;
+      for (const [a, b] of [
+        [r.minX, x0],
+        [r.minZ, z0],
+        [r.maxX, x1],
+        [r.maxZ, z1],
+      ] as const) {
+        expect(Math.abs(a - b), `${it.id} ${a.toFixed(3)} vs drawn ${b.toFixed(3)}`).toBeLessThan(
+          0.03,
+        );
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(40);
+  });
+
+  it('the open curtain-wall door and the F-07 opening stay clear', () => {
+    const ground = level('ground');
+    const door = ground.openings.find((o) => o.id === 'cw-door')!;
+    const cw = ground.walls.find((w) => w.id === door.wall)!;
+    const z0 = cw.from[1] + door.offset;
+    // Leaf open 90? outward onto the deck + the doorway either side (0.9 m).
+    const zone: Rect = {
+      minX: 16.475 - 0.9,
+      maxX: 16.745 + door.width + 0.1,
+      minZ: z0 - 0.06,
+      maxZ: z0 + door.width + 0.05,
+    };
+    for (const it of FURNITURE.filter((f) => f.level === 'ground' && !isFlat(f))) {
+      expect(overlap(rectOf(footprint(it)), zone), `${it.id} at the glass door`).toBe(false);
     }
   });
 });
@@ -434,6 +489,6 @@ describe('furniture geometry', () => {
     const ray = new THREE.Raycaster(new THREE.Vector3(12.6, 0.3, 3.2), new THREE.Vector3(0, 0, 1));
     const hit = world.bvh.raycastFirst(ray.ray, THREE.DoubleSide, 0, 5);
     expect(hit).not.toBeNull();
-    expect(hit!.point.z).toBeCloseTo(3.85, 2);
+    expect(hit!.point.z).toBeCloseTo(3.92, 2);
   }, 30_000);
 });

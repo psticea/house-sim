@@ -1,6 +1,7 @@
 // Dev-only: screenshots of the review poses for one or more looks, one page load per
 // look (poses via the __houseSim hooks — much faster than a reload per shot).
-// Output: test-results/shots/<style>-<pose>[-phone].png (git-ignored).
+// Output: test-results/shots/<style>-<pose>[-phone].png (git-ignored); the furniture review
+// poses (furn-*) are saved as furn-<room>-<style>[-phone].png.
 // Usage: node tools/style-shots.mjs [baseUrl] [styles] [poses] [phone|desk] [extraQuery] [suffix]
 //   e.g. node tools/style-shots.mjs http://localhost:5173/ borderlands start,living-east
 //        GPU=1 node tools/style-shots.mjs http://localhost:5173/ real living-east (real GPU)
@@ -59,6 +60,32 @@ const POSES = [
   ['f-upper-bath', 'pose', [5.9, 2.95, 4.2, 180, -24]],
   ['f-upper-hall', 'pose', [5.3, 2.95, 3.2, -80, -10]],
   ['f-terrace', 'pose', [19.3, 0, 7.4, 20, -14]],
+  // Furniture placed from the plans (sheets 04-06): one or two eye-level views per room.
+  // Saved as furn-<room>-<style>.png.
+  ['furn-hall', 'pose', [9.1, 0, 2.3, 58, -8]],
+  ['furn-hall-corridor', 'pose', [4.0, 0, 3.0, -85, -6]],
+  ['furn-living-a', 'pose', [13.9, 0, 6.85, 15, -8]],
+  ['furn-living-b', 'pose', [14.9, 0, 3.3, 128, -12]],
+  ['furn-kitchen', 'pose', [14.6, 0, 3.45, 42, -12]],
+  ['furn-dining', 'pose', [16.15, 0, 3.4, 62, -14]],
+  ['furn-play', 'pose', [12.4, 0, 3.4, 130, -18]],
+  ['furn-stairs', 'pose', [8.9, 0, 3.0, 180, 10]],
+  ['furn-bed1', 'pose', [1.9, 0, 2.3, -60, -14]],
+  ['furn-bed1-desk', 'pose', [2.9, 0, 1.2, 128, -14]],
+  ['furn-bed2', 'pose', [4.2, 0, 4.5, 105, -12]],
+  ['furn-bed2-corner', 'pose', [1.4, 0, 6.5, -55, -10]],
+  ['furn-bath', 'pose', [5.55, 0, 4.4, -168, -18]],
+  ['furn-bath-north', 'pose', [5.6, 0, 6.0, -12, -18]],
+  ['furn-boiler', 'pose', [5.6, 0, 2.15, -25, -14]],
+  ['furn-storage', 'pose', [9.9, -2.53, 6.5, -50, -12]],
+  ['furn-bed3', 'pose', [3.85, 2.95, 3.1, 96, -20]],
+  ['furn-bed3-wardrobes', 'pose', [1.0, 2.95, 3.4, -62, -8]],
+  ['furn-study', 'pose', [6.0, 2.95, 1.9, -72, -12]],
+  ['furn-study-shelves', 'pose', [6.5, 2.95, 1.95, 52, -14]],
+  ['furn-upper-hall', 'pose', [5.3, 2.95, 3.0, -90, -6]],
+  ['furn-upper-bath', 'pose', [5.75, 2.95, 4.25, 160, -20]],
+  ['furn-upper-shower', 'pose', [5.45, 2.95, 5.9, -35, -10]],
+  ['furn-terrace', 'pose', [19.3, 0, 7.4, 20, -14]],
   // The start view with the style menu open (UI check).
   ['menu', 'menu', null],
 ];
@@ -99,6 +126,7 @@ for (const style of styles) {
     },
   );
   await page.evaluate(() => document.querySelector('.start')?.classList.add('off'));
+  await page.waitForTimeout(1000);
   // Realistic look: wait for the streamed textures, sky and probes (I4).
   if (style === 'real') await page.evaluate(() => window.__houseSim.texturesReady());
   const start = await page.evaluate(() => window.__houseSim.getPlayer());
@@ -115,7 +143,8 @@ for (const style of styles) {
       [kind, pose, start],
     );
     if (kind === 'menu') await page.locator('.style-pill').click();
-    const file = path.join(outDir, `${style}-${name}${phone ? '-phone' : ''}${suffix}.png`);
+    const base = name.startsWith('furn-') ? `${name}-${style}` : `${style}-${name}`;
+    const file = path.join(outDir, `${base}${phone ? '-phone' : ''}${suffix}.png`);
     await page.screenshot({ path: file, timeout: 180000 });
     const s = await page.evaluate(() => window.__houseSim.getStats());
     console.log(

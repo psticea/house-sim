@@ -28,7 +28,7 @@ test.describe('first walk (desktop)', () => {
       ['boiler-laundry', 6.0, 1.2],
       ['entrance-hall', 8.4, 1.2],
       ['bathroom', 5.9, 5.0],
-      ['bedroom-2', 2.3, 5.5],
+      ['bedroom-2', 2.3, 6.5],
       ['stairs', 8.9, 3.85],
       ['living-kitchen', 13.0, 3.0],
       ['terrace', 18.2, 2.4],
@@ -103,7 +103,7 @@ test.describe('first walk (desktop)', () => {
           [4.1, 3.2],
           [5.86, 3.1],
           [5.86, 4.4],
-          [5.6, 5.76],
+          [5.75, 5.7],
         ])
       ).room,
     ).toBe('bathroom');
@@ -142,13 +142,15 @@ test.describe('first walk (desktop)', () => {
       ).room,
     ).toBe('living-kitchen');
     expect((await leg([[10.6, 5.5]])).place).toBe('play-corner');
-    // Along the walkway between the island and the sofa to the glass door (2nd column from
-    // the north, z 1.15…2.20; its leaf stands open outward at z ≈ 1.2).
+    // Along the walkway between the dining table and the sofa, round the table's east end
+    // to the glass door (2nd column from the north, z 1.15…2.20; its leaf stands open
+    // outward at z ≈ 1.2).
     expect(
       (
         await leg([
           [10.9, 3.2],
           [15.5, 3.2],
+          [16.0, 3.2],
           [16.0, 1.75],
           [17.6, 1.75],
         ])
@@ -246,26 +248,27 @@ test.describe('first walk (desktop)', () => {
     expect(p.x).toBeLessThan(9.35 - 0.2);
     expect(p.y).toBeGreaterThan(0.6);
     // The study's interior window F-02 over the living-room void.
-    await sim.teleport(page, 8.6, 2.95, 1.86);
+    await sim.teleport(page, 8.6, 2.95, 2.1);
     p = await sim.walk(page, 1, 0, 3, true);
     expect(p.x).toBeLessThan(9.51 - 0.2);
     expect(p.level).toBe('upper');
     expect(p.room).toBe('study');
     // Upper hall end wall toward the void.
-    await sim.teleport(page, 9.0, 2.95, 3.0);
+    // (the plans put a wardrobe at the hall's east end, x 8.90…9.50).
+    await sim.teleport(page, 8.2, 2.95, 3.0);
     p = await sim.walk(page, 1, 0, 3, true);
-    expect(p.x).toBeLessThan(9.51 - 0.2);
+    expect(p.x).toBeLessThan(8.9 - 0.2);
     expect(p.y).toBeCloseTo(2.95, 2);
-    // Furniture (I5): the sofa, island, kitchen run, dining table and the beds block the
-    // player (walked into at run speed; the player stays on the floor, not on top).
+    // Furniture (placed from the plans): the sofa, island, kitchen run, dining table and the
+    // beds block the player (walked into at run speed; the player stays on the floor, not on top).
     const blocks: [string, [number, number, number], [number, number], (q: typeof p) => boolean][] =
       [
-        ['sofa', [12.6, 0, 3.2], [0, 1], (q) => q.z < 3.85 - 0.2],
-        ['island', [12.2, 0, 3.2], [0, -1], (q) => q.z > 2.6 + 0.2],
-        ['kitchen run', [12.2, 0, 1.25], [0, -1], (q) => q.z > 0.745 + 0.2],
-        ['dining table', [15.2, 0, 4.4], [0, 1], (q) => q.z < 5.3 - 0.2],
-        ['bed 1', [2.3, 0, 2.8], [0, -1], (q) => q.z > 2.225 + 0.2],
-        ['bed 3', [2.0, 2.95, 5.25], [1, 0], (q) => q.x < 2.525 - 0.2],
+        ['sofa', [12.6, 0, 3.3], [0, 1], (q) => q.z < 3.92 - 0.2],
+        ['island', [12.2, 0, 3.3], [0, -1], (q) => q.z > 2.722 + 0.2],
+        ['kitchen run', [12.2, 0, 1.25], [0, -1], (q) => q.z > 0.725 + 0.2],
+        ['dining table', [14.4, 0, 3.4], [0, -1], (q) => q.z > 2.722 + 0.2],
+        ['bed 1', [2.6, 0, 1.2], [1, 0], (q) => q.x < 3.18 - 0.2],
+        ['bed 3', [3.3, 2.95, 5.4], [-1, 0], (q) => q.x > 2.64 + 0.2],
       ];
     for (const [name, [x, y, z], [dx, dz], ok] of blocks) {
       await sim.teleport(page, x, y, z);
@@ -347,7 +350,7 @@ test.describe('first walk (desktop)', () => {
       'upper',
       2.95,
     );
-    await at([[8.9, 1.86]], 'study', 'upper', 2.95);
+    await at([[8.45, 2.05]], 'study', 'upper', 2.95);
     await page.evaluate(() => window.__houseSim!.look(-90, -15));
     await shot(page, info, 'test-results/e2e-shots/walk-void.png');
     // Bedroom 3 (Ui-04), upper bathroom (Ui-02).
@@ -366,7 +369,7 @@ test.describe('first walk (desktop)', () => {
       [
         [5.2, 3.0],
         [5.6, 3.1],
-        [5.6, 4.6],
+        [5.75, 4.4],
       ],
       'upper-bathroom',
       'upper',

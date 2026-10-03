@@ -31,7 +31,13 @@ export function buildFurniture(items: readonly FurnitureItem[] = FURNITURE): Bui
   const mesh = new MeshBuilder();
   const collider = new MeshBuilder();
   for (const it of items) {
-    const f = new Frame(mesh, it.at[0], floorOf(it.level), it.at[1], faceAngle(it.face));
+    const f = new Frame(
+      mesh,
+      it.at[0],
+      floorOf(it.level) + (it.on ?? 0),
+      it.at[1],
+      faceAngle(it.face),
+    );
     BUILDERS[it.kind](f, it);
   }
   for (const c of furnitureColliders(items)) collider.box('concrete', c.min, c.max);
