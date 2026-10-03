@@ -247,10 +247,11 @@ test.describe('first walk (desktop)', () => {
     p = await sim.walk(page, 1, 0, 3, true);
     expect(p.x).toBeLessThan(9.35 - 0.2);
     expect(p.y).toBeGreaterThan(0.6);
-    // The study's interior window F-02 over the living-room void.
-    await sim.teleport(page, 8.6, 2.95, 2.1);
+    // The study's interior window F-02 over the living-room void (the full-length desk,
+    // x 8.857…9.507, now stops the player before it).
+    await sim.teleport(page, 8.5, 2.95, 2.1);
     p = await sim.walk(page, 1, 0, 3, true);
-    expect(p.x).toBeLessThan(9.51 - 0.2);
+    expect(p.x).toBeLessThan(8.857 - 0.2);
     expect(p.level).toBe('upper');
     expect(p.room).toBe('study');
     // Upper hall end wall toward the void.
@@ -268,7 +269,7 @@ test.describe('first walk (desktop)', () => {
         ['kitchen run', [12.2, 0, 1.25], [0, -1], (q) => q.z > 0.725 + 0.2],
         ['dining table', [14.4, 0, 3.4], [0, -1], (q) => q.z > 2.722 + 0.2],
         ['bed 1', [2.6, 0, 1.2], [1, 0], (q) => q.x < 3.18 - 0.2],
-        ['bed 3', [3.3, 2.95, 5.4], [-1, 0], (q) => q.x > 2.64 + 0.2],
+        ['bed 3', [3.3, 2.95, 3.4], [0, 1], (q) => q.z < 4.175 - 0.2],
       ];
     for (const [name, [x, y, z], [dx, dz], ok] of blocks) {
       await sim.teleport(page, x, y, z);

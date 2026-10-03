@@ -1,7 +1,7 @@
 // Dev-only: screenshots of the review poses for one or more looks, one page load per
 // look (poses via the __houseSim hooks — much faster than a reload per shot).
 // Output: test-results/shots/<style>-<pose>[-phone].png (git-ignored); the furniture review
-// poses (furn-*) are saved as furn-<room>-<style>[-phone].png.
+// poses (furn-*, fu-*) are saved as furn-<room>-<style>[-phone].png / fu-<room>-<view>-<style>.png.
 // Usage: node tools/style-shots.mjs [baseUrl] [styles] [poses] [phone|desk] [extraQuery] [suffix]
 //   e.g. node tools/style-shots.mjs http://localhost:5173/ borderlands start,living-east
 //        GPU=1 node tools/style-shots.mjs http://localhost:5173/ real living-east (real GPU)
@@ -86,6 +86,15 @@ const POSES = [
   ['furn-upper-bath', 'pose', [5.75, 2.95, 4.25, 160, -20]],
   ['furn-upper-shower', 'pose', [5.45, 2.95, 5.9, -35, -10]],
   ['furn-terrace', 'pose', [19.3, 0, 7.4, 20, -14]],
+  // Owner follow-ups (bedroom 3 by choice, full-length study desk, kitchen wall cupboards).
+  // Saved as fu-<room>-<view>-<style>.png.
+  ['fu-bed3-a', 'pose', [1.3, 2.95, 2.0, -145, -12]],
+  ['fu-bed3-b', 'pose', [4.0, 2.95, 3.2, 103, -10]],
+  ['fu-bed3-c', 'pose', [1.2, 2.95, 5.0, -40, -10]],
+  ['fu-study-door', 'pose', [5.8, 2.95, 1.9, -85, -10]],
+  ['fu-study-side', 'pose', [7.6, 2.95, 1.95, -49, -14]],
+  ['fu-kitchen-front', 'pose', [13.0, 0, 3.4, 0, 4]],
+  ['fu-kitchen-angle', 'pose', [15.9, 0, 3.3, 57, 2]],
   // The start view with the style menu open (UI check).
   ['menu', 'menu', null],
 ];
@@ -143,7 +152,7 @@ for (const style of styles) {
       [kind, pose, start],
     );
     if (kind === 'menu') await page.locator('.style-pill').click();
-    const base = name.startsWith('furn-') ? `${name}-${style}` : `${style}-${name}`;
+    const base = /^fu(rn)?-/.test(name) ? `${name}-${style}` : `${style}-${name}`;
     const file = path.join(outDir, `${base}${phone ? '-phone' : ''}${suffix}.png`);
     await page.screenshot({ path: file, timeout: 180000 });
     const s = await page.evaluate(() => window.__houseSim.getStats());

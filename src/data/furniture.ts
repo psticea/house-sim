@@ -13,7 +13,9 @@
  * 256.575 pt — and their outlines' bounds taken as footprints (`plan` below, x0 z0 x1 z1).
  * Every item records its `source`: the sheet and what was measured, or "not on plans"
  * for the few pieces the drawings leave open (basement, terrace, play corner, boiler)
- * and "extra" for plants and small accessories.
+ * and "extra" for plants and small accessories. Exception (owner's wish): bedroom 3 is
+ * furnished freely in the house style, ignoring the drawn symbols ("owner choice — not
+ * per plans").
  *
  * Every item is a footprint `size` = [w, d, h] (m) centred at `at` on its level's floor
  * (or `on` a surface that high), rotated so its front faces `face` (S = +z, E = +x,
@@ -94,7 +96,8 @@ export interface FurnitureItem {
   size: readonly [number, number, number];
   /**
    * Where it comes from: "sheet NN: …" (drawn on the plans: what was measured), "not on
-   * plans: …" (a room the drawings leave unfurnished) or "extra: …" (plants, accessories).
+   * plans: …" (a room the drawings leave unfurnished), "extra: …" (plants, accessories)
+   * or "owner choice — not per plans: …" (bedroom 3, furnished by the owner's wish).
    */
   source: string;
   /** Bounds of the drawn symbol on the sheet (x0, z0, x1, z1), where it is a rectangle. */
@@ -172,32 +175,9 @@ const upperCeil = (z: number): number =>
   roofUndersideY(roof, roofSegment(roof, 'upper'), z) - LEVELS.upperFloor;
 const stepH = (z: number, cap = 2.4): number => Math.min(cap, round3(upperCeil(z) - 0.08));
 
-/** Sections of a drawn wardrobe x0…x1 split along z at `cuts`, each under the slope. */
-function steppedWardrobe(
-  id: string,
-  room: string,
-  x0: number,
-  x1: number,
-  cuts: readonly number[],
-  source: string,
-): FurnitureItem[] {
-  const out: FurnitureItem[] = [];
-  for (let i = 0; i + 1 < cuts.length; i++) {
-    const z0 = cuts[i]!;
-    const z1 = cuts[i + 1]!;
-    // The low edge of a section is the one farther from the ridge (z 3.625).
-    const low = Math.abs(z0 - 3.625) > Math.abs(z1 - 3.625) ? z0 : z1;
-    out.push(
-      drawn(`${id}-${i + 1}`, 'wardrobe', U, room, [x0, z0, x1, z1], 'W', stepH(low), source, {
-        collide: true,
-      }),
-    );
-  }
-  return out;
-}
-
 const S05 = 'sheet 05';
 const S06 = 'sheet 06';
+const OWN = 'owner choice — not per plans';
 
 export const FURNITURE: readonly FurnitureItem[] = [
   // ============================================================== GROUND (sheet 05)
@@ -278,11 +258,13 @@ export const FURNITURE: readonly FurnitureItem[] = [
     [10.225, 0.125, 16.222, 0.725],
     'S',
     0.9,
-    `${S05}: base run x 9.625…16.222, z 0.125…0.725 (60 cm modules), hob x 10.835…11.415, z 0.205…0.695 (#7f7f7f)`,
-    // Local x offsets from the run's centre (13.2235): hob centre 11.125.
+    `${S05}: base run x 9.625…16.222, z 0.125…0.725 (60 cm modules), hob x 10.835…11.415, z 0.205…0.695 (#7f7f7f); wall cupboards over the whole run (owner's wish, not drawn: the north wall has no opening over the kitchen)`,
+    // Local x offsets from the run's centre (13.2235): hob centre 11.125. Wall cupboards
+    // 0.35 deep from the splashback top (+1.50, 0.60 over the worktop) up to the fridge
+    // column's top (+2.40), the hood integrated over the hob, one open bay at the east end.
     {
       collide: true,
-      opts: { hob: -2.099, oven: true, hood: true, shelfFrom: 0.45, shelfTo: 2.65 },
+      opts: { hob: -2.099, oven: true, hood: true, uppers: 2.4, uppersOpen: 1 },
     },
   ),
   drawn(
@@ -952,115 +934,150 @@ export const FURNITURE: readonly FurnitureItem[] = [
 
   // =========================================================== UPPER (sheet 06)
   // ------------------------------------------------------------------ bedroom 3
-  // Two single beds head to head along the knee walls, low built-in cupboards under both
-  // knee walls, two wardrobes on the east wall (stepped under the slope).
-  drawn(
-    'bed-3-knee-n',
-    'wardrobe',
-    U,
-    'bedroom-3',
-    [0.132, 0.132, 4.611, 0.432],
-    'S',
-    0.9,
-    `${S06}: X-crossed low cupboard under the north knee wall, x 0.132…4.611, z 0.132…0.432 (#7b766f)`,
-    { collide: true, opts: { low: true } },
-  ),
-  drawn(
-    'bed-3-knee-s',
-    'wardrobe',
-    U,
-    'bedroom-3',
-    [0.156, 6.491, 4.61, 7.091],
-    'N',
-    0.9,
-    `${S06}: X-crossed low cupboard under the south knee wall, x 0.156…4.610, z 6.491…7.091 (#7b766f)`,
-    { collide: true, opts: { low: true } },
-  ),
-  ...steppedWardrobe(
-    'bed-3-wardrobe-n',
-    'bedroom-3',
-    4.01,
-    4.611,
-    [0.432, 1.053, 1.673, 2.294],
-    `${S06}: X-crossed wardrobe x 4.010…4.611, z 0.432…2.294; three sections stepped under the slope`,
-  ),
-  ...steppedWardrobe(
-    'bed-3-wardrobe-s',
-    'bedroom-3',
-    4.01,
-    4.61,
-    [3.743, 4.843, 5.443, 5.993, 6.491],
-    `${S06}: X-crossed wardrobe x 4.010…4.610, z 3.743…6.491; four sections stepped under the slope`,
-  ),
-  drawn(
-    'bed-3-n',
+  // Owner's choice: the drawn layout (two single beds, four bedside tables, stepped
+  // wardrobes) is not used here — one calm room in The Local Project style instead. A low
+  // wide oak bed with its head on the east wall in the tall band south of the ridge (≥ 1.96
+  // m clear over it, the south roof window over its side, the low west window F-09 at its
+  // foot), a bench at the foot on a wool rug; one continuous 0.90 m oak line of low
+  // cupboards under the north knee wall and round into the north-east niche, a shorter run
+  // under the south knee wall west of the bed; a bouclé reading chair under the west
+  // window F-08 with the olive floor lamp, a tall plant between the two west windows. The
+  // door swing and the walk from the door to the windows stay open (≥ 1.1 m).
+  item(
+    'bed-3',
     'bed',
     U,
     'bedroom-3',
-    [1.775, 0.432, 2.675, 2.432],
-    'S',
-    0.8,
-    `${S06}: single bed 0.90 × 2.00, x 1.775…2.675, z 0.432…2.432, head north (#5f5f5f)`,
-    { collide: true, opts: { throw: 'clay', pillows: 1, cushion: 'foliage' } },
-  ),
-  drawn(
-    'bed-3-s',
-    'bed',
-    U,
-    'bedroom-3',
-    [1.74, 4.491, 2.64, 6.491],
-    'N',
-    0.8,
-    `${S06}: single bed 0.90 × 2.00, x 1.740…2.640, z 4.491…6.491, head south (#5f5f5f)`,
-    { collide: true, opts: { throw: 'wool', pillows: 1, cushion: 'clay' } },
+    [3.547, 5.075],
+    'W',
+    [1.8, 2.15, 0.9],
+    `${OWN}: low wide oak bed 1.80 × 2.15 (1.60 m mattress), head on the east wall, x 2.472…4.622, z 4.175…5.975`,
+    { collide: true, opts: { throw: 'wool', pillows: 2, cushion: 'foliage' } },
   ),
   ...(
     [
-      ['nw', [1.3, 0.432, 1.7, 0.782], 'S'],
-      ['ne', [2.75, 0.432, 3.15, 0.782], 'S'],
-      ['sw', [1.264, 6.141, 1.664, 6.491], 'N'],
-      ['se', [2.715, 6.141, 3.115, 6.491], 'N'],
+      ['n', 3.96],
+      ['s', 6.19],
     ] as const
-  ).map(([k, r, face]) =>
-    drawn(
+  ).map(([k, z]) =>
+    item(
       `bed-3-side-${k}`,
       'bedside',
       U,
       'bedroom-3',
-      r,
-      face,
-      0.45,
-      `${S06}: bedside table 0.40 × 0.35 (#9f9f9f)`,
-      {
-        opts: { lamp: 'clay' },
-      },
+      [4.42, z],
+      'W',
+      [0.4, 0.4, 0.45],
+      `${OWN}: oak bedside table with a clay lamp`,
+      { opts: { lamp: 'clay' } },
     ),
+  ),
+  item(
+    'bed-3-print',
+    'print',
+    U,
+    'bedroom-3',
+    [4.6125, 5.075],
+    'W',
+    [0.9, 0.025, 0.6],
+    `${OWN}: one framed print above the bed head`,
+    { wall: true, y: 1.2, material: 'clay' },
+  ),
+  item(
+    'bed-3-bench',
+    'bench',
+    U,
+    'bedroom-3',
+    [2.222, 5.075],
+    'W',
+    [1.4, 0.38, 0.45],
+    `${OWN}: solid oak bench at the foot of the bed`,
+  ),
+  item(
+    'bed-3-bench-throw',
+    'cushion',
+    U,
+    'bedroom-3',
+    [2.222, 5.5],
+    'W',
+    [0.4, 0.34, 0.05],
+    `${OWN}: folded olive wool throw on the bench`,
+    { on: 0.45, material: 'foliage' },
   ),
   item(
     'bed-3-rug',
     'rug',
     U,
     'bedroom-3',
-    [2.2, 3.46],
+    [2.925, 5.075],
     'S',
-    [1.8, 1.3, 0.012],
-    'extra: wool rug between the beds',
-    {
-      material: 'wool',
-    },
+    [2.45, 2.6, 0.012],
+    `${OWN}: wool rug under the lower two thirds of the bed and the bench`,
+    { material: 'wool' },
+  ),
+  item(
+    'bed-3-low-n',
+    'wardrobe',
+    U,
+    'bedroom-3',
+    [2.375, 0.378],
+    'S',
+    [4.494, 0.5, 0.9],
+    `${OWN}: low oak cupboards under the north knee wall, wall to wall x 0.128…4.622, z 0.128…0.628 (the last 0.60 m runs on behind the niche cupboard)`,
+    { collide: true, opts: { low: true, blindR: 0.6 } },
+  ),
+  item(
+    'bed-3-low-niche',
+    'wardrobe',
+    U,
+    'bedroom-3',
+    [4.322, 1.4575],
+    'W',
+    [1.699, 0.6, 0.9],
+    `${OWN}: the same low oak line round the corner into the north-east niche, x 4.022…4.622, z 0.608…2.307`,
+    { collide: true, opts: { low: true } },
+  ),
+  item(
+    'bed-3-low-s',
+    'wardrobe',
+    U,
+    'bedroom-3',
+    [1.028, 6.872],
+    'N',
+    [1.8, 0.5, 0.9],
+    `${OWN}: low oak cupboards under the south knee wall west of the bed, x 0.128…1.928, z 6.622…7.122 (≥ 0.8 m to the bed's foot corner)`,
+    { collide: true, opts: { low: true } },
+  ),
+  item(
+    'bed-3-armchair',
+    'armchair',
+    U,
+    'bedroom-3',
+    [0.66, 2.525],
+    75,
+    [0.82, 0.8, 0.74],
+    `${OWN}: bouclé reading chair under the west window F-08, turned a little toward the room`,
+  ),
+  item(
+    'bed-3-lamp',
+    'floorLamp',
+    U,
+    'bedroom-3',
+    [0.42, 1.72],
+    'S',
+    [0.4, 0.4, 1.55],
+    `${OWN}: sculptural floor lamp (olive base, brass, linen shade) beside the chair`,
   ),
   item(
     'bed-3-plant',
     'plant',
     U,
     'bedroom-3',
-    [0.45, 3.7],
+    [0.45, 3.725],
     'S',
-    [0.45, 0.45, 1.3],
-    'extra: plant between the west windows',
-    {
-      material: 'clay',
-    },
+    [0.5, 0.5, 1.45],
+    `${OWN}: tall plant in a clay pot between the west windows`,
+    { material: 'clay' },
   ),
 
   // ---------------------------------------------------------------------- study
@@ -1083,16 +1100,31 @@ export const FURNITURE: readonly FurnitureItem[] = [
       { collide: true },
     ),
   ),
+  // Desk along the whole east wall (owner's wish), wall to wall from the north knee wall
+  // to the hall wall: the drawn screen sits at its middle, a drawer pedestal fills the low
+  // end under the slope, a slim oak panel leg stands at the hall wall; the top (0.75)
+  // stays under the sill of the interior window F-02 (0.80).
   item(
     'study-desk',
     'desk',
     U,
     'study',
-    [9.21, 1.218],
+    [9.182, 1.2175],
     'W',
-    [1.2, 0.6, 0.75],
-    `${S06}: keyboard x 8.950…9.120 + screen x 9.170…9.300 centred z 1.218 on the east wall (the desk outline itself is not drawn): 1.20 × 0.60 desk`,
-    { collide: true, opts: { lamp: true, monitor: true } },
+    [2.177, 0.65, 0.75],
+    `${S06}: keyboard x 8.950…9.120 + screen x 9.170…9.300 centred z 1.218 on the east wall (the desk outline itself is not drawn); owner's choice: one solid oak desk the full length of the wall, x 8.857…9.507, z 0.129…2.306`,
+    { collide: true, opts: { lamp: true, monitor: true, lampX: -0.55, pedestal: 0.45 } },
+  ),
+  item(
+    'study-desk-plant',
+    'plant',
+    U,
+    'study',
+    [9.3, 2.02],
+    'S',
+    [0.2, 0.2, 0.28],
+    'extra: small plant at the south end of the desk, in front of F-02',
+    { on: 0.75, material: 'ceramic' },
   ),
   drawn(
     'study-chair',

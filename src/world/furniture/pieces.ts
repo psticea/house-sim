@@ -169,12 +169,16 @@ const bedside: Builder = (f, it) => {
 const wardrobe: Builder = (f, it) => {
   const [w, d, h] = it.size;
   const low = opt(it, 'low', false);
+  // `blindL` / `blindR`: a door-less length at the left / right end (a blind corner that
+  // runs on behind a neighbouring cupboard).
+  const x0 = -w / 2 + opt(it, 'blindL', 0);
+  const x1 = w / 2 - opt(it, 'blindR', 0);
   f.box('smokedOak', [-w / 2 + 0.03, 0, -d / 2 + 0.02], [w / 2 - 0.03, 0.08, d / 2 - 0.06], {
     bottom: false,
   });
   f.box('joinery', [-w / 2, 0.08, -d / 2], [w / 2, h, d / 2 - 0.02]);
-  const n = Math.max(1, Math.round(w / (low ? 0.6 : 0.5)));
-  doorFronts(f, -w / 2, w / 2, 0.08, h, d / 2 - 0.02, n, low ? 'h' : 'v');
+  const n = Math.max(1, Math.round((x1 - x0) / (low ? 0.6 : 0.5)));
+  doorFronts(f, x0, x1, 0.08, h, d / 2 - 0.02, n, low ? 'h' : 'v');
 };
 
 const hallJoinery: Builder = (f, it) => {
@@ -326,10 +330,116 @@ function kitchenTap(f: Frame, x: number, tz: number, top: number, dir: 1 | -1): 
 }
 
 /**
+ * Wall cupboards over a base run (local −z = the wall), 0.35 m deep from `y0` up to `y1`:
+ * oak slab doors (~0.6 m) with a slim smoked-oak finger pull on their bottom edge. Over
+ * the hob (`hood` = its local x) a 0.90 m unit with an integrated extractor — a dark
+ * visor flush with the doors under them; `open` bays (0.60 m) at the right (+x) end are
+ * open oak shelves with ceramics and a few books.
+ */
+function wallCupboards(
+  f: Frame,
+  w: number,
+  d: number,
+  y0: number,
+  y1: number,
+  hood: number | null,
+  open: number,
+): void {
+  const ud = 0.35;
+  const zb = -d / 2;
+  const zc = zb + ud - 0.02;
+  const xl = -w / 2 + 0.002;
+  const xr = w / 2 - 0.002;
+  const xo = xr - open * 0.6;
+  const segs: { a: number; b: number; hood: boolean }[] = [];
+  if (hood !== null) {
+    const h0 = Math.max(xl, hood - 0.45);
+    const h1 = Math.min(xo, hood + 0.45);
+    if (h0 > xl + 0.05) segs.push({ a: xl, b: h0, hood: false });
+    segs.push({ a: h0, b: h1, hood: true });
+    if (xo > h1 + 0.05) segs.push({ a: h1, b: xo, hood: false });
+  } else {
+    segs.push({ a: xl, b: xo, hood: false });
+  }
+  for (const s of segs) {
+    const yb = s.hood ? y0 + 0.06 : y0;
+    f.box('joinery', [s.a, yb, zb], [s.b, y1, zc]);
+    const n = Math.max(1, Math.round((s.b - s.a) / 0.6));
+    const dw = (s.b - s.a) / n;
+    for (let i = 0; i < n; i++) {
+      const a = s.a + i * dw + 0.003;
+      const b = s.a + (i + 1) * dw - 0.003;
+      const m = (a + b) / 2;
+      f.box('joinery', [a, yb + 0.003, zc], [b, y1 - 0.003, zc + 0.02]);
+      f.box('smokedOak', [m - 0.09, yb + 0.003, zc + 0.02], [m + 0.09, yb + 0.016, zc + 0.03]);
+    }
+    if (s.hood) f.box('metalBlack', [s.a + 0.003, y0, zb], [s.b - 0.003, y0 + 0.057, zc + 0.02]);
+  }
+  if (open <= 0) return;
+  const t = 0.02;
+  const zf = zb + ud;
+  f.box('joinery', [xr - t, y0, zb], [xr, y1, zf]);
+  f.box('joinery', [xo, y0, zb], [xr - t, y0 + t, zf]);
+  f.box('joinery', [xo, y1 - t, zb], [xr - t, y1, zf]);
+  f.box('joinery', [xo, y0 + t, zb], [xr - t, y1 - t, zb + 0.012]);
+  for (let k = 1; k < open; k++) {
+    const x = xo + k * 0.6;
+    f.box('joinery', [x - t / 2, y0 + t, zb + 0.012], [x + t / 2, y1 - t, zf]);
+  }
+  const ym = (y0 + y1) / 2;
+  f.box('joinery', [xo, ym - 0.01, zb + 0.012], [xr - t, ym + 0.01, zf - 0.01]);
+  // Bottom shelf: a stack of ceramic bowls and a clay jar; top shelf: books + a vase.
+  const jz = zb + 0.17;
+  const b0 = y0 + t;
+  for (let k = 0; k < 3; k++) {
+    const y = b0 + k * 0.047;
+    f.lathe(
+      'ceramic',
+      xo + 0.17,
+      jz,
+      [
+        [0.06, y],
+        [0.1, y + 0.04],
+        [0.1, y + 0.045],
+      ],
+      { capStart: true, capEnd: true },
+    );
+  }
+  f.lathe(
+    'clay',
+    xo + 0.42,
+    jz,
+    [
+      [0.06, b0],
+      [0.08, b0 + 0.1],
+      [0.06, b0 + 0.2],
+      [0.04, b0 + 0.24],
+    ],
+    { capStart: true, capEnd: true },
+  );
+  const s1 = ym + 0.01;
+  books(f, xo + 0.03, xo + 0.3, s1, jz, 0.2, 4, 0.24);
+  f.lathe(
+    'ceramic',
+    xo + 0.44,
+    jz,
+    [
+      [0.045, s1],
+      [0.07, s1 + 0.08],
+      [0.035, s1 + 0.2],
+      [0.03, s1 + 0.22],
+    ],
+    { capStart: true, capEnd: true },
+  );
+}
+
+/**
  * Base run along a wall: smoked-oak plinth, oak fronts (60 cm modules), travertine
  * worktop + splashback. Options (local x from the centre): `hob` (flush black-glass hob,
  * with `oven` a flush black oven below and `hood` an oak-clad canopy above), `sink`
- * (cut-out bowl + tap), `shelfFrom` / `shelfTo` (open oak wall shelf with ceramics).
+ * (cut-out bowl + tap), `shelfFrom` / `shelfTo` (open oak wall shelf with ceramics),
+ * `uppers` (wall cupboards over the whole run up to that height, the hood integrated,
+ * `uppersOpen` open bays at the +x end).
  */
 const kitchenRun: Builder = (f, it) => {
   const [w, d] = it.size;
@@ -374,13 +484,18 @@ const kitchenRun: Builder = (f, it) => {
   );
   if (sink !== null) kitchenTap(f, sink, -0.01 - SINK_D - 0.06, top, 1);
   f.box('travertine', [-w / 2, top, -d / 2], [w / 2, top + 0.6, -d / 2 + 0.015]);
+  const uppers = typeof o.uppers === 'number' ? o.uppers : null;
   if (hob !== null) {
     f.box('metalBlack', [hob - 0.3, top, -0.24], [hob + 0.3, top + 0.006, 0.24]);
-    if (o.hood) {
+    if (o.hood && uppers === null) {
       // Oak-clad canopy hood with a black filter strip.
       f.box('joinery', [hob - 0.45, 1.72, -d / 2 + 0.015], [hob + 0.45, 2.4, -d / 2 + 0.5]);
       f.box('metalBlack', [hob - 0.4, 1.715, -d / 2 + 0.05], [hob + 0.4, 1.72, -d / 2 + 0.45]);
     }
+  }
+  if (uppers !== null) {
+    const open = typeof o.uppersOpen === 'number' ? o.uppersOpen : 0;
+    wallCupboards(f, w, d, top + 0.6, uppers, hob !== null && o.hood ? hob : null, open);
   }
   if (typeof o.shelfFrom === 'number' && typeof o.shelfTo === 'number') {
     const s0 = o.shelfFrom;
@@ -1333,24 +1448,55 @@ const shelving: Builder = (f, it) => {
 
 const desk: Builder = (f, it) => {
   const [w, d, h] = it.size;
-  f.rbox('joinery', [0, h - 0.018, 0], [w / 2, 0.018, d / 2], 0.008, 1);
-  for (const sx of [-1, 1]) {
+  const ped = opt(it, 'pedestal', 0);
+  if (ped > 0) {
+    // Long desk: 4 cm solid oak top, a drawer pedestal at the left end, a slim oak panel
+    // leg at the right end and a rail under the top along the wall (knee room between).
+    f.rbox('joinery', [0, h - 0.02, 0], [w / 2, 0.02, d / 2], 0.008, 1);
+    const px = -w / 2 + ped;
+    const zf = d / 2 - 0.03;
+    f.box('smokedOak', [-w / 2 + 0.02, 0, -d / 2 + 0.03], [px - 0.02, 0.06, zf - 0.04], {
+      bottom: false,
+    });
+    f.box('joinery', [-w / 2, 0.06, -d / 2], [px, h - 0.04, zf]);
+    const ys = [0.06, 0.3, 0.52, h - 0.04];
+    const mx = (-w / 2 + px) / 2;
+    for (let k = 0; k + 1 < ys.length; k++) {
+      const y1 = ys[k + 1]!;
+      f.box('joinery', [-w / 2 + 0.003, ys[k]! + 0.003, zf], [px - 0.003, y1 - 0.003, zf + 0.018]);
+      f.box('smokedOak', [mx - 0.07, y1 - 0.035, zf + 0.018], [mx + 0.07, y1 - 0.023, zf + 0.028]);
+    }
+    f.box('joinery', [w / 2 - 0.035, 0, -d / 2 + 0.01], [w / 2, h - 0.04, d / 2 - 0.06], {
+      bottom: false,
+    });
+    f.box('joinery', [px, h - 0.12, -d / 2], [w / 2 - 0.035, h - 0.04, -d / 2 + 0.025]);
+    books(f, -w / 2 + 0.12, -w / 2 + 0.36, h, -d / 2 + 0.1, 0.15, 2, 0.2);
+  } else {
+    f.rbox('joinery', [0, h - 0.018, 0], [w / 2, 0.018, d / 2], 0.008, 1);
+    for (const sx of [-1, 1]) {
+      f.box(
+        'joinery',
+        [sx * (w / 2 - 0.05) - 0.02, 0, -d / 2 + 0.05],
+        [sx * (w / 2 - 0.05) + 0.02, h - 0.036, d / 2 - 0.05],
+        { bottom: false },
+      );
+    }
     f.box(
       'joinery',
-      [sx * (w / 2 - 0.05) - 0.02, 0, -d / 2 + 0.05],
-      [sx * (w / 2 - 0.05) + 0.02, h - 0.036, d / 2 - 0.05],
-      { bottom: false },
+      [w / 2 - 0.5, h - 0.15, -d / 2 + 0.05],
+      [w / 2 - 0.08, h - 0.036, d / 2 - 0.03],
     );
+    f.box(
+      'smokedOak',
+      [w / 2 - 0.36, h - 0.1, d / 2 - 0.03],
+      [w / 2 - 0.22, h - 0.088, d / 2 - 0.018],
+    );
+    books(f, w / 2 - 0.26, w / 2 - 0.12, h, -d / 2 + 0.1, 0.15, 2, 0.2);
   }
-  f.box('joinery', [w / 2 - 0.5, h - 0.15, -d / 2 + 0.05], [w / 2 - 0.08, h - 0.036, d / 2 - 0.03]);
-  f.box(
-    'smokedOak',
-    [w / 2 - 0.36, h - 0.1, d / 2 - 0.03],
-    [w / 2 - 0.22, h - 0.088, d / 2 - 0.018],
-  );
   if (opt(it, 'lamp', false)) {
-    // Bronze task lamp (pulled to the end of the desk when there is a screen).
-    const x = -w / 2 + (opt(it, 'monitor', false) ? 0.09 : 0.2);
+    // Bronze task lamp (pulled to the end of the desk when there is a screen, or at
+    // `lampX` from the centre).
+    const x = opt(it, 'lampX', -w / 2 + (opt(it, 'monitor', false) ? 0.09 : 0.2));
     const reach = opt(it, 'monitor', false) ? 0.08 : 0.2;
     const z = -d / 2 + 0.15;
     f.lathe(
@@ -1385,7 +1531,6 @@ const desk: Builder = (f, it) => {
       { capStart: true },
     );
   }
-  books(f, w / 2 - 0.26, w / 2 - 0.12, h, -d / 2 + 0.1, 0.15, 2, 0.2);
   if (opt(it, 'monitor', false)) {
     // Slim black screen on a brass foot (the plans draw a screen + keyboard on the desk).
     f.box('brass', [-0.06, h, -d / 2 + 0.08], [0.14, h + 0.012, -d / 2 + 0.2]);

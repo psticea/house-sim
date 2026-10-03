@@ -310,8 +310,7 @@ describe('furniture placement (plan.md §6.2)', () => {
       'bedroom-2': { wardrobe: 1, bed: 1, bedside: 2, armchair: 1 },
       bathroom: { vanity: 1, wc: 2, showerScreen: 1, showerHead: 1, tub: 1 },
       'boiler-laundry': { laundryRun: 1 },
-      // Two knee-wall cupboards + the two east wardrobes in 3 + 4 stepped sections.
-      'bedroom-3': { bed: 2, bedside: 4, wardrobe: 9 },
+      // Bedroom 3 is furnished by the owner's choice, not per the plans (test below).
       study: { bookshelf: 3, desk: 1, deskChair: 1 },
       'upper-hall': { wardrobe: 1 },
       'upper-bathroom': { vanity: 1, wc: 1, showerScreen: 2, showerHead: 1 },
@@ -326,7 +325,9 @@ describe('furniture placement (plan.md §6.2)', () => {
     for (const f of fromPlans) expect(Object.keys(PLANS), f.id).toContain(f.room);
     // Every other piece says why it is there.
     for (const f of FURNITURE) {
-      expect(f.source, f.id).toMatch(/^(sheet 0[456]: |not on plans: |extra: )/);
+      expect(f.source, f.id).toMatch(
+        /^(sheet 0[456]: |not on plans: |extra: |owner choice — not per plans: )/,
+      );
       if (f.source.startsWith('extra: '))
         expect(f.collide ?? false, `${f.id}: extras don't collide`).toBe(false);
     }
@@ -385,7 +386,8 @@ describe('furniture placement (plan.md §6.2)', () => {
       }
       n++;
     }
-    expect(n).toBeGreaterThan(40);
+    // 53 drawn before; bedroom 3 (15 drawn pieces) now follows the owner instead.
+    expect(n).toBeGreaterThanOrEqual(38);
   });
 
   it('the open curtain-wall door and the F-07 opening stay clear', () => {
@@ -403,6 +405,91 @@ describe('furniture placement (plan.md §6.2)', () => {
     for (const it of FURNITURE.filter((f) => f.level === 'ground' && !isFlat(f))) {
       expect(overlap(rectOf(footprint(it)), zone), `${it.id} at the glass door`).toBe(false);
     }
+  });
+
+  const upperCeil = (z: number): number =>
+    roofUndersideY(house.roof, roofSegment(house.roof, 'upper'), z) - floorOf('upper');
+
+  it('bedroom 3 follows the owner, not the plans: a calm set under the slopes', () => {
+    const b3 = FURNITURE.filter((f) => f.room === 'bedroom-3');
+    for (const f of b3) {
+      expect(f.source, f.id).toMatch(/^owner choice — not per plans: /);
+      expect(f.plan, `${f.id}: not on a drawn symbol`).toBeUndefined();
+    }
+    const count = (k: FurnitureItem['kind']) => b3.filter((f) => f.kind === k).length;
+    for (const k of ['bed', 'bench', 'armchair', 'floorLamp', 'rug'] as const)
+      expect(count(k), k).toBe(1);
+    expect(count('plant')).toBeGreaterThanOrEqual(1);
+    expect(b3.length, 'uncluttered').toBeLessThanOrEqual(16);
+    // One line of low oak cupboards (0.90) along both knee walls.
+    const low = b3.filter((f) => f.kind === 'wardrobe');
+    for (const f of low) {
+      expect(f.opts?.low, f.id).toBe(true);
+      expect(f.size[2], f.id).toBe(0.9);
+    }
+    expect(low.some((f) => rectOf(footprint(f)).minZ < 0.13)).toBe(true);
+    expect(low.some((f) => rectOf(footprint(f)).maxZ > 7.12)).toBe(true);
+    // The bed stands in the tall band (≥ 1.9 m over its whole footprint), head on a wall.
+    const bed = b3.find((f) => f.kind === 'bed')!;
+    const r = rectOf(footprint(bed));
+    expect(Math.min(upperCeil(r.minZ), upperCeil(r.maxZ))).toBeGreaterThan(1.9);
+    expect(r.maxX).toBeGreaterThan(4.6);
+    // Large pieces either join up (corner cupboards) or leave ≥ 0.8 m to walk between.
+    const boxes = colliders.filter((c) => b3.some((f) => f.id === c.id));
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]!;
+        const b = boxes[j]!;
+        const dx = Math.max(0, a.min[0] - b.max[0], b.min[0] - a.max[0]);
+        const dz = Math.max(0, a.min[2] - b.max[2], b.min[2] - a.max[2]);
+        const d = Math.hypot(dx, dz);
+        expect(d < 0.01 || d >= 0.8, `${a.id} ↔ ${b.id}: ${d.toFixed(2)} m`).toBe(true);
+      }
+    }
+  });
+
+  it('the study desk runs the full length of the east wall, under the F-02 sill', () => {
+    const desk = FURNITURE.find((f) => f.id === 'study-desk')!;
+    const study = level('upper').rooms.find((x) => x.id === 'study')!;
+    const walls = rectOf(study.polygon);
+    const r = rectOf(footprint(desk));
+    for (const gap of [r.minZ - walls.minZ, walls.maxZ - r.maxZ, walls.maxX - r.maxX]) {
+      expect(gap).toBeGreaterThan(0);
+      expect(gap).toBeLessThan(0.006);
+    }
+    expect(r.maxX - r.minX).toBeGreaterThanOrEqual(0.6);
+    expect(r.maxX - r.minX).toBeLessThanOrEqual(0.7);
+    expect(desk.size[2]).toBeGreaterThanOrEqual(0.74);
+    expect(desk.size[2]).toBeLessThanOrEqual(0.75);
+    const f02 = level('upper').openings.find((o) => o.id === 'f02-upper-void')!;
+    expect(desk.size[2]).toBeLessThan(f02.sill);
+    // The chair sits at the desk with ≥ 1.8 m of ceiling over the sitter.
+    const chair = FURNITURE.find((f) => f.id === 'study-chair')!;
+    expect(upperCeil(chair.at[1])).toBeGreaterThan(1.8);
+    expect(rectOf(footprint(chair)).maxX).toBeLessThanOrEqual(r.minX + 0.01);
+  });
+
+  it('the kitchen wall run has wall cupboards over its whole length, clear of openings', () => {
+    const run = FURNITURE.find((f) => f.id === 'kitchen-run')!;
+    const fridge = FURNITURE.find((f) => f.id === 'kitchen-fridge')!;
+    // Up to the fridge column's top and meeting it; the run itself ends at the room's
+    // glass end (the cupboards span the run's full width in the builder).
+    expect(run.opts?.uppers).toBe(fridge.size[2]);
+    expect(run.opts?.hood).toBe(true);
+    const r = rectOf(footprint(run));
+    expect(Math.abs(r.minX - rectOf(footprint(fridge)).maxX)).toBeLessThan(0.005);
+    // Cupboards from the splashback top (+1.50, 0.60 over the worktop) to +2.40: no
+    // north-wall opening over the run at that height.
+    const ground = level('ground');
+    const wall = ground.walls.find((w) => w.id === 'ext-n')!;
+    for (const o of ground.openings.filter((x) => x.wall === wall.id)) {
+      const x0 = wall.from[0] + o.offset;
+      const clash = x0 < r.maxX && x0 + o.width > r.minX && o.sill < 2.4 && o.sill + o.height > 1.5;
+      expect(clash, o.id).toBe(false);
+    }
+    // Pendants hang well clear of the cupboard fronts (0.35 deep).
+    for (const p of FURNITURE.filter((f) => f.room === 'living-kitchen' && f.kind === 'pendant'))
+      expect(rectOf(footprint(p)).minZ - (r.minZ + 0.35), p.id).toBeGreaterThan(0.5);
   });
 });
 

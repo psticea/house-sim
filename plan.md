@@ -10,7 +10,7 @@
 Legend: ✅ done · 🔄 in progress · ⬜ not started · ⏸ blocked
 
 | Iteration | Deliverable | Status |
-|---|---|---|
+| --- | --- | --- |
 | **I0** | Planning: repo, plans read, `goal.md`, `plan.md`, `.gitignore` | ✅ |
 | **I1** | **First walk** — public URL: start outside, walk into every ground-floor room (first deliverable) | ✅ (real-phone check pending) |
 | I2 | Whole building — upper floor, basement, stairs, roof & facade details | ✅ (real-phone check pending) |
@@ -30,7 +30,7 @@ Detailed steps, acceptance criteria and per-step status: **§12 Roadmap**.
 ## 1. Summary of the decision
 
 | Topic | Choice |
-|---|---|
+| --- | --- |
 | Platform | Static web page (phone first, desktop second), WebGL 2 |
 | 3D engine | **three.js** (pinned version) |
 | Language / build | **TypeScript** + **Vite** |
@@ -56,7 +56,7 @@ at the same time.
 ## 2. Why three.js (alternatives considered)
 
 | Option | Verdict |
-|---|---|
+| --- | --- |
 | **three.js** | ✅ Smallest runtime (~150–200 KB gz for what we use), huge ecosystem (three-mesh-bvh, glTF-Transform, KTX2, postprocessing), full control over the render loop and draw calls — important for mobile. |
 | Babylon.js | 👍 Very good, more built-ins (physics, GUI, inspector). Bigger bundle, less control over low-level details. Solid plan B. |
 | PlayCanvas | 👍 Good mobile performance, but its strength is the cloud editor; code-only workflow is less natural. |
@@ -80,7 +80,7 @@ third-party requests from the page. (A CDN import map is fine for quick experime
 **Budgets** (enforced by a debug HUD and a Playwright perf check):
 
 | Metric | Budget (medium tier) |
-|---|---|
+| --- | --- |
 | Frame rate | 60 fps target, never < 30 fps |
 | Draw calls per frame | ≤ 120 (aim ~60) |
 | Visible triangles | ≤ 400 k |
@@ -104,7 +104,7 @@ third-party requests from the page. (A CDN import map is fine for quick experime
 **Quality tiers** (auto-picked at start using [`detect-gpu`](https://github.com/pmndrs/detect-gpu) + a 1-second warm-up benchmark; user can override in settings):
 
 | Tier | Pixel ratio | AA | Lightmaps | Textures | Texture memory | Extras |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | Low | ≤ 1.0 | none / FXAA | 1K | 512 px (hero 1K) | ≤ 35 MB | Lambert materials, no reflection probes, simple trees |
 | **Medium** (average phone) | 1.25–1.5 | MSAA 4× | 2K | 1K (hero 2K) | **≤ 70 MB** | reflection probes, instanced grass near player |
 | High (desktop / flagship) | ≤ 2.0 | MSAA 4× or SMAA | 2K | 2K | ≤ 120 MB | postprocessing: N8AO, subtle bloom |
@@ -115,14 +115,14 @@ Sizes are GPU memory including mipmaps (×1.33). Compressed formats on phones:
 ETC1S/ETC2 RGB ≈ 4 bits/pixel, UASTC → ASTC 4×4 / ETC2 RGBA ≈ 8 bits/pixel.
 
 | Group | What | Format | Budget |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Hero sets ×3 | oak parquet, bathroom tiles, exterior wood (cladding/deck/slats) — 2K albedo (UASTC) + 1K normal + 1K ORM | 5.6 + 1.4 + 0.7 MB | **≈ 23 MB** |
 | Standard sets ×7 | metal seam facade, white plaster (exterior), pavers/stone/concrete, gravel, grass, fabric (sofa/bed), painted wood (kitchen/wardrobes) — 1K albedo + 1K normal + 1K ORM | 0.7 + 1.4 + 0.7 MB | **≈ 20 MB** |
 | Detail maps ×4 | 512 px tileable micro-normals / grain (interior paint, textiles, metal, wood) layered at high repeat for close-up crispness | 0.35 MB each | **≈ 1.5 MB** |
 | Furniture & props | shared 1K atlas (albedo + normal + ORM) for CC0 models (chairs, lamps, plants, fixtures); procedural furniture reuses the sets above | — | **≈ 3.5 MB** |
 | Lightmaps | 2 × 2K atlases, ~3 cm texels indoors, coarser outside (RGBM, UASTC) | 5.6 MB each | **≈ 11 MB** |
 | Environment | HDRI PMREM (half-float, 256 face ≈ 6.3 MB) + 3 interior probes (64 face) + 1K sky background (ETC1S) | mostly uncompressed | **≈ 8 MB** |
-| **Total** | | | **≈ 67 MB** |
+| **Total** |  |  | **≈ 67 MB** |
 
 How we keep **good texture quality** inside this budget:
 - **Texel density where the eye goes**: floors and anything within reach get the hero
@@ -173,9 +173,9 @@ scene-building code:
 4. **Ray tracing on the GPU**: a full-screen shader per atlas uses
    `three-mesh-bvh`'s GLSL BVH traversal (`MeshBVHUniformStruct`, the same technique
    `three-gpu-pathtracer` uses) to trace, per texel:
-   - sun visibility (soft, a few jittered rays toward the sun disk),
-   - sky light (cosine-weighted hemisphere rays sampling the HDRI),
-   - indirect bounces (rays hit geometry → read that point's previous-iteration
+    - sun visibility (soft, a few jittered rays toward the sun disk),
+    - sky light (cosine-weighted hemisphere rays sampling the HDRI),
+    - indirect bounces (rays hit geometry → read that point's previous-iteration
      lightmap × albedo — progressive radiosity, 2–3 iterations).
    Accumulate hundreds of samples progressively (the page shows progress).
 5. **Post-process**: denoise (edge-aware bilateral filter guided by normal/position;
@@ -209,7 +209,7 @@ compile-time checks.
 ### 5.2 Reference numbers already read from the plans
 
 | Item | Value |
-|---|---|
+| --- | --- |
 | Axes x (1→6) | 0, 4.75, 9.50, 11.95, 15.60, 18.10 (spacing 4.75/4.75/2.45/3.65/2.50) |
 | Axes z (A→C) | 0, 3.75 (B), 7.25 (C) |
 | Outer dimensions | 18.71 × 7.91 m (exterior wall ≈ 0.33 m incl. insulation + cladding) |
@@ -226,7 +226,7 @@ compile-time checks.
 ### 5.3 Room areas (used as automated checks)
 
 | Level | Room | Area (m²) |
-|---|---|---|
+| --- | --- | --- |
 | Basement | Stairs / Storage | 3.93 / 11.57 |
 | Ground | Boiler + laundry / Bathroom / Entrance hall / Stairs / Living + kitchen / Bedroom 1 / Bedroom 2 / Terrace | 5.10 / 6.50 / 12.32 / 7.05 / 47.95 / 13.76 / 14.62 / 37.58 |
 | Upper | Bathroom / Bedroom 3 / Hall / Room | 7.48 / 31.36 / 5.71 / 10.33 |
@@ -287,7 +287,7 @@ export interface Room { id: string; name: string; level: Level['id']; polygon: P
 - **Plans (as drawn):** layout, dimensions, facade (standing-seam metal and frames —
   **RAL 7016 anthracite** since the owner's 2026-10 update, was grey RAL 7045 / frames
   RAL 1011; natural wood cladding and 5×7 cm slats; the **west gable mostly wood**:
-  vertical boards with two horizontal-board zones in a 0.605 m anthracite border, per the
+  vertical wood boards only (owner, 2026-10-03) in a 0.605 m anthracite border, per the
   owner's latest west facade), and every finish the plans
   specify: parquet floors, tiles (gresie) in wet rooms and the boiler room, white
   interior finish (plaster + white paint), wood-board ceiling in the living room, WPC
@@ -306,7 +306,7 @@ indoor-outdoor flow with daylight doing the work.
 ### 6.1 Palette (upcoming iterations)
 
 | Role | Color | Hex |
-|---|---|---|
+| --- | --- | --- |
 | Walls & ceilings (plans: white finish) | warm white | `#F1ECE3` |
 | Parquet (plans: parquet) | natural oak, matte oiled | `#C9A77C` |
 | Joinery & furniture timber | natural oak / smoked oak | `#C9A77C` / `#6F5440` |
@@ -330,7 +330,7 @@ Rule of thumb: ~65 % warm white + natural oak, ~25 % stone/sand/linen textures,
 Floor/wall/ceiling finishes are those of the plans; everything else is The Local Project style.
 
 | Room | Surfaces (per plans) | Basic furniture & decor (lead accent) |
-|---|---|---|
+| --- | --- | --- |
 | Entrance hall | oak parquet, white walls | full-height custom oak joinery with integrated bench and hooks, round mirror with brass rim, woven jute runner, ceramic wall light (ochre) |
 | Living + kitchen (double height) | oak parquet; white walls; **wood-board sloped ceiling** (plans) | low-slung modular sofa in oat bouclé/linen + a cane lounge chair, large wool/jute rug, travertine coffee table, **dark wood-burning stove at the chimney**; kitchen: oak joinery along the north wall with **travertine** worktop + splashback, stone-topped island with 3 timber-and-leather stools, integrated appliances; solid oak dining table with 6 cane/rattan chairs, sculptural paper/linen pendants; olive tree in a clay pot near the east glass wall (clay/olive) |
 | Bedroom 1 | oak parquet, white walls | low oak bed frame, linen bedding in sand/clay tones, oak bedside tables with ceramic lamps, oak wardrobe (clay) |
@@ -392,7 +392,7 @@ I1's flat colours and the S1 sketch look were derived from this palette. It is *
 used for new work; I4 onward switch the realistic materials to §6.1.
 
 | Role | Hex |
-|---|---|
+| --- | --- |
 | Walls & ceilings / feature walls | `#F4F1EA` / `#D8D2C8` |
 | Light oak / linen / wool grey | `#D8B98E` / `#E8E1D5` / `#9A958E` |
 | Accents: sage / dusty blue / terracotta / ochre | `#A3B09A` / `#8FA3B3` / `#C27C5E` / `#D0A24C` |
@@ -433,7 +433,7 @@ used for new work; I4 onward switch the realistic materials to §6.1.
 ## 9. Libraries
 
 | Package | Purpose | Where |
-|---|---|---|
+| --- | --- | --- |
 | `three` | Rendering, loaders (GLTF, KTX2, RGBE/EXR), math | runtime |
 | `three-mesh-bvh` | Collision, raycasts, GPU BVH for the lightmap baker | runtime + baker |
 | `detect-gpu` | Initial quality tier guess | runtime |
@@ -580,7 +580,7 @@ Order note: furniture (I5) comes **before** baked lighting (I6) so furniture sha
 ### I0 — Planning ✅
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | 0.1 | GitHub repo `psticea/house-sim` created (public) | ✅ |
 | 0.2 | Architecture plans read (text + rendered images) and summarized | ✅ |
 | 0.3 | `goal.md` — vision, requirements, decisions | ✅ |
@@ -602,7 +602,7 @@ geometry → mobile controls → deploy) on the hardest parts — accuracy and p
 performance — before investing in looks.
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | 1.1 | Scaffold: Vite + TypeScript (strict) + three (pinned), ESLint/Prettier, Vitest; scripts `dev`, `build`, `test`, `lint`, `typecheck` | ✅ |
 | 1.2 | CI workflow (lint, typecheck, test, build) + deploy workflow to GitHub Pages (Vite `base: '/house-sim/'`); enable Pages → "GitHub Actions" in repo settings (owner) | ✅ `ci.yml` + `deploy.yml` (upload-pages-artifact + deploy-pages); Pages source = GitHub Actions |
 | 1.3 | Core: renderer (WebGL2, DPR cap 1.5, AgX tone mapping), resize, frame loop, debug overlay (fps, draw calls, triangles, texture memory) | ✅ (ACES Filmic by default — kept the palette more saturated than AgX; `?tonemap=agx` switches) |
@@ -662,7 +662,7 @@ whatever the scene contains, so it keeps working as the building grows).
   materials/geometries; total draw calls ≤ 60.
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | S.1 | `style.ts` with `STYLE` + `applyStyle`, `?style=sketch\|real` switch | ✅ sketch by default (`parseStyle`: no/unknown value → sketch, `?style=real` → realistic); `src/world/style.ts` (`applyStyle` / `removeStyle` / `setStyle` / `getStyle`, idempotent, per-scene state) + `src/world/style/` (`config.ts` = `STYLE`, `edges.ts`, `textures.ts`); `window.__houseSim.setStyle()/getStyle()`, key **K** |
 | S.2 | Toon materials + pastel colors + canvas ground pattern | ✅ one shared `MeshToonMaterial` per material id, 3-texel `NearestFilter` gradient `[0.75, 0.9, 1.0]`, sRGB-HSL pastels (hue kept; ground surfaces paler), polygon offset (1, 1); generated `DataTexture` grid (1 m + 0.5 m, mipmapped, anisotropy ≤ 4) on lawn/field/asphalt/pavers |
 | S.3 | Edge lines (fat on desktop, basic on phones), jitter, no stray lines | ✅ own feature-edge extractor (EdgesGeometry semantics at 30°, but T-junction-safe: collinear overlapping edges are split and only drawn where a face ends without a smooth continuation — EdgesGeometry drew stray lines there), cached per geometry; `LineSegments2` 1.3 px on desktop, `LineSegments` on phones; deterministic line-end overshoot ≤ 0.3 % of the segment and ≤ 1.2 cm; no lines on glass, lawn, field, asphalt |
@@ -676,7 +676,7 @@ whatever the scene contains, so it keeps working as the building grows).
 always-visible style toggle** on phone and desktop:
 
 | Style | Id | What it is |
-|---|---|---|
+| --- | --- | --- |
 | **SketchUp** (default) | `sketchup` | The S1 look (owner likes it), renamed. Kept as is; only knobs that make it *more* SketchUp and less cartoon may be nudged, without changing its character (see S2.2). |
 | **Borderlands** | `borderlands` | **New.** Cel-shaded "hand-inked comic / concept art": thick black ink outlines, hard two-tone shading, ink hatching in shadow, saturated warm colours, painted-looking surfaces, bold stylised sky. |
 | **Realistic** | `real` | The I1 look; I4/I6 keep improving it. |
@@ -734,7 +734,7 @@ texture is generated on a `<canvas>` / `DataTexture`.
   If building a style for the first time takes > 100 ms, show a brief "Switching…" state.
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | S2.1 | Style registry refactor (`real` / `sketchup` / `borderlands`, `sketch` alias), any→any `setStyle`, per-style configs, lazy per-style caches | ✅ `src/world/style.ts` registry: `setStyle(scene, name)` any→any (current look removed, next applied; same look again only styles new meshes), `getStyle()` canonical, `isStyleBuilt()`, `removeStyle()`, `disposeStyles()`; names in `core/params.ts` (`sketch` alias, unknown → `sketchup`); configs `style/sketchup.ts` + `style/borderlands.ts` (shape in `style/config.ts`); per-scene, per-look caches (fills, line/hull objects, textures, sky, overlays) built on first use, re-attached on re-apply, never rebuilt; edge cache keyed per geometry + settings |
 | S2.2 | SketchUp = S1 look renamed (character unchanged; optional small "more SketchUp" nudges only if they read better) | ✅ identical S1 values (no nudges — the S1 look already reads right); same pipeline output |
 | S2.3 | Borderlands outlines: two-weight thick fat lines on all devices + inverted-hull silhouettes for curved meshes | ✅ `#111` `LineSegments2` everywhere: 3.2 px for boundaries + creases ≥ 60°, 2.2 px for 33–60° (weighted T-junction-safe extractor); edge threshold 33° so 12-gon facets get no lines — instead a clip-space constant-width (3.2 px) back-face hull, built only from "curved" facets (≥ 2 soft-crease neighbours) → only the chimney today; glass gets a thin outline |
@@ -752,7 +752,7 @@ style to any other is leak-free, budgets are met (SketchUp ≤ 60, Borderlands �
 ### I2 — Whole building ✅
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | 2.1 | Upper-floor data (`upper.ts`): knee walls 1.00 m, rooms, openings F-02/F-08/F-09, void railing | ✅ sheet 06 vectors (axis 1 = 195.16 pt, A = 256.575 pt): 11 interior walls (roof-following tops; walls parallel to the eaves reach the higher face so no gap at the slope), doors Ui-02/03/04 (open, leaves as drawn), F-02 90 × 90 hp 80 into the void, F-08/F-09 on the west gable; knee wall = exterior walls up to the roof underside +3.95; structural slab 2.68 → 2.94 + finishes at +2.95; stair well cut out. The void is closed off by walls on sheet 06 (no open gallery edge) — it is seen through F-02; the "parapet riflaj Ø 1 cm" is the rod balustrade of the stair well (on the middle wall, collider on its stair-side face) |
 | 2.2 | Basement data (`basement.ts`): stairs + storage, level −2.53 | ✅ sheet 04 (axis 1 = 200.25 pt, B = 273.25 pt): 25 cm concrete walls, storage H 2.24 (ceiling −0.29), window F01 1.15 × 0.75 hp 1.00 into the light well; storage polygon = plan fill + the 21 cm strip in front of the bottom step (where the stair opens into it), +1.7 % |
 | 2.3 | Main stairs (17 × 17.4 cm / 16 × 29 cm) and basement stairs (14 × 18 cm / 13 × 28 cm) with rod balustrade + handrail; ramp colliders | ✅ main: 8 treads up the east flight (z 3.625 → 5.945), landing (riser 9), 7 treads up the west flight to riser 17 at z 3.875 (tread fills of sheet 06); basement: 7 treads down the west side from z 4.168, 3 winders, 3 treads east under the landing (sheet 04 numbering). Geometry divides the level difference exactly (2.95 / 17, 2.53 / 14). Walking ramps through the nosings (+ helicoid over the winders) replace the I1 blocker; ground snapping in the controller for smooth descent. Rod balustrade on the living-room side and on the middle wall, wall handrails 90 cm |
@@ -770,7 +770,7 @@ calls at the start pose / south garden / rear garden / living room): Realistic �
 SketchUp ≤ 70, Borderlands ≤ 90, ≤ 400 k triangles rendered.
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | 3.1 | Terrain from spot heights (Delaunay), lot outline, setbacks | ✅ `src/data/terrain.ts`: 15 spot heights of sheet 03 (261.70–261.91 = −0.07…−0.28) interpolated by inverse distance (no Delaunay dependency needed for 15 points), raised to the house base next to the house / deck / light well (lawn −0.09, paving on it at the CTA −0.05) and blended to the survey over 1–8 m (slopes < 4 %), faded to the flat context ground (−0.25) within 5.5 m outside the lot; sampled on a 1 m triangulated grid that is both the lawn / field mesh and its collider, so draped paving never intersects it. Lot and patches re-checked against sheet 03 (vector overlay `overlay.html?sheet=03`, local only): unchanged — lot 573.5 m², north 2.28 / south 7.00 / east 7.02 / west 8.00 m, setbacks 1 / 3 / 6 / 6 m respected |
 | 3.2 | Paving: parking pavers, stepping-stone path, gravel strips, bin corner | ✅ parking (80.04 m²), stone path (incl. the sheet-05 covered entrance walk), bin platform PG (1.50 m²) draped 4 cm above the lawn with a lip; natural-stone stepping stones along the north facade (in a 60 cm gravel strip) to the deck and from the south-west yard to the south deck strip; gravel strip under the south slats; round cover on the south-west yard (sheet 03); bin corner screened by vertical timber slats on 2 sides, 2 bins. Paths + terraces outside the built area 91.4 m² vs 87 on the plan: the sheet-05 covered entrance walk adds 7.4 m² (84.0 without it, −3.5 %) |
 | 3.3 | Fence & gates (§6.3), street, neighbour massing, distant backdrop | ✅ oiled timber on blackened-steel posts (≤ 2 m bays, terrain-following): street side (front yard) 1.2 m horizontal slats, sides & rear 1.8 m vertical boards (rails on the neighbour side); closed sliding car gate + open pedestrian gate at the road end on the south-west corner (where sheet 03 draws the access arrows) with a bronze-toned letterbox and a made-up house number; walkable road end bounded by invisible walls; 5 neighbour houses (white/grey massing), low hills 300–440 m out, fog |
@@ -784,7 +784,7 @@ SketchUp ≤ 70, Borderlands ≤ 90, ≤ 400 k triangles rendered.
 For the realistic mode (`?style=real`); the SketchUp and Borderlands looks keep their own procedural toon materials (pixel-identical before/after I4 in the review shots).
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | 4.1 | Asset pipeline `tools/optimize-assets.mjs` (glTF-Transform, KTX2, resize per tier) + `assets-src/LICENSES.md` | ✅ Node-only: `tools/fetch-assets.mjs` (Poly Haven API + ambientCG → `assets-src/`, git-ignored; writes the tracked `LICENSES.md`), `tools/optimize-assets.mjs` (`ktx2-encoder` WASM instead of glTF-Transform/toktx — no native tools needed): per-tier resize, albedo normalised to the §6.1 tint, **ETC1S** albedo + ORM, **UASTC + zstd** normals (hero albedos stay ETC1S: UASTC 2K was 4.6 MB and ~5 min per map); generated standing-seam / micro normals; HDRI → UASTC 2K background + 1K JPEG for PMREM; `manifest.json`. Tracked output 16.6 MB (all tiers). Basis transcoder bundled from three by Vite (own origin, no CDN) |
 | 4.2 | Hero sets (parquet, bathroom tiles, exterior wood) and standard sets (§3.1) | ✅ 13 CC0 sets + 3 generated (list in `assets-src/LICENSES.md`); `src/world/finishes.ts` maps **every material id** to a finish (colour per §6.1, roughness/metalness, set, real-world tile size, normal strength, anti-tiling) — ids without a texture stay flat colour + micro-normal; one material per id, no new meshes (Realistic 34–35 draw calls, unchanged) |
 | 4.3 | World-space UVs, anti-tiling, detail maps | ✅ UVs are world-space metres on every builder (box-projected walls/floors, roof and sloped ceilings in-plane, stairs, terrain, fence, vegetation) — scale set per finish: parquet boards ≈ 18.7 cm, tiles 60 × 60 cm; roof seams stay geometric (flat metal normal between them), facade seams every 50 cm in the generated normal. Anti-tiling `onBeforeCompile` patch: 2-tap offset blend (lawn, meadow, stone, concrete, asphalt, gravel) or low-frequency macro variation (parquet, tiles, pavers, cladding, deck); plaster walls = flat §6.1 colour + 512 px micro-normal (also paint / clay / leaves) |
@@ -802,7 +802,7 @@ Borderlands ≤ 110** draw calls (I3/I4: 35 / 70 / 90), ≤ 400 k triangles rend
 memory unchanged (furniture reuses the shipped sets).
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | 5.1 | Procedural furniture kit (beds, wardrobes, cabinets, kitchen, tables, benches, shelves, sofa, rugs, mirrors, lamps) | ✅ `src/world/furniture/`: `kit.ts` (local frame per piece, boxes, rounded boxes with 2 × 22.5° steps per rounded edge and convex corner splits, 16-sided revolved profiles with optional ovals / open segments, tubes, wall discs) and `pieces.ts` (parametric builders for 48 kinds: beds with mattress / duvet / throw / pillows, bedside tables with ceramic lamps, wardrobes (low ones for the knee walls), hall joinery with bench niche and brass hooks, kitchen tall units (integrated fridge, flush black oven) + run (travertine worktop with a cut-out stone sink, splashback, brass tap, flush hob, open shelf), island with travertine waterfall ends, leather-topped stools, oak dining table, cane chairs, travertine coffee table, modular linen sofa, bouclé armchair, cane lounge chairs, rugs, round brass mirrors, paper / linen pendants, floor lamp, ceramic sconces, wood-burning stove on a travertine hearth + log store, WC, floating oak vanities with stone vessel basins and wall taps, shower screen + rain head, freestanding stone tub with brass filler, towel ladders, boiler, washer / dryer stack, drying rack, baskets, teepee, cushions, book ledge, open shelf, bookshelf, basement shelving with woven boxes, desk + task lamp, daybed, benches, plants, olive tree, outdoor table / benches / side table). 34.8 k triangles in total |
 | 5.2 | CC0 models: chairs, stove, bathroom fixtures, appliances, plants, pendants → one atlas | ✅ decided **procedural only** (no downloads): the kit covers every piece in one consistent style, adds no texture memory or atlas and merges into the per-material draw calls; CC0 models would have needed their own atlas, glTF pipeline and draw calls and looked foreign next to the drawn scene. Nothing added to `assets-src/LICENSES.md` |
 | 5.3 | Furniture placement per room (`furniture.ts`, §6.2) + colliders | ✅ `src/data/furniture.ts`: 91 pieces in 11 rooms (the play corner is part of the living room) + the terrace, real sizes (bed 160 × 200 / 180 × 200, sofa 2.6 m, dining 200 × 90 for 6, worktop 90 / 62 cm), doors (open leaves and their swing squares + 0.5 m in front of every doorway clear), windows (headboards below sills, desks under roof windows, F-07 open half and the east glass door clear), sloped ceilings (low wardrobes on the knee walls, tub, daybed and desk under the slope), stairs / well clear. Colliders: 27 simplified boxes (beds, sofa, tables, kitchen, island, wardrobes, tub, vanities, shelving, stove, daybed, bookshelf, washer stack); small pieces don't collide. `tests/furniture.test.ts`: inside the room polygons, under the ceilings, doors / swings / stairs clear, ≥ 0.8 m walkways along the e2e routes, basic set per room, materials, triangle budget, merge into the house + BVH. e2e: 3 waypoints moved off new furniture (bedroom 1 and terrace teleports, living-room walk along the kitchen–sofa walkway), sofa / island / kitchen / dining table / beds block the player |
@@ -816,7 +816,7 @@ memory unchanged (furniture reuses the shipped sets).
 For the realistic mode (`?style=real`); the SketchUp and Borderlands looks keep their soft single shadow (pixel-identical before / after in the review shots, apart from the room-toast timing). Deviations from §4.1: own chart packer instead of xatlas (see 6.1); stackless BVH traversal of our own over three-mesh-bvh's packed BVH (its GLSL traversal with a per-ray stack was 3–4× slower on the dev PC's Intel HD 4000); RGBM (not half float) in UASTC; a runtime interior gain + per-room eye adaptation on top of the physical bake.
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | 6.1 | UV2 unwrap with xatlas, atlas packing | ✅ `src/bake/unwrap.ts`: **own deterministic chart builder + skyline packer instead of xatlas** — every mesh is a flat-shaded triangle soup of planar architecture / small furniture facets, so charts grow over welded edges inside a 30° normal cone (furniture bevel steps merge into their face), are projected on their mean plane, turned to the min-area rectangle, even-aligned (clean 2× downsample for low) with 2 texels padding and packed bottom-left into **2 × 2048²** (one mesh → one atlas: no extra draw calls; 16 502 charts, 71 % / 71 % filled at full density). Texels: **3 cm indoors**, 7 cm facades / roof / deck, 10 cm garden growing 1.2 cm per m beyond 12 m, up to 4 m on the far ground ring. Not lightmapped (runtime lighting, still occluders): glass, mirror, vegetation (bark, foliage, meadow, flowers — thousands of tiny facets). uv2 stored with the bake (16-bit, `uv2.bin` 0.72 MB) rather than re-unwrapped at runtime (0.7–1.4 s on a desktop — too slow for phones); per-mesh position hash (0.1 mm quantised) → all-or-nothing fallback. Unit tests: packer, density, determinism, scene layout (charts in bounds, no overlaps, uvs inside chart minus padding), no intra-chart overlaps (texel-centre raster) |
 | 6.2 | Texture-space G-buffer | ✅ `src/bake/baker.ts`: MRT float target (position + validity, normal) per atlas, `gl_Position = uv2·2−1`; 8 jittered (±0.49 texel) rasters then the exact one → conservative coverage whose positions always lie on the surface (1.79 M / 1.23 M texels covered) |
 | 6.3 | GPU ray tracing (sun, sky, 2–3 bounces) with three-mesh-bvh, progressive accumulation | ✅ three-mesh-bvh (SAH) BVH of the whole static scene (glass included, see-through with a 0.8 tint; triangles > 40 m — far ground ring, hills — left out, rays below the horizon see an analytic sunlit field) re-laid out 4096 texels wide + escape pointers → own **stackless** GLSL traversal (any-hit for sun rays: 4× faster than the library's stack traversal on the HD 4000). Per texel, stratified (Hammersley, per-texel rotation), jittered across the texel footprint: **32 sun rays** in a 0.6° disc (`lighting.ts` sun, 3.4 × #fff4e2), then **3 radiosity iterations** of 8 / 12 / 96 cosine rays: miss → the same HDRI as I4 (× 1.15, same rotation), hit → albedo × previous iteration's lightmap (via the hit's interpolated uv2), so the result holds sun + sky + 3 bounces. Texels whose rays see > 15 % back faces are inside geometry (screed under floors, cabinet bottoms, lawn under paving) → masked and filled from neighbours: **no light leaks at wall / floor junctions** (the I2 storage floor/wall sunlight line came from the shadow map, which is off with the bake; none visible in the storage review shot). Tiles of 512² with a sync per tile (no Windows GPU reset); progress on `bake.html` |
@@ -836,7 +836,7 @@ For the realistic mode (`?style=real`); the SketchUp and Borderlands looks keep 
 ### I7 — UI & PWA ⬜
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | 7.1 | Loading screen with progress | ⬜ |
 | 7.2 | Menu: teleport to room, quality, sensitivity, invert Y, debug toggle | ⬜ |
 | 7.3 | Mini-map per level (SVG from house data) | ⬜ |
@@ -846,7 +846,7 @@ For the realistic mode (`?style=real`); the SketchUp and Borderlands looks keep 
 ### I8 — Performance & polish ⬜
 
 | # | Step | Status |
-|---|---|---|
+| --- | --- | --- |
 | 8.1 | Profile on Android + iPhone reference devices; fix hot spots | ⬜ |
 | 8.2 | All §3 budgets met; loading ≤ 6 s on 4G | ⬜ |
 | 8.3 | Visual polish pass (materials, light, garden) with owner review | ⬜ |
@@ -858,7 +858,7 @@ material/color variations, measure tool, gyroscope/VR mode.
 ### Progress log
 
 | Date | Iteration / step | Note |
-|---|---|---|
+| --- | --- | --- |
 | 2026-09-24 | I0 | Planning complete: plans read, `goal.md` + `plan.md` written, PDFs kept local only |
 | 2026-09-25 | I1 | First walk implemented. Checks green: lint, typecheck, 39 unit tests (4 files: data incl. 8 room areas ±3 %, reachability, geometry, privacy), build (637 kB JS / 168 kB gzip), 8/8 e2e (1 teleport-settle flake fixed in the test hook). Room areas expected→actual m²: bedroom-1 13.76→13.76, boiler 5.10→5.10, hall 12.32→12.31, bathroom 6.50→6.50, bedroom-2 14.62→14.63, stairs 7.05→7.05, living+kitchen 47.95→47.95, terrace 37.58→37.42. Perf proxy (SwiftShader): 17–22 draw calls, 4.0–4.3 k triangles, scene 3.7 k tris / 992 collider tris, ~32 MB textures; fps not meaningful in software GL — real-phone ≥ 50 fps check pending (1.17). |
 | 2026-09-25 | S1 | Optional sketch style (`?style=sketch`, key K, `__houseSim.setStyle`). Checks green: lint, typecheck, 51 unit tests (12 new), build, e2e incl. the new style spec. Perf proxy (SwiftShader, desktop 1280×720): real 22 / 17 draw calls at start / living room (4.3 k / 4.0 k tris); sketch 39 / 29 draw calls (fills unchanged + one line draw per lined mesh); `renderer.info` triangles 27.0 k / 25.0 k because fat lines are instanced quads (~6 tris per segment, ~3.8 k segments in view); phones use 1 px GL lines. Shadow map 1024 in sketch (8 MB) vs 2048 in real (32 MB). |
@@ -871,6 +871,7 @@ material/color variations, measure tool, gyroscope/VR mode.
 | 2026-09-26 | I6 | Baked lighting (Realistic look only; SketchUp / Borderlands unchanged): own UV2 chart packer (16 502 charts, 2 × 2048² atlases, 71 % filled, 3 cm texels indoors / 7 cm facades / 10 cm+ garden), texture-space G-buffer, own stackless BVH traversal over three-mesh-bvh's BVH, 32 sun + 8 / 12 / 96 sky-and-bounce rays per texel (sun + HDRI sky + 3 bounces, glass tinted see-through, back-face texels masked → no leaks), à-trous denoise, RGBM UASTC. `npm run bake` on the dev PC's Intel HD 4000 (headed Chromium, D3D11): 621 s (481 s tracing). Tracked output 5.2 MB (2K 1.74 + 1.91 MB, 1K 0.53 + 0.56 MB, uv2 0.72 MB). Runtime: lightmaps after the first frame + furniture, sun shadow map off, per-room eye adaptation, hash fallback to I4. Texture memory (SwiftShader) low / medium / high 20.8 / 50.3 / 57.3 MB, Intel medium 69.3 MB; draw calls unchanged (Realistic living 38, aerial 44; SketchUp 72–80, Borderlands 88–103 in the review poses); main bundle 838 kB (+8 kB). Checks: lint, typecheck, 142 unit tests (11 files; new `tests/bake.test.ts`: packer, unwrap density / determinism / scene layout / no overlaps, hash, manifest parsing, all-or-nothing fallback, the committed bake matches the scene, RGBM round trip, shader patch composition), build, `npm run e2e` 14 / 16 (2 phone-only skips, 33.7 min; `materials.spec` now also checks the lightmaps are applied on every tier, stay correct through leak-free style switching and that `?baked=0` keeps the I4 lighting). Review shots (GPU, before `?baked=0` / after) of 10 poses in `test-results/shots/`. Real-phone check pending (6.6). |
 | 2026-10-03 | Owner design update | Six changes from the owner's latest drawings: (1) **west gable mostly wood** (`src/data/facade.ts`, `src/world/cladding.ts`): wood field z 0.275…6.975 up to the loggia-roof line (+3.945 sides, +6.756 apex) in a 0.605 m RAL 7016 metal border (side strips + rake bands, rake seams every 0.66 m); boards 1.2 cm proud over a dark backing, 1.2 cm joints, vertical 0.24 m pitch (joints on the F-04 / F-08 / F-09 edges) with two horizontal zones — lower north to the right edge of F-04 up to its head +2.48 (7 boards over its height, 0.257 m) and upper south from F-09's left edge / sill +3.25 into the gable (0.25 m); vertical boards get their texture turned 90° (UV swap, no new textures). (2) **East curtain wall** per the supplier drawing: 6.66 m in 6 columns 855 \| 1100 \| 1400 \| 1350 \| 1100 \| 855 (north → south; 855 \| 1100 \| 1350 \| 1400 \| 1100 \| 855 in the exterior view), apex mullion on the ridge (3305 \| 3355) → z 0.270…6.930, 50 mm profiles, one transom at +2.500, glass up to the gable (drawing: sides 6805 − 2835 = +3.97, apex +6.805; model roof underside +3.945 / +6.756, kept), the old brown 2.505–3.005 band removed; single door in the 2nd column from the north (1.05 m opening, 0.95 m leaf, clear ≥ 0.90 m, head +2.475), hinged north, kept open 90° **outward** onto the deck; terrace lounger 1 turned to face east (17.25, 0.70) to clear the leaf. (3) **RAL 7016 `#383E42`** for `cladMetal`, `roofMetal` (now also the snow guards, chimney collar and the sunshade fascia), `frame` (all exterior window / door frames, roof-window frames, curtain-wall profiles) — PALETTE + real finishes (tint only); neighbour massing roofs moved to `concrete`, the letterbox to `corten` so they keep their look. (4) **Wall `i-living-stair`** (brick 25 cm, x 9.375…9.625, z 5.945…7.125, floor → landing top +1.56) closes the basement-stair opening from the living room / play corner. (5) **Bedroom-2 ↔ bathroom door removed** (`ui01-bath-bed2`); e2e walk bedroom 2 → hall → bathroom. (6) **South slats interrupted** in front of F-06 (x 4.925…6.925, window band +1.60…+2.20 only; elevation 10 shows the slats continuing above and below). Bake **marked stale** (see I6 note) — not re-baked, owner decision. Draw calls / triangles (SwiftShader 640×360, e2e) start / living: SketchUp 84 / 335 k, 72 / 329 k; Borderlands 103 / 335 k, 86 / 328 k; Realistic 43 / 82 k, 38 / 81 k (draw calls unchanged; scene 81.2 k triangles, collider 6.5 k). Realistic texture memory (stale bake → I4 lighting with shadow maps) low / medium / high 26.8 / 50.3 / 81.3 MB. Checks: lint, typecheck, 151 unit tests + 1 skipped (the bake-consistency test, while stale), build, `npm run e2e:walk` 5/5, `npm run e2e` 14/16 (2 phone-only skips, 33.0 min). |
 | 2026-10-03 | I5 furniture from the plans | Furniture re-placed from the drawn symbols (see the I5 note): **106 pieces** (ground 68, upper 35, basement 3; 58 from sheets 05/06, 17 "not on plans", 31 extras), 4 new kinds (`ottoman`, `tubChair`, `laundryRun`, `print`) + options (round stove, bidet, end-leg dining table, island sink + shelf strip, run with hob / oven / hood / shelf, monitor), **no new material ids** (9 furniture ids unchanged), 39.9 k furniture triangles (was 34.7 k), 38 collider boxes. Deviations: the drawn island sink is a cut-out travertine bowl; bedroom-3 east wardrobes split into 3 + 4 sections stepped under the slope and the study storage into 3 open bays (drawn full-height under a 1.0–2.8 m ceiling); the study desk (only screen + keyboard drawn) sized 1.20 × 0.60; nothing drawn conflicts with the 2026-10 updates (no bedroom-2 bath door, stair wall, curtain-wall door). Overlay (furniture footprints over sheets 04/05/06, local) and review shots `test-results/shots/furn-<room>-<style>.png` (24 poses SketchUp, 9 Realistic / Borderlands) checked. e2e not run (owner decision); walk spec waypoints moved where the plan furniture now stands (bathroom, upper bathroom, study F-02, terrace route round the dining table, upper-hall end wall now the wardrobe, furniture-block poses). Draw calls / `renderer.info` triangles (headed GPU Chromium 1280×720) start / living: SketchUp 84 / 355 k, 73 / 349 k; Borderlands 103 / 355 k, 88 / 349 k; Realistic 43 / 87 k, 38 / 86 k (budgets 90 / 110 / 45 met; furniture review poses up to 85 / 103 / 44). Bake still stale (not re-baked). Checks: lint, typecheck, 153 unit tests + 1 skipped, build (furniture chunk 52 kB / 17 kB gzip). |
+| 2026-10-03 | Owner furniture follow-ups | Three owner requests (I5): (1) **Bedroom 3 furnished by the owner's choice, not the plans** (13 pieces, `source` "owner choice — not per plans", none on a drawn symbol; the drawn twin beds, four bedside tables and stepped wardrobes removed): low wide oak bed 1.80 × 2.15 with its head on the east wall (x 2.47…4.62, z 4.18…5.98; ≥ 1.96 m of ceiling over it, the south roof window above its side, F-09 at its foot), two oak bedside tables with clay lamps, one print above the bed, oak bench + olive throw at the foot on a 2.45 × 2.60 m wool rug, one 0.90 m line of low oak cupboards under the north knee wall (x 0.13…4.62, blind corner) and round into the north-east niche (z 0.61…2.31) plus 1.80 m under the south knee wall west of the bed, bouclé armchair under F-08 with the olive floor lamp, a tall plant between the two west windows; door swing clear, large pieces ≥ 0.8 m apart or joined. (2) **Study desk the full length of the east wall** (where the plans draw the screen): z 0.129…2.306 (2.177 m, ≤ 4 mm from each wall), x 8.857…9.507 (0.65 deep), 0.75 high (under F-02's 0.80 sill); 4 cm solid oak top, 3-drawer pedestal at the low north end, slim oak panel leg at the hall wall, rail along the wall; screen + keyboard as drawn (z ≈ 1.22), task lamp 0.55 m north of the screen (clear of the slope), books at the low end, a small plant at the south end; chair as drawn (1.92 m of ceiling over the sitter). (3) **Kitchen wall cupboards over the whole run**: x 10.225…16.222 (6.0 m, meeting the 2.40 m fridge column, so the 6.6 m wall is joinery up to +2.40 end to end), +1.50…+2.40 (0.60 over the worktop, the splashback runs up to them), 0.35 deep, oak slab doors (1 + 2 over the hob + 7) with smoked-oak finger pulls on their bottom edge, the extractor integrated in the 0.90 m unit over the hob (dark visor; replaces the oak canopy hood and the open wall shelf), one open oak bay at the east end with ceramics and books; no north-wall opening over the run (F-03 / F-02 / Ue-01 all west of x 9.33), pendants ≥ 1.5 m from the fronts. No new material ids or textures; bake still stale (not re-baked). 103 pieces (upper 32), 41.4 k furniture triangles (was 39.9 k), 31 collider boxes. Tests: `furniture.test.ts` — bedroom 3 out of the drawn-symbol checks (38 drawn pieces remain), new checks for the owner set, the full-length desk and the wall cupboards; e2e not run (owner decision), walk spec: bed-3 block pose and the study F-02 walk moved for the new bed / desk. Review shots `test-results/shots/fu-{bed3-a,bed3-b,bed3-c,study-door,study-side,kitchen-front,kitchen-angle}-{sketchup,borderlands,real}.png` (headed GPU Chromium 1280×720), draw calls SketchUp 73–82, Borderlands 86–99, Realistic 38–42 (budgets 90 / 110 / 45). Checks: lint, typecheck, 156 unit tests + 1 skipped, build (furniture chunk 55 kB / 18 kB gzip). |
 
 ---
 
