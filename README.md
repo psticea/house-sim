@@ -55,11 +55,25 @@ model transcribed from the architectural drawings (no Blender), rendered with th
 
 ## Controls
 
+The drop-down in the top-left corner (or **F**) switches between **Walk** and **Fly**; the
+choice is remembered, and `?controls=walk|fly` overrides it for one load.
+
+**Walk** (first person, gravity, stairs):
+
 | Phone / tablet                                        | Desktop                                  |
 | ----------------------------------------------------- | ---------------------------------------- |
 | Left thumb: floating joystick (push to the rim = run) | W A S D / arrow keys — move              |
 | Right thumb: drag to look                             | Mouse — look (click to lock the pointer) |
 |                                                       | Shift — run · Esc — release the mouse    |
+
+**Fly** (drone camera, from the walker's eye; release the sticks and it hovers; it bumps
+into walls, roof and ground and slides along them):
+
+| Phone / tablet (two fixed sticks, Mode 2)                          | Desktop                                        |
+| ------------------------------------------------------------------ | ---------------------------------------------- |
+| Left stick (bottom left): up/down = climb/descend, ← → = turn      | W A S D / arrow keys — forward, back, sideways |
+| Right stick (bottom right): up/down = forward/back, ← → = sideways | E / Space — up · Q / C — down · Shift — fast   |
+| Drag elsewhere: tilt / turn the camera                             | Mouse — look                                   |
 
 ## Styles
 
@@ -350,7 +364,7 @@ src/world/    builders: walls (layers + holes), openings, curtain wall, slabs, r
               at runtime (lightmaps.ts)
 src/bake/     dev-only lightmap baker (bake.html): unwrap, GPU G-buffer + ray tracing,
               denoise / dilate, RGBM export
-src/player/   capsule controller (three-mesh-bvh shapecast), touch + desktop input
+src/player/   capsule controller (three-mesh-bvh shapecast), drone (fly controls), touch + desktop input
 src/core/     renderer, frame loop, debug overlay, URL params, quality tiers, asset loading
 src/ui/       loading screen, start card, room toast, styles
 tests/        Vitest unit tests; tests/e2e/ Playwright

@@ -175,7 +175,8 @@ canvas.view {
   gap: 6px;
   font-size: 0.8rem;
 }
-.style-toggle button {
+.style-toggle button,
+.controls-toggle button {
   font: inherit;
   color: var(--ink);
   border: 0;
@@ -183,11 +184,13 @@ canvas.view {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-.style-toggle button:focus-visible {
+.style-toggle button:focus-visible,
+.controls-toggle button:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
-.style-pill {
+.style-pill,
+.controls-pill {
   /* Visually small, but a ≥ 40 px hit target (padding + transparent border area). */
   display: inline-flex;
   align-items: center;
@@ -201,7 +204,8 @@ canvas.view {
   font-weight: 500;
   letter-spacing: 0.02em;
 }
-.style-pill::before {
+.style-pill::before,
+.controls-pill::before {
   content: '';
   position: absolute;
   inset: 5px 0;
@@ -214,7 +218,9 @@ canvas.view {
   transition: background 0.15s ease;
 }
 .style-pill:hover::before,
-.style-toggle.open .style-pill::before {
+.style-toggle.open .style-pill::before,
+.controls-pill:hover::before,
+.controls-toggle.open .controls-pill::before {
   background: rgba(252, 250, 246, 0.95);
 }
 .style-toggle.busy .style-name {
@@ -240,10 +246,12 @@ canvas.view {
   stroke-linejoin: round;
   transition: transform 0.15s ease;
 }
-.style-toggle.open .style-caret {
+.style-toggle.open .style-caret,
+.controls-toggle.open .style-caret {
   transform: rotate(180deg);
 }
-.style-menu {
+.style-menu,
+.controls-menu {
   display: flex;
   flex-direction: column;
   min-width: 152px;
@@ -254,10 +262,12 @@ canvas.view {
   backdrop-filter: blur(10px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
 }
-.style-menu[hidden] {
+.style-menu[hidden],
+.controls-menu[hidden] {
   display: none;
 }
-.style-option {
+.style-option,
+.controls-option {
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -267,13 +277,32 @@ canvas.view {
   background: transparent;
   text-align: left;
 }
-.style-option:hover {
+.style-option:hover,
+.controls-option:hover {
   background: rgba(43, 43, 43, 0.06);
 }
-.style-option.current {
+.style-option.current,
+.controls-option.current {
   background: var(--ink);
   color: var(--paper);
   font-weight: 600;
+}
+
+/* Controls toggle (Walk / Fly): same pill and menu, top left. */
+.controls-toggle {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 10px);
+  left: calc(env(safe-area-inset-left) + 10px);
+  z-index: 15;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+.controls-menu {
+  min-width: 120px;
 }
 
 /* Room toast */
@@ -411,12 +440,102 @@ body.locked .crosshair {
 body.touch .touch-hint {
   display: block;
 }
+body.fly .touch-hint {
+  display: none;
+}
+
+/* Fly controls (touch): two fixed sticks in the bottom corners, under the thumbs. */
+.fly-sticks {
+  display: none;
+}
+body.touch.fly .fly-sticks {
+  display: block;
+}
+.fly-stick {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom) + max(28px, 7vh));
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+  /* Dark tint: readable over bright paving and sky alike. */
+  background: rgba(30, 30, 28, 0.18);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.12);
+  opacity: 0.8;
+  transition: opacity 0.15s ease;
+}
+.fly-stick.left {
+  left: calc(env(safe-area-inset-left) + max(24px, 6vw));
+}
+.fly-stick.right {
+  right: calc(env(safe-area-inset-right) + max(24px, 6vw));
+}
+.fly-stick.on {
+  opacity: 1;
+}
+/* Axis guides. */
+.fly-stick::before,
+.fly-stick::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.4);
+}
+.fly-stick::before {
+  left: 50%;
+  top: 14px;
+  bottom: 14px;
+  width: 1px;
+}
+.fly-stick::after {
+  top: 50%;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+}
+.fly-knob {
+  position: absolute;
+  left: calc(50% - 24px);
+  top: calc(50% - 24px);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(244, 241, 234, 0.9);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 1;
+}
+.fly-stick.on .fly-knob {
+  background: var(--sage);
+}
+.fly-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.66rem;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.fly-label.v {
+  bottom: calc(100% + 6px);
+}
+.fly-label.h {
+  top: calc(100% + 4px);
+}
+/* Landscape phones: slightly smaller sticks, lower. */
+@media (max-height: 440px) {
+  .fly-stick {
+    width: 112px;
+    height: 112px;
+    bottom: calc(env(safe-area-inset-bottom) + 24px);
+  }
+}
 
 /* Debug */
 .debug {
   position: absolute;
   left: calc(env(safe-area-inset-left) + 8px);
-  top: calc(env(safe-area-inset-top) + 8px);
+  /* Below the controls pill. */
+  top: calc(env(safe-area-inset-top) + 56px);
   margin: 0;
   padding: 6px 8px;
   font:

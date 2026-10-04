@@ -73,4 +73,69 @@ test.describe('touch UI (mobile emulation)', () => {
     ).toEqual([0, 0, 1]);
     expect(s.errors).toEqual([]);
   });
+
+  test('fly controls: drop-down shows two thumb sticks that fly the drone', async ({ page }) => {
+    const s = await openSim(page);
+    await expect(page.locator('.fly-stick')).toHaveCount(2);
+    await expect(page.locator('.fly-stick').first()).toBeHidden();
+    await page.locator('.controls-pill').tap();
+    await page.locator('.controls-option[data-controls="fly"]').tap();
+    await expect(page.locator('.controls-toggle')).toHaveAttribute('data-controls', 'fly');
+    expect(await page.evaluate(() => window.__houseSim!.getControls())).toBe('fly');
+    await expect(page.locator('.start p')).toContainText('Left stick');
+    await page.locator('.start button').tap();
+    await expect(page.locator('.start')).toHaveClass(/off/);
+
+    // Both sticks visible, in the bottom corners, within thumb reach.
+    const vp = page.viewportSize()!;
+    const left = (await page.locator('.fly-stick.left').boundingBox())!;
+    const right = (await page.locator('.fly-stick.right').boundingBox())!;
+    for (const b of [left, right]) {
+      expect(b.width).toBeGreaterThanOrEqual(100);
+      expect(b.y + b.height).toBeLessThanOrEqual(vp.height);
+      expect(b.y).toBeGreaterThan(vp.height * 0.55);
+    }
+    expect(left.x + left.width).toBeLessThan(vp.width / 2);
+    expect(right.x).toBeGreaterThan(vp.width / 2);
+    await page.screenshot({
+      path: `test-results/e2e-shots/mobile-fly-${test.info().project.name}.png`,
+    });
+
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (
+      type: 'touchStart' | 'touchMove' | 'touchEnd',
+      points: { x: number; y: number; id: number }[],
+    ) =>
+      cdp.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: points.map((p) => ({ ...p, radiusX: 4, radiusY: 4, force: 1 })),
+      });
+    const before = await page.evaluate(() => window.__houseSim!.getDrone());
+    // Left stick up (climb) + right stick up (forward), both thumbs at once.
+    const l = { x: left.x + left.width / 2, y: left.y + left.height / 2 };
+    const r = { x: right.x + right.width / 2, y: right.y + right.height / 2 };
+    await touch('touchStart', [{ ...l, id: 1 }]);
+    await touch('touchStart', [
+      { ...l, id: 1 },
+      { ...r, id: 2 },
+    ]);
+    for (let i = 1; i <= 6; i++) {
+      await touch('touchMove', [
+        { x: l.x, y: l.y - i * 10, id: 1 },
+        { x: r.x, y: r.y - i * 10, id: 2 },
+      ]);
+    }
+    await expect(page.locator('.fly-stick.left')).toHaveClass(/on/);
+    await expect(page.locator('.fly-stick.right')).toHaveClass(/on/);
+    await page.waitForTimeout(1500);
+    await touch('touchEnd', []);
+    await page.evaluate(() => window.__houseSim!.nextFrame());
+    const after = await page.evaluate(() => window.__houseSim!.getDrone());
+    expect(after.y - before.y).toBeGreaterThan(0.3);
+    expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeGreaterThan(0.3);
+    await expect(page.locator('.fly-stick.left')).not.toHaveClass(/on/);
+    // The walk joystick stays out of the way while flying.
+    await expect(page.locator('.joy-base')).not.toHaveClass(/on/);
+    expect(s.errors).toEqual([]);
+  });
 });

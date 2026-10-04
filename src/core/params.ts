@@ -2,7 +2,8 @@
  * URL parameters: `?debug`, `?pose=x,y,z,yawDeg,pitchDeg`, `?view=x,y,z,yawDeg,pitchDeg`,
  * `?tonemap=aces|agx|neutral`, `?style=sketchup|borderlands|real` (`sketch` = `sketchup`, the default),
  * `?quality=low|medium|high|auto` (read by core/quality.ts), `?dynres=0` (fixed resolution),
- * `?baked=0` (realistic look without the baked lightmaps — the I4 shadow-map lighting).
+ * `?baked=0` (realistic look without the baked lightmaps — the I4 shadow-map lighting),
+ * `?controls=walk|fly` (overrides the stored controls choice for one load).
  */
 
 /** The three looks (plan.md S2). */
@@ -11,6 +12,18 @@ export type StyleName = 'real' | 'sketchup' | 'borderlands';
 export const STYLE_NAMES: readonly StyleName[] = ['sketchup', 'borderlands', 'real'];
 /** Old S1 names that still work (URL, `setStyle`). */
 export const STYLE_ALIASES: Readonly<Record<string, StyleName>> = { sketch: 'sketchup' };
+
+/** Walk (first person, gravity) or fly (drone camera, two sticks). */
+export type ControlsMode = 'walk' | 'fly';
+export const CONTROLS_MODES: readonly ControlsMode[] = ['walk', 'fly'];
+
+/** Canonical controls mode, or `null` for anything unknown. */
+export function controlsModeOf(v: string | null | undefined): ControlsMode | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim().toLowerCase();
+  if (s === 'drone') return 'fly';
+  return (CONTROLS_MODES as readonly string[]).includes(s) ? (s as ControlsMode) : null;
+}
 
 export interface Params {
   debug: boolean;
@@ -28,6 +41,8 @@ export interface Params {
   fixedResolution: boolean;
   /** `?baked=0`: don't load the baked lightmaps (before / after comparisons). */
   baked: boolean;
+  /** `?controls=` if it names a known mode (overrides the stored choice), else `null`. */
+  controls: ControlsMode | null;
 }
 
 /** Look used when neither the URL nor a stored choice names one (owner, 2026-10-04: realistic). */
@@ -64,5 +79,6 @@ export function readParams(search: string = window.location.search): Params {
     styleParam: styleNameOf(q.get('style')),
     fixedResolution: q.get('dynres') === '0',
     baked: q.get('baked') !== '0',
+    controls: controlsModeOf(q.get('controls')),
   };
 }
