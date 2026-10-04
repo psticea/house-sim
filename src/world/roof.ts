@@ -178,6 +178,35 @@ export function buildRoof(mesh: MeshBuilder, roof: Roof): void {
   buildSnowGuards(mesh, roof, F);
 }
 
+/**
+ * Collision slabs under every roof segment (both slopes): a closed box whose inner face
+ * is the sloped ceiling, from below the knee-wall line to past the ridge (the two slopes
+ * overlap there), solid over the roof windows. The capsule's head stops against it, so
+ * the camera never gets into the roof build-up on the upper floor.
+ */
+export function buildRoofCollider(collider: MeshBuilder, roof: Roof): void {
+  const F = frames(roof);
+  const cos = Math.cos(rad(roof.pitchDeg));
+  const T = 0.3;
+  const below = 0.3;
+  for (const seg of roof.segments) {
+    const [x0, x1] = seg.x;
+    for (const side of ['n', 's'] as const) {
+      const f = F[side];
+      const zLow = side === 'n' ? roof.eaveZ[0] + seg.innerZ : roof.eaveZ[1] - seg.innerZ;
+      const Ls = Math.abs(roof.ridgeZ - zLow) / cos;
+      const v0 = -below;
+      const v1 = Ls + T;
+      const c = add(add([(x0 + x1) / 2, seg.innerY, zLow], f.up, (v0 + v1) / 2), f.n, T / 2);
+      collider.orientedBox('concrete', c, [1, 0, 0], f.up, f.n, [
+        (x1 - x0) / 2,
+        (v1 - v0) / 2,
+        T / 2,
+      ]);
+    }
+  }
+}
+
 /** Frame + glass on the sheet, reveal lining through the build-up, inner sash. */
 function buildRoofWindow(
   mesh: MeshBuilder,

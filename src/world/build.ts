@@ -14,7 +14,7 @@ import { castsShadow, createMaterials, type MaterialLibrary } from './materials'
 import { buildSite } from './garden';
 import { MeshBuilder } from './meshBuilder';
 import { buildOpening } from './openings';
-import { buildChimney, buildRoof } from './roof';
+import { buildChimney, buildRoof, buildRoofCollider } from './roof';
 import { buildSlab } from './slabs';
 import { buildStairs } from './stairs';
 import { buildWall, WET_ROOMS, type WallBuildContext } from './walls';
@@ -99,6 +99,7 @@ export function buildGeometry(
   }
 
   buildRoof(mesh, model.roof);
+  buildRoofCollider(collider, model.roof);
   buildChimney(mesh, model.roof);
   const c = model.roof.chimney;
   collider.box(

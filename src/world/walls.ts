@@ -364,4 +364,71 @@ export function addWallCollider(
     u = u1;
   }
   addBox(u, ws.length, base, top);
+
+  // Above the box, up to the wall's real top: the upper-floor part of the two-storey
+  // shell (knee walls, gables) and the upper walls under the roof — so nothing above the
+  // cap is pass-through. Extruded per stretch between profile kinks / opening edges.
+  const cuts = new Set<number>([0, ws.length]);
+  for (const [pu] of profile) cuts.add(Math.min(ws.length, Math.max(0, pu)));
+  for (const p of passable) {
+    cuts.add(p.u0);
+    cuts.add(p.u1);
+  }
+  const us = [...cuts].sort((a, b) => a - b);
+  for (let i = 0; i + 1 < us.length; i++) {
+    const a = us[i]!;
+    const b = us[i + 1]!;
+    if (b - a < 1e-4) continue;
+    const open = passable.find((p) => a >= p.u0 - EPS && b <= p.u1 + EPS);
+    const lo = open ? Math.max(top, open.o.sill + open.o.height) : top;
+    const va = wallTopAt(profile, a);
+    const vb = wallTopAt(profile, b);
+    if (va <= lo + 1e-4 && vb <= lo + 1e-4) continue;
+    let ring: Pt[];
+    if (va >= lo && vb >= lo) {
+      ring = [
+        [a, lo],
+        [b, lo],
+        [b, vb],
+        [a, va],
+      ];
+    } else {
+      // The top crosses `lo` inside the stretch: keep the triangle above it.
+      const uc = a + ((lo - va) / (vb - va)) * (b - a);
+      ring =
+        va > lo
+          ? [
+              [a, lo],
+              [uc, lo],
+              [a, va],
+            ]
+          : [
+              [uc, lo],
+              [b, lo],
+              [b, vb],
+            ];
+    }
+    ring = cleanRing(ring);
+    if (ring.length < 3) continue;
+    extrudeCollider(collider, ws, ring, t);
+  }
+}
+
+/** Closed prism of an elevation polygon (u, v) across the wall thickness (±t). */
+function extrudeCollider(collider: MeshBuilder, ws: WallSpace, ring: Pt[], t: number): void {
+  const front: V3 = [ws.aw[0], 0, ws.aw[2]];
+  const back: V3 = [-ws.aw[0], 0, -ws.aw[2]];
+  collider.polygon('concrete', ring, [], (u, v) => ws.p(u, v, t), front);
+  collider.polygon('concrete', ring, [], (u, v) => ws.p(u, v, -t), back);
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i]!;
+    const q = ring[(i + 1) % ring.length]!;
+    collider.quad(
+      'concrete',
+      ws.p(p[0], p[1], t),
+      ws.p(q[0], q[1], t),
+      ws.p(q[0], q[1], -t),
+      ws.p(p[0], p[1], -t),
+    );
+  }
 }
