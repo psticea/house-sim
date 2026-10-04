@@ -457,10 +457,11 @@ body.touch.fly .fly-sticks {
   width: 128px;
   height: 128px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.75);
-  background: rgba(244, 241, 234, 0.2);
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+  /* Dark tint: readable over bright paving and sky alike. */
+  background: rgba(30, 30, 28, 0.18);
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.12);
-  opacity: 0.75;
+  opacity: 0.8;
   transition: opacity 0.15s ease;
 }
 .fly-stick.left {
