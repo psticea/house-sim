@@ -79,10 +79,10 @@ const hingeLength = (segs: Float32Array) =>
     .reduce((s, x) => s + x.len, 0);
 
 describe('style names and URL parameter', () => {
-  it('SketchUp is the default; `sketch` is an alias; unknown → default', () => {
-    expect(DEFAULT_STYLE).toBe('sketchup');
+  it('Realistic is the default; `sketch` is an alias; unknown → default', () => {
+    expect(DEFAULT_STYLE).toBe('real');
     expect(STYLE_NAMES).toEqual(['sketchup', 'borderlands', 'real']);
-    expect(readParams('').style).toBe('sketchup');
+    expect(readParams('').style).toBe('real');
     expect(readParams('').styleParam).toBeNull();
     expect(readParams('?style=sketch').style).toBe('sketchup');
     expect(readParams('?style=sketch').styleParam).toBe('sketchup');
@@ -90,9 +90,9 @@ describe('style names and URL parameter', () => {
     expect(readParams('?style=borderlands').style).toBe('borderlands');
     expect(readParams('?style=real').style).toBe('real');
     expect(readParams('?style=BorderLands').style).toBe('borderlands');
-    expect(readParams('?style=cartoon&debug').style).toBe('sketchup');
+    expect(readParams('?style=cartoon&debug').style).toBe('real');
     expect(readParams('?style=cartoon').styleParam).toBeNull();
-    expect(parseStyle(null)).toBe('sketchup');
+    expect(parseStyle(null)).toBe('real');
     expect(styleNameOf('nope')).toBeNull();
     expect(styleNameOf(undefined)).toBeNull();
   });
@@ -590,8 +590,10 @@ describe('style registry: setStyle / removeStyle / disposeStyles', () => {
 
   it('unknown names fall back to the default look', () => {
     const s = syntheticScene();
-    setStyle(s.scene, 'cartoon', { lighting: s.lighting });
+    setStyle(s.scene, 'sketchup', { lighting: s.lighting });
     expect(getStyle(s.scene)).toBe('sketchup');
+    setStyle(s.scene, 'cartoon', { lighting: s.lighting });
+    expect(getStyle(s.scene)).toBe(DEFAULT_STYLE);
     disposeStyles(s.scene);
     expect(getStyle(s.scene)).toBe('real');
   });

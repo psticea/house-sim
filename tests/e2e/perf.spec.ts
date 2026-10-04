@@ -55,22 +55,22 @@ test('perf proxy: draw calls, triangles, fps', async ({ page }, info) => {
     textureMB: living.textureMB,
     geometries: living.geometries,
   };
-  // The default look is SketchUp; also record the realistic look at the same pose.
+  // The default look is Realistic; also record SketchUp at the same pose.
   result.style = await page.evaluate(() => window.__houseSim!.getStyle());
-  await page.evaluate(() => window.__houseSim!.setStyle('real'));
+  await page.evaluate(() => window.__houseSim!.setStyle('sketchup'));
   await page.evaluate(() => window.__houseSim!.nextFrame());
-  const real = await sim.stats(page);
-  result.livingReal = { drawCalls: real.drawCalls, triangles: real.triangles };
+  const sketch = await sim.stats(page);
+  result.livingSketchup = { drawCalls: sketch.drawCalls, triangles: sketch.triangles };
 
   fs.mkdirSync('test-results', { recursive: true });
   fs.writeFileSync(`test-results/perf-${info.project.name}.json`, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
-  // I5 budgets (furniture: 9 new materials): SketchUp ≤ 90 (default look), Realistic ≤ 45.
-  expect(start.drawCalls).toBeLessThanOrEqual(90);
-  expect(living.drawCalls).toBeLessThanOrEqual(90);
-  expect(real.drawCalls).toBeLessThanOrEqual(45);
+  // Budgets: Realistic ≤ 45 (default look), SketchUp ≤ 90.
+  expect(start.drawCalls).toBeLessThanOrEqual(45);
+  expect(living.drawCalls).toBeLessThanOrEqual(45);
+  expect(sketch.drawCalls).toBeLessThanOrEqual(90);
   expect(living.sceneTriangles).toBeLessThan(400_000);
-  expect(result.style).toBe('sketchup');
-  expect(real.drawCalls).toBeLessThanOrEqual(living.drawCalls);
+  expect(result.style).toBe('real');
+  expect(living.drawCalls).toBeLessThanOrEqual(sketch.drawCalls);
   expect(s.errors).toEqual([]);
 });

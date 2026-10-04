@@ -30,8 +30,8 @@ export interface Params {
   baked: boolean;
 }
 
-/** Look used when neither the URL nor a stored choice names one. */
-export const DEFAULT_STYLE: StyleName = 'sketchup';
+/** Look used when neither the URL nor a stored choice names one (owner, 2026-10-04: realistic). */
+export const DEFAULT_STYLE: StyleName = 'real';
 
 /** Canonical style name (`sketch` → `sketchup`), or `null` for anything unknown. */
 export function styleNameOf(v: string | null | undefined): StyleName | null {

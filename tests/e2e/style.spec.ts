@@ -76,11 +76,11 @@ test.describe('styles', () => {
     test.skip(info.project.name !== 'desktop', 'desktop project only');
     test.setTimeout(600_000);
     const s = await openSim(page);
-    expect(await getStyle(page)).toBe('sketchup');
-    await expect(page.locator('#app .paper-grain')).toHaveCount(1);
+    expect(await getStyle(page)).toBe('real');
+    await expect(page.locator('#app .paper-grain')).toHaveCount(0);
     await expect(pill(page)).toBeVisible();
-    await expect(pill(page)).toHaveAttribute('aria-label', /SketchUp/);
-    await expect(pill(page)).toContainText('SketchUp');
+    await expect(pill(page)).toHaveAttribute('aria-label', /Realistic/);
+    await expect(pill(page)).toContainText('Realistic');
     const box = (await pill(page).boundingBox())!;
     const vp = page.viewportSize()!;
     expect(box.height).toBeGreaterThanOrEqual(40);
@@ -91,7 +91,7 @@ test.describe('styles', () => {
     const before = await sim.player(page);
     await pill(page).click();
     await expect(page.locator('.style-menu')).toBeVisible();
-    await expect(option(page, 'sketchup')).toHaveAttribute('aria-checked', 'true');
+    await expect(option(page, 'real')).toHaveAttribute('aria-checked', 'true');
     await option(page, 'borderlands').click();
     await expect(page.locator('.style-menu')).toBeHidden();
     await expect.poll(() => getStyle(page), FIRST_BUILD).toBe('borderlands');
@@ -260,7 +260,7 @@ test.describe('styles', () => {
     test.setTimeout(1_800_000);
     const s = await openSim(page);
     await hideStartOverlay(page);
-    expect(await getStyle(page)).toBe('sketchup');
+    expect(await getStyle(page)).toBe('real');
     const start = await startPose(page);
     for (const style of STYLES) {
       await setStyle(page, style);
