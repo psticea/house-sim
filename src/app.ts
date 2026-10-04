@@ -8,7 +8,15 @@ import type { LevelId } from './data/schema';
 import { OUTSIDE, lightRoom, locate } from './data/topology';
 import { DebugOverlay, estimateTextureMB, FrameStats } from './core/debug';
 import { Loop } from './core/loop';
-import { readParams, STYLE_NAMES, styleNameOf, DEFAULT_STYLE, type StyleName } from './core/params';
+import {
+  controlsModeOf,
+  readParams,
+  STYLE_NAMES,
+  styleNameOf,
+  DEFAULT_STYLE,
+  type ControlsMode,
+  type StyleName,
+} from './core/params';
 import {
   chooseQuality,
   DynamicResolution,
@@ -29,6 +37,8 @@ import {
 } from './core/renderer';
 import { DesktopInput } from './player/input-desktop';
 import { TouchInput } from './player/input-touch';
+import { DroneTouchInput } from './player/input-drone-touch';
+import { DroneController, NO_DRONE_INPUT, type DroneInput } from './player/drone';
 import { PLAYER, PlayerController, yawToward } from './player/controller';
 import { buildWorld } from './world/build';
 import { createLighting } from './world/lighting';
@@ -42,6 +52,7 @@ import { AssetProgress } from './ui/progress';
 import { RoomToast } from './ui/toast';
 import { StartOverlay } from './ui/hud';
 import { StyleToggle } from './ui/style-toggle';
+import { ControlsToggle } from './ui/controls-toggle';
 
 export interface PlayerInfo {
   x: number;
@@ -89,6 +100,18 @@ export interface Stats {
   sunShadow: boolean;
 }
 
+/** Drone camera (fly controls). */
+export interface DroneInfo {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+  vx: number;
+  vy: number;
+  vz: number;
+}
+
 export interface HouseSimHooks {
   ready: Promise<void>;
   isReady: boolean;
@@ -116,6 +139,12 @@ export interface HouseSimHooks {
   view(pose: [number, number, number, number, number] | null): Promise<void>;
   look(yawDeg: number, pitchDeg: number): Promise<PlayerInfo>;
   nextFrame(): Promise<void>;
+  /** Walk or fly controls (the drop-down; `fly` starts the drone at the walker's eye). */
+  setControls(mode: ControlsMode): Promise<void>;
+  getControls(): ControlsMode;
+  getDrone(): DroneInfo;
+  /** Simulates `seconds` of flying with fixed stick positions (deterministic, fixed steps). */
+  fly(input: Partial<DroneInput>, seconds: number): Promise<DroneInfo>;
   /** Switches the look (`sketchup` | `borderlands` | `real`; `sketch` = `sketchup`) and waits for a rendered frame. */
   setStyle(name: StyleName | 'sketch'): Promise<void>;
   /** Current look (canonical name): stored choice / `?style=` / default `sketchup`. */
@@ -158,6 +187,25 @@ function storedStyle(): StyleName | null {
 function storeStyle(name: StyleName): void {
   try {
     window.localStorage.setItem(STYLE_STORAGE_KEY, name);
+  } catch {
+    // not persisted — fine
+  }
+}
+
+/** localStorage key of the chosen controls (`?controls=` overrides it for one load). */
+export const CONTROLS_STORAGE_KEY = 'houseSim.controls';
+
+function storedControls(): ControlsMode | null {
+  try {
+    return controlsModeOf(window.localStorage.getItem(CONTROLS_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function storeControls(mode: ControlsMode): void {
+  try {
+    window.localStorage.setItem(CONTROLS_STORAGE_KEY, mode);
   } catch {
     // not persisted — fine
   }
@@ -290,11 +338,14 @@ export async function startApp(): Promise<void> {
   }
   let freeView: number[] | null = params.view;
   player.applyToCamera(camera);
+  const drone = new DroneController(world.bvh);
+  let controls: ControlsMode = 'walk';
   renderer.compile(scene, camera);
 
   // Input & UI.
   const desktop = new DesktopInput(canvas);
   const touchInput = new TouchInput(canvas, ui);
+  const droneTouch = new DroneTouchInput(canvas, ui);
   const toast = new RoomToast(ui);
   const crosshair = document.createElement('div');
   crosshair.className = 'crosshair';
@@ -317,6 +368,33 @@ export async function startApp(): Promise<void> {
     } else {
       desktop.requestLock();
     }
+  });
+  // Controls drop-down (pill, top left) + F: walk or fly; the choice is remembered.
+  const setControls = (mode: ControlsMode, announce: boolean): void => {
+    if (mode === 'fly' && controls !== 'fly') {
+      // Take off from the walker's eye, looking the same way.
+      const eye = player.eye(new THREE.Vector3());
+      drone.teleport(eye.x, eye.y, eye.z, player.yaw, player.pitch);
+    }
+    controls = mode;
+    const fly = mode === 'fly';
+    touchInput.enabled = !fly;
+    droneTouch.enabled = fly;
+    document.body.classList.toggle('fly', fly);
+    controlsToggle.set(mode);
+    overlay.setMode(mode);
+    snapLight();
+    if (announce) toast.show(fly ? 'Fly controls' : 'Walk controls');
+  };
+  const chooseControls = (mode: ControlsMode): void => {
+    if (mode === controls) return;
+    setControls(mode, true);
+    storeControls(mode);
+  };
+  const controlsToggle = new ControlsToggle(ui, controls, chooseControls);
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyF' || e.repeat) return;
+    chooseControls(controls === 'fly' ? 'walk' : 'fly');
   });
   desktop.onLockChange = (locked) => {
     document.body.classList.toggle('locked', locked);
@@ -361,6 +439,7 @@ export async function startApp(): Promise<void> {
     adaptRoom = null;
     realLook.snap();
   };
+  setControls(params.controls ?? storedControls() ?? 'walk', false);
 
   const info = (): PlayerInfo => {
     const p = player.position;
@@ -376,6 +455,37 @@ export async function startApp(): Promise<void> {
       place: loc.place.id,
       placeName: loc.place.name,
       grounded: player.grounded,
+    };
+  };
+  const droneInfo = (): DroneInfo => ({
+    x: drone.position.x,
+    y: drone.position.y,
+    z: drone.position.z,
+    yaw: deg(drone.yaw),
+    pitch: deg(drone.pitch),
+    vx: drone.velocity.x,
+    vy: drone.velocity.y,
+    vz: drone.velocity.z,
+  });
+  /** Where the drone is, as a walker standing ~1 m under it (above the roof = garden). */
+  const flyInfo = (): PlayerInfo => {
+    const p = drone.position;
+    const feet = p.y - 1;
+    const loc =
+      p.y > 7.6
+        ? { level: 'ground' as LevelId, room: OUTSIDE, place: { id: OUTSIDE, name: 'Garden' } }
+        : locate(house, p.x, feet, p.z);
+    return {
+      x: p.x,
+      y: feet,
+      z: p.z,
+      yaw: deg(drone.yaw),
+      pitch: deg(drone.pitch),
+      level: loc.level,
+      room: loc.room,
+      place: loc.place.id,
+      placeName: loc.place.name,
+      grounded: false,
     };
   };
 
@@ -427,6 +537,21 @@ export async function startApp(): Promise<void> {
     {
       step: (dt) => {
         if (freeView) return;
+        if (controls === 'fly') {
+          const k = desktop.fly;
+          const t = droneTouch.input;
+          drone.step(
+            {
+              throttle: k.throttle + t.throttle,
+              yaw: k.yaw + t.yaw,
+              pitch: k.pitch + t.pitch,
+              roll: k.roll + t.roll,
+              fast: k.fast,
+            },
+            dt,
+          );
+          return;
+        }
         const d = desktop.move;
         const t = touchInput.state;
         const useTouch = Math.hypot(t.moveX, t.moveZ) > 0.01;
@@ -438,16 +563,27 @@ export async function startApp(): Promise<void> {
         const t0 = performance.now();
         const [mx, my] = desktop.takeLook();
         const [tx, ty] = touchInput.takeLook();
-        player.look(-(mx * LOOK_MOUSE + tx * LOOK_TOUCH), -(my * LOOK_MOUSE + ty * LOOK_TOUCH));
+        const [fx, fy] = droneTouch.takeLook();
+        const flying = controls === 'fly';
+        (flying ? drone : player).look(
+          -(mx * LOOK_MOUSE + (tx + fx) * LOOK_TOUCH),
+          -(my * LOOK_MOUSE + (ty + fy) * LOOK_TOUCH),
+        );
         if (freeView) {
           const [x = 0, y = 0, z = 0, yawD = 0, pitchD = 0] = freeView;
           camera.position.set(x, y, z);
           camera.rotation.set(rad(pitchD), rad(yawD), 0, 'YXZ');
+        } else if (flying) {
+          drone.applyToCamera(camera);
         } else {
           player.applyToCamera(camera);
         }
-        const i = info();
-        adaptRoom = freeView ? freeViewRoom() : lightRoom(house, adaptRoom, i.x, i.y, i.z);
+        const i = flying ? flyInfo() : info();
+        adaptRoom = freeView
+          ? freeViewRoom()
+          : flying && drone.position.y > 7.6
+            ? OUTSIDE
+            : lightRoom(house, adaptRoom, i.x, i.y, i.z);
         realLook.update(frameDt, adaptRoom, getStyle(scene) === 'real');
         renderer.render(scene, camera);
         frameTimes(frameDt);
@@ -486,6 +622,7 @@ export async function startApp(): Promise<void> {
     furnished: false,
     teleport: async (x, y, z, yawD, pitchD) => {
       freeView = null;
+      setControls('walk', false);
       snapLight();
       player.teleport(
         x,
@@ -531,6 +668,7 @@ export async function startApp(): Promise<void> {
     },
     walk: async (dx, dz, seconds, run = false) => {
       freeView = null;
+      setControls('walk', false);
       snapLight();
       const len = Math.hypot(dx, dz) || 1;
       const speed = run ? PLAYER.runSpeed : PLAYER.walkSpeed;
@@ -542,6 +680,7 @@ export async function startApp(): Promise<void> {
     },
     walkTo: async (x, z, opts = {}) => {
       freeView = null;
+      setControls('walk', false);
       snapLight();
       const speed = opts.run ? PLAYER.runSpeed : PLAYER.walkSpeed;
       const maxSteps = Math.round((opts.timeout ?? 30) / PLAYER.fixedDt);
@@ -568,12 +707,28 @@ export async function startApp(): Promise<void> {
       await loop.nextFrame();
     },
     look: async (yawD, pitchD) => {
-      player.yaw = rad(yawD);
-      player.pitch = rad(pitchD);
+      const body = controls === 'fly' ? drone : player;
+      body.yaw = rad(yawD);
+      body.pitch = rad(pitchD);
       await loop.nextFrame();
       return info();
     },
     nextFrame: () => loop.nextFrame(),
+    setControls: async (mode) => {
+      setControls(mode, false);
+      await loop.nextFrame();
+    },
+    getControls: () => controls,
+    getDrone: droneInfo,
+    fly: async (input, seconds) => {
+      freeView = null;
+      setControls('fly', false);
+      const stick = { ...NO_DRONE_INPUT, ...input };
+      const n = Math.round(seconds / PLAYER.fixedDt);
+      for (let k = 0; k < n; k++) drone.step(stick, PLAYER.fixedDt);
+      await loop.nextFrame();
+      return droneInfo();
+    },
     setStyle: async (name) => {
       switchStyle(name);
       styleToggle.set(getStyle(scene));
@@ -614,6 +769,7 @@ export async function startApp(): Promise<void> {
     const { attachFurniture } = await import('./world/furniture');
     const res = attachFurniture(world);
     player.setCollider(world.bvh);
+    drone.setCollider(world.bvh);
     refreshStyledMeshes(scene, res.merged);
     switchStyle(getStyle(scene));
     renderer.shadowMap.needsUpdate = true;

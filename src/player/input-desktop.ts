@@ -1,3 +1,5 @@
+import type { DroneInput } from './drone';
+
 /** Desktop controls: WASD / arrow keys, Shift = run, mouse look via Pointer Lock. */
 export class DesktopInput {
   private readonly keys = new Set<string>();
@@ -39,6 +41,18 @@ export class DesktopInput {
       (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     const len = Math.hypot(x, z) || 1;
     return { x: x / len, z: z / len, run: k.has('ShiftLeft') || k.has('ShiftRight') };
+  }
+
+  /**
+   * Fly controls: W A S D / arrows — forward, back, sideways; E / Space — up; Q / C — down;
+   * Shift — fast. Turning is done with the mouse.
+   */
+  get fly(): DroneInput {
+    const k = this.keys;
+    const m = this.move;
+    const up = k.has('KeyE') || k.has('Space') ? 1 : 0;
+    const down = k.has('KeyQ') || k.has('KeyC') ? 1 : 0;
+    return { throttle: up - down, yaw: 0, pitch: m.z, roll: m.x, fast: m.run };
   }
 
   takeLook(): [number, number] {

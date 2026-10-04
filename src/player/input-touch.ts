@@ -22,6 +22,7 @@ export class TouchInput {
   private readonly base: HTMLDivElement;
   private readonly knob: HTMLDivElement;
   active = false;
+  private on = true;
 
   constructor(
     private readonly surface: HTMLElement,
@@ -39,8 +40,23 @@ export class TouchInput {
     window.addEventListener('pointercancel', this.onUp);
   }
 
+  /** Off while the fly controls are in use (their sticks take the touches). */
+  get enabled(): boolean {
+    return this.on;
+  }
+
+  set enabled(on: boolean) {
+    this.on = on;
+    if (on) return;
+    for (const id of [this.moveId, this.lookId]) {
+      if (id !== null) this.onUp({ pointerId: id } as PointerEvent);
+    }
+    this.state.lookDX = 0;
+    this.state.lookDY = 0;
+  }
+
   private onDown = (e: PointerEvent): void => {
-    if (e.pointerType === 'mouse') return;
+    if (!this.on || e.pointerType === 'mouse') return;
     e.preventDefault();
     this.active = true;
     document.body.classList.add('touch');
