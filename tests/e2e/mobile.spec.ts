@@ -97,6 +97,11 @@ test.describe('touch UI (mobile emulation)', () => {
     }
     expect(left.x + left.width).toBeLessThan(vp.width / 2);
     expect(right.x).toBeGreaterThan(vp.width / 2);
+    // Left = move (as in Walk), right = altitude + turn.
+    await expect(page.locator('.fly-stick.left')).toContainText('Forward · Back');
+    await expect(page.locator('.fly-stick.left')).toContainText('Sideways');
+    await expect(page.locator('.fly-stick.right')).toContainText('Up · Down');
+    await expect(page.locator('.fly-stick.right')).toContainText('Turn');
     await page.screenshot({
       path: `test-results/e2e-shots/mobile-fly-${test.info().project.name}.png`,
     });
@@ -111,7 +116,7 @@ test.describe('touch UI (mobile emulation)', () => {
         touchPoints: points.map((p) => ({ ...p, radiusX: 4, radiusY: 4, force: 1 })),
       });
     const before = await page.evaluate(() => window.__houseSim!.getDrone());
-    // Left stick up (climb) + right stick up (forward), both thumbs at once.
+    // Left stick up (forward, like the walk joystick) + right stick up (climb), both at once.
     const l = { x: left.x + left.width / 2, y: left.y + left.height / 2 };
     const r = { x: right.x + right.width / 2, y: right.y + right.height / 2 };
     await touch('touchStart', [{ ...l, id: 1 }]);

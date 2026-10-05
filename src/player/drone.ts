@@ -1,15 +1,18 @@
 /**
  * Drone (fly controls): a small sphere flying freely through and around the house, in
  * the "velocity mode" of camera drones — the sticks set the target speed, release them
- * and the drone brakes and hovers. Mode 2 sticks: left = throttle (up/down) + yaw,
- * right = pitch (forward/back) + roll (sideways). The camera sits on a stabilised gimbal:
- * it never banks, its tilt is set by the look input. Collides with the same BVH as the
- * walker (walls, glass, roof, terrain); stays within a box around the lot.
+ * and the drone brakes and hovers. Touch sticks: left = move (pitch forward/back, roll
+ * sideways — like the walk joystick), right = altitude (throttle up/down) + turn (yaw).
+ * The camera sits on a stabilised gimbal: it never banks, its tilt is set by the look
+ * input. Collides with the same BVH as the walker (walls, glass, roof, terrain), in
+ * substeps of half its radius (no tunnelling); stays within a box around the lot.
  */
 import * as THREE from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
+import { roofTopY } from '../data/geometry2d';
+import type { Roof } from '../data/schema';
 import { FIELD_Y, TERRAIN } from '../data/terrain';
-import { wrapAngle } from './controller';
+import { wrapAngle, yawToward } from './controller';
 
 export const DRONE = {
   radius: 0.18,
@@ -26,6 +29,40 @@ export const DRONE = {
   range: 70,
   center: [8.5, 6] as const,
 } as const;
+
+/**
+ * Where Fly starts (page loaded in Fly, or the first switch to Fly in a visit): a few
+ * metres up over the rear garden, south-east of the terrace, looking down at an angle
+ * at the east curtain wall (the glass gable under the loggia roof).
+ */
+export const DRONE_START = {
+  position: [25.0, 5.0, 10.4] as const,
+  lookAt: [16.55, 3.2, 4.0] as const,
+};
+
+/** Start pose of the drone: position, yaw and gimbal tilt (rad). */
+export function droneStartPose(): { x: number; y: number; z: number; yaw: number; pitch: number } {
+  const [x, y, z] = DRONE_START.position;
+  const [tx, ty, tz] = DRONE_START.lookAt;
+  return {
+    x,
+    y,
+    z,
+    yaw: yawToward(x, z, tx, tz),
+    pitch: Math.atan2(ty - y, Math.hypot(tx - x, tz - z)),
+  };
+}
+
+/** True when (x, y, z) is above the visible roof sheet, over the roof's plan. */
+export function aboveRoof(roof: Roof, x: number, y: number, z: number): boolean {
+  const segs = roof.segments;
+  const over =
+    x >= segs[0]!.x[0] &&
+    x <= segs[segs.length - 1]!.x[1] &&
+    z >= roof.eaveZ[0] &&
+    z <= roof.eaveZ[1];
+  return over && y > roofTopY(roof, z);
+}
 
 export interface DroneInput {
   /** −1…1: climb (+) / descend (−). */
@@ -91,6 +128,12 @@ export class DroneController {
     _target.set(-s * f + c * r, clamp1(input.throttle) * DRONE.climb * fast, -c * f - s * r);
     const k = Math.min(1, dt * DRONE.response);
     this.velocity.addScaledVector(_target.sub(this.velocity), k);
+    // Substeps of at most half the radius: no tunnelling through thin parts at any speed.
+    const n = Math.max(1, Math.ceil((this.velocity.length() * dt) / (DRONE.radius * 0.5)));
+    for (let i = 0; i < n; i++) this.move(dt / n);
+  }
+
+  private move(dt: number): void {
     this.position.addScaledVector(this.velocity, dt);
     this.bound();
     _push.copy(this.position);

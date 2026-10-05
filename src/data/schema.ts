@@ -379,6 +379,11 @@ export type ExteriorElement =
       /** Standing seams on the top face, running along z, every `spacing` m. */
       seams?: number;
       collide?: boolean;
+      /**
+       * A small roof (canopy, sunshade) or spout overhead: collides, top incl. the seams,
+       * so the drone lands on it. Out of the walker's reach — not a ground obstacle.
+       */
+      overhead?: boolean;
       castShadow?: boolean;
     }
   | {

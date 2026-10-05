@@ -29,6 +29,10 @@ export function buildExteriorElement(
       }
     }
     if (e.collide) collider.box('concrete', e.box.min, e.box.max);
+    else if (e.overhead) {
+      const [x1, y1, z1] = e.box.max;
+      collider.box('concrete', e.box.min, [x1, y1 + (e.seams ? 0.03 : 0), z1]);
+    }
     return;
   }
   if (e.type === 'chain') {

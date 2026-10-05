@@ -179,10 +179,18 @@ export function buildRoof(mesh: MeshBuilder, roof: Roof): void {
 }
 
 /**
- * Collision slabs under every roof segment (both slopes): a closed box whose inner face
- * is the sloped ceiling, from below the knee-wall line to past the ridge (the two slopes
- * overlap there), solid over the roof windows. The capsule's head stops against it, so
- * the camera never gets into the roof build-up on the upper floor.
+ * Collision for the roof, two closed solids per slope that overlap inside the build-up:
+ *
+ * - Inner slabs under every roof segment (both slopes): a closed box whose inner face is
+ *   the sloped ceiling, from below the knee-wall line to past the ridge (the two slopes
+ *   overlap there), solid over the roof windows. The capsule's head stops against it, so
+ *   the camera never gets into the roof build-up on the upper floor.
+ * - An outer shell (the drone lands on it): a 0.30 m chevron whose top faces are the
+ *   standing-seam sheet raised by the seam height, eave face to eave face over the whole
+ *   roof length, plus the bits that stand proud of the sheet (ridge cap, roof-window
+ *   frames, snow guards). The inner slabs alone sit 0.2–0.3 m under the visible sheet
+ *   (the build-up is thicker than them), so a drone settled on them showed the roof's
+ *   inside. The shell stays ≥ 0.2 m above every ceiling, so the walker is unaffected.
  */
 export function buildRoofCollider(collider: MeshBuilder, roof: Roof): void {
   const F = frames(roof);
@@ -205,6 +213,81 @@ export function buildRoofCollider(collider: MeshBuilder, roof: Roof): void {
       ]);
     }
   }
+  buildRoofShellCollider(collider, roof, F, T);
+}
+
+function buildRoofShellCollider(
+  collider: MeshBuilder,
+  roof: Roof,
+  F: Record<Side, SlopeFrame>,
+  T: number,
+): void {
+  const [zN, zS] = roof.eaveZ;
+  const zR = roof.ridgeZ;
+  const e = roof.eaveY;
+  const yR = roofTopY(roof, zR);
+  const cos = Math.cos(rad(roof.pitchDeg));
+  const h = roof.seams.height;
+  const xMin = roof.segments[0]!.x[0];
+  const xMax = roof.segments[roof.segments.length - 1]!.x[1];
+  const top = h / cos;
+  const bot = (h - T) / cos;
+  // Profile (z, y), counter-clockwise seen from +x.
+  const ring: [number, number][] = [
+    [zN, e + top],
+    [zN, e + bot],
+    [zR, yR + bot],
+    [zS, e + bot],
+    [zS, e + top],
+    [zR, yR + top],
+  ];
+  collider.polygon('concrete', ring, [], (z, y) => [xMin, y, z], [-1, 0, 0]);
+  collider.polygon('concrete', ring, [], (z, y) => [xMax, y, z], [1, 0, 0]);
+  for (let i = 0; i < ring.length; i++) {
+    const [za, ya] = ring[i]!;
+    const [zb, yb] = ring[(i + 1) % ring.length]!;
+    // Outward normal of the edge in the (z, y) plane.
+    const facing: V3 = [0, -(zb - za), yb - ya];
+    collider.quad(
+      'concrete',
+      [xMin, ya, za],
+      [xMax, ya, za],
+      [xMax, yb, zb],
+      [xMin, yb, zb],
+      facing,
+    );
+  }
+  // Ridge cap (as built in buildRoof).
+  collider.box(
+    'concrete',
+    [xMin - 0.01, yR - 0.02, zR - 0.08],
+    [xMax + 0.01, yR + 0.04, zR + 0.08],
+  );
+  const slab = (
+    f: SlopeFrame,
+    x: readonly [number, number],
+    z: number,
+    v: number,
+    n: number,
+  ): void => {
+    // Box on the sheet: plan x range, centred on depth z, ±v along the slope, n proud.
+    const base: V3 = [(x[0] + x[1]) / 2, roofTopY(roof, z), z];
+    const lo = -0.05;
+    collider.orientedBox('concrete', add(base, f.n, (lo + n) / 2), [1, 0, 0], f.up, f.n, [
+      (x[1] - x[0]) / 2,
+      v,
+      (n - lo) / 2,
+    ]);
+  };
+  // Roof-window frames (6 cm proud).
+  for (const w of roof.windows) {
+    const f = F[windowSide(roof, w)];
+    slab(f, w.x, (w.z[0] + w.z[1]) / 2, (w.z[1] - w.z[0]) / cos / 2, 0.06);
+  }
+  // Snow guards: tubes up to 8.4 cm proud, brackets ±7 cm along the slope.
+  const g = roof.snowGuards;
+  slab(F.n, g.x, zN + g.inset, 0.07, 0.084);
+  slab(F.s, g.x, zS - g.inset, 0.07, 0.084);
 }
 
 /** Frame + glass on the sheet, reveal lining through the build-up, inner sash. */

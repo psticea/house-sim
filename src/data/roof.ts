@@ -76,6 +76,7 @@ export const exterior: ExteriorElement[] = [
     topMaterial: 'roofMetal',
     bottomMaterial: 'cladWood',
     seams: 0.5,
+    overhead: true,
   },
   {
     // Spout of the canopy's hidden gutter (north edge) to x 12.621 (sheets 06/07).
@@ -83,6 +84,7 @@ export const exterior: ExteriorElement[] = [
     type: 'box',
     box: { min: [11.595, 2.8, -2.205], max: [12.621, 2.86, -2.125] },
     material: 'roofMetal',
+    overhead: true,
   },
   {
     // "lant scurgere pluviale" 1.02⁵ east of the canopy (sheets 07/09).
@@ -128,6 +130,7 @@ export const exterior: ExteriorElement[] = [
     topMaterial: 'roofMetal',
     bottomMaterial: 'cladWood',
     seams: 0.5,
+    overhead: true,
   },
   {
     // Spout of the sunshade's hidden gutter to x 1.223 (sheet 06 z 7.938…8.018).
@@ -135,6 +138,7 @@ export const exterior: ExteriorElement[] = [
     type: 'box',
     box: { min: [1.223, 2.62, 7.938], max: [2.193, 2.68, 8.018] },
     material: 'roofMetal',
+    overhead: true,
   },
   {
     // Rain chain 97 cm west of the sunshade (elevation 10, roof plan).

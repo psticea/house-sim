@@ -107,6 +107,19 @@ export function buildGeometry(
     [c.center[0] - c.radius, 0, c.center[1] - c.radius],
     [c.center[0] + c.radius, 3, c.center[1] + c.radius],
   );
+  // The pipe up through the ceiling and the roof, and its rain cap (the drone reaches
+  // them); circumscribed polygons so the round pipe is never undercut.
+  const k = 1 / Math.cos(Math.PI / 12);
+  collider.cylinder('concrete', c.center[0], c.center[1], (c.radius + 0.03) * k, 3, c.top, 12);
+  collider.cylinder(
+    'concrete',
+    c.center[0],
+    c.center[1],
+    (c.radius + 0.07) * k,
+    c.top,
+    c.top + 0.045,
+    12,
+  );
   for (const e of model.exterior) buildExteriorElement(mesh, collider, e);
   if (opts.site ?? true) buildSite(mesh, collider, model);
   return { mesh, collider };

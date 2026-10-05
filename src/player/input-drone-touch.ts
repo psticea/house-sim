@@ -1,8 +1,8 @@
 /**
  * Fly controls on touch screens: two fixed virtual sticks in the bottom corners, where the
- * thumbs rest when holding a phone (classic drone transmitter, Mode 2):
- *   left stick  — up/down = climb/descend (throttle), left/right = turn (yaw);
- *   right stick — up/down = forward/back (pitch), left/right = sideways (roll).
+ * thumbs rest when holding a phone. The left thumb moves like the walk joystick:
+ *   left stick  — up/down = forward/back (pitch), left/right = sideways (roll);
+ *   right stick — up/down = climb/descend (throttle), left/right = turn (yaw).
  * Both are spring-centred. A touch near a stick grabs it (its value is the offset from the
  * stick's centre); a drag anywhere else tilts / turns the camera gimbal.
  */
@@ -26,9 +26,29 @@ interface Stick {
 }
 
 const LABELS: Record<Side, [string, string]> = {
-  left: ['Up · Down', 'Turn'],
-  right: ['Forward · Back', 'Sideways'],
+  left: ['Forward · Back', 'Sideways'],
+  right: ['Up · Down', 'Turn'],
 };
+
+/** Stick offset: x right, y down, each −1…1 (screen axes). */
+export interface StickPos {
+  x: number;
+  y: number;
+}
+
+/**
+ * Stick positions → drone input (dead zone applied): left = move (forward/back,
+ * sideways), right = altitude (up/down) + turn. Pushing a stick up gives +.
+ */
+export function sticksToInput(left: StickPos, right: StickPos): DroneInput {
+  return {
+    throttle: dead(-right.y),
+    yaw: dead(right.x),
+    pitch: dead(-left.y),
+    roll: dead(left.x),
+    fast: false,
+  };
+}
 
 export class DroneTouchInput {
   private readonly root: HTMLDivElement;
@@ -77,15 +97,7 @@ export class DroneTouchInput {
 
   /** Current stick values (dead zone applied). */
   get input(): DroneInput {
-    const l = this.sticks.left;
-    const r = this.sticks.right;
-    return {
-      throttle: -dead(l.y),
-      yaw: dead(l.x),
-      pitch: -dead(r.y),
-      roll: dead(r.x),
-      fast: false,
-    };
+    return sticksToInput(this.sticks.left, this.sticks.right);
   }
 
   /** Returns and clears the accumulated gimbal drag (px). */

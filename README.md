@@ -66,14 +66,17 @@ choice is remembered, and `?controls=walk|fly` overrides it for one load.
 | Right thumb: drag to look                             | Mouse — look (click to lock the pointer) |
 |                                                       | Shift — run · Esc — release the mouse    |
 
-**Fly** (drone camera, from the walker's eye; release the sticks and it hovers; it bumps
-into walls, roof and ground and slides along them):
+**Fly** (drone camera; release the sticks and it hovers; it bumps into walls, roof and
+ground and slides along them, and lands on the roof instead of sinking into it). The
+first switch to Fly in a visit — or a page opened in Fly — starts a few metres up over
+the rear garden, looking at the glass gable from the south-east; later switches take off
+from where the walker stands.
 
-| Phone / tablet (two fixed sticks, Mode 2)                          | Desktop                                        |
-| ------------------------------------------------------------------ | ---------------------------------------------- |
-| Left stick (bottom left): up/down = climb/descend, ← → = turn      | W A S D / arrow keys — forward, back, sideways |
-| Right stick (bottom right): up/down = forward/back, ← → = sideways | E / Space — up · Q / C — down · Shift — fast   |
-| Drag elsewhere: tilt / turn the camera                             | Mouse — look                                   |
+| Phone / tablet (two fixed sticks: left = move, right = altitude + turn) | Desktop                                        |
+| ----------------------------------------------------------------------- | ---------------------------------------------- |
+| Left stick (bottom left): up/down = forward/back, ← → = sideways        | W A S D / arrow keys — forward, back, sideways |
+| Right stick (bottom right): up/down = climb/descend, ← → = turn         | E / Space — up · Q / C — down · Shift — fast   |
+| Drag elsewhere: tilt / turn the camera                                  | Mouse — look                                   |
 
 ## Styles
 

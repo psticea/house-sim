@@ -4,7 +4,7 @@ const HELP: Record<'touch' | 'desktop', Record<ControlsMode, string>> = {
   touch: {
     walk: '<b>Left thumb</b> — move (push to the edge to run)<br><b>Right thumb</b> — look around',
     fly:
-      '<b>Left stick</b> — up / down, turn<br><b>Right stick</b> — forward / back, sideways<br>' +
+      '<b>Left stick</b> — forward / back, sideways<br><b>Right stick</b> — up / down, turn<br>' +
       '<b>Drag</b> elsewhere — tilt the camera',
   },
   desktop: {

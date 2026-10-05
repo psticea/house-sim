@@ -38,7 +38,13 @@ import {
 import { DesktopInput } from './player/input-desktop';
 import { TouchInput } from './player/input-touch';
 import { DroneTouchInput } from './player/input-drone-touch';
-import { DroneController, NO_DRONE_INPUT, type DroneInput } from './player/drone';
+import {
+  aboveRoof,
+  DroneController,
+  droneStartPose,
+  NO_DRONE_INPUT,
+  type DroneInput,
+} from './player/drone';
 import { PLAYER, PlayerController, yawToward } from './player/controller';
 import { buildWorld } from './world/build';
 import { createLighting } from './world/lighting';
@@ -139,7 +145,11 @@ export interface HouseSimHooks {
   view(pose: [number, number, number, number, number] | null): Promise<void>;
   look(yawDeg: number, pitchDeg: number): Promise<PlayerInfo>;
   nextFrame(): Promise<void>;
-  /** Walk or fly controls (the drop-down; `fly` starts the drone at the walker's eye). */
+  /**
+   * Walk or fly controls (the drop-down). The first `fly` of a visit starts the drone at
+   * its start pose (`DRONE_START`; at the walker's eye with `?pose=`), later ones at the
+   * walker's eye.
+   */
   setControls(mode: ControlsMode): Promise<void>;
   getControls(): ControlsMode;
   getDrone(): DroneInfo;
@@ -370,11 +380,20 @@ export async function startApp(): Promise<void> {
     }
   });
   // Controls drop-down (pill, top left) + F: walk or fly; the choice is remembered.
+  // Fly starts at the drone's own start pose (aerial view of the glass wall) the first
+  // time in a visit — or from `?pose=` — and later takes off from the walker's eye.
+  let flown = params.pose !== null;
   const setControls = (mode: ControlsMode, announce: boolean): void => {
     if (mode === 'fly' && controls !== 'fly') {
-      // Take off from the walker's eye, looking the same way.
-      const eye = player.eye(new THREE.Vector3());
-      drone.teleport(eye.x, eye.y, eye.z, player.yaw, player.pitch);
+      if (flown) {
+        // Take off from the walker's eye, looking the same way.
+        const eye = player.eye(new THREE.Vector3());
+        drone.teleport(eye.x, eye.y, eye.z, player.yaw, player.pitch);
+      } else {
+        const s = droneStartPose();
+        drone.teleport(s.x, s.y, s.z, s.yaw, s.pitch);
+      }
+      flown = true;
     }
     controls = mode;
     const fly = mode === 'fly';
@@ -467,14 +486,17 @@ export async function startApp(): Promise<void> {
     vy: drone.velocity.y,
     vz: drone.velocity.z,
   });
-  /** Where the drone is, as a walker standing ~1 m under it (above the roof = garden). */
+  /** Where the drone is, as a walker standing ~1 m under it (on / above the roof = garden). */
+  const droneOutside = (): boolean => {
+    const p = drone.position;
+    return p.y > 7.6 || aboveRoof(house.roof, p.x, p.y, p.z);
+  };
   const flyInfo = (): PlayerInfo => {
     const p = drone.position;
     const feet = p.y - 1;
-    const loc =
-      p.y > 7.6
-        ? { level: 'ground' as LevelId, room: OUTSIDE, place: { id: OUTSIDE, name: 'Garden' } }
-        : locate(house, p.x, feet, p.z);
+    const loc = droneOutside()
+      ? { level: 'ground' as LevelId, room: OUTSIDE, place: { id: OUTSIDE, name: 'Garden' } }
+      : locate(house, p.x, feet, p.z);
     return {
       x: p.x,
       y: feet,
@@ -581,7 +603,7 @@ export async function startApp(): Promise<void> {
         const i = flying ? flyInfo() : info();
         adaptRoom = freeView
           ? freeViewRoom()
-          : flying && drone.position.y > 7.6
+          : flying && droneOutside()
             ? OUTSIDE
             : lightRoom(house, adaptRoom, i.x, i.y, i.z);
         realLook.update(frameDt, adaptRoom, getStyle(scene) === 'real');
